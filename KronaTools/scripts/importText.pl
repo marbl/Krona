@@ -1,3 +1,10 @@
+# Copyright © 2011, Battelle National Biodefense Institute (BNBI);
+# all rights reserved. Authored by: Brian Ondov, Nicholas Bergman, and
+# Adam Phillippy
+#
+# See the LICENSE.txt file included with this software for license information.
+
+
 #! /usr/bin/perl
 
 use strict;
