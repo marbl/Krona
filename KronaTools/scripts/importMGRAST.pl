@@ -82,7 +82,26 @@ foreach my $fileName ( @ARGV )
 	close INFILE;
 }
 
-writeTree(\%all, $name, $outFile, $local);
+my @attributeNames =
+(
+	'magnitude'
+);
+
+my @attributeDisplayNames =
+(
+	'Total'
+);
+
+writeTree
+(
+	\%all,
+	$name,
+	$outFile,
+	$local,
+	'magnitude',
+	\@attributeNames,
+	\@attributeDisplayNames
+);
 
 
 sub add

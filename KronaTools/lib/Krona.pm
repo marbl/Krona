@@ -41,8 +41,8 @@ abs_path($0) =~ /(.*)\//;
 my $scriptPath = $1;
 my $taxonomyDir = "$scriptPath/../taxonomy";
 
-my $javascript = "http://krona.sourceforge.net/krona.$version.js";
-my $javascriptLocal = "$scriptPath/../src/krona.$version.js";
+my $javascript = "http://krona.sourceforge.net/krona-$version.js";
+my $javascriptLocal = "$scriptPath/../src/krona-$version.js";
 my $image = "http://krona.sourceforge.net/img/hidden.png";
 my $imageLocal = "$scriptPath/../img/hidden.png";
 
@@ -154,6 +154,46 @@ sub header
 	my
 	(
 		$local,
+	) = @_;
+	
+	return '
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<meta charset="utf-8"/>
+		<style>
+			body
+			{
+				margin:0;
+			}
+		</style>
+	</head>
+	
+	<body style="padding:0;position:relative">
+		<div id="options" style="position:absolute;left:0;top:0">
+		</div>
+		
+		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
+		</div>
+		
+		<canvas id="canvas" width="100%" height="100%">
+			This browser does not support HTML5 (see
+			<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">
+				Krona browser support</a>).
+		</canvas>
+		
+		<img id="hiddenImage" src="' . ($local ? $imageLocal : $image) . '" visibility="hide"/>
+		<script name="tree" src="' . ($local ? $javascriptLocal : $javascript) . '"></script>
+	</body>
+	
+	<data>
+';
+}
+
+sub dataHeader
+{
+	my
+	(
 		$magName,
 		$attributes,
 		$attributeDisplayNames,
@@ -181,38 +221,9 @@ sub header
 	}
 	
 	return '
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-	<head>
-		<meta charset="utf-8"/>
-		<style>
-			body
-			{
-				margin:0;
-			}
-		</style>
-	</head>
-	
-	<body style="padding:0;position:relative">
-		<div id="options" style="position:absolute;left:0;top:0">
-		</div>
-		
-		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
-		</div>
-		
-		<canvas id="canvas" width="100%" height="100%">
-			This browser does not support HTML5.
-		</canvas>
-		
-		<img id="hiddenImage" src="' . ($local ? $imageLocal : $image) . '" visibility="hide"/>
-		<script name="tree" src="' . ($local ? $javascriptLocal : $javascript) . '"></script>
-	</body>
-	
-	<data>
 	<magnitude attribute="'. $magName . '"></magnitude>
 	<attributes' . $attributeString . '></attributes>
-	' . $colorString . '
-';
+	' . "$colorString\n";
 }
 
 sub loadTaxonomy
@@ -352,9 +363,9 @@ sub writeTree
 	) = @_;
 	
 	open OUT, ">$file";
-	print OUT header
+	print OUT header($local);
+	print OUT dataHeader
 	(
-		$local,
 		$magName,
 		$attributes,
 		$attributeDisplayNames,

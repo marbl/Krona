@@ -258,7 +258,7 @@ writeTree
 	\@attributeDisplayNames,
 	$hueName,
 	0,
-	.3333,
+	120,
 	$minConf,
 	$maxConf
 );
