@@ -15,7 +15,8 @@ cd $taxonomyPath;
 function update
 {
 	unzipped=$1
-	description=$2
+	timestamp=$2
+	description=$3
 	
 	zipped=${unzipped}.gz
 	
@@ -23,7 +24,7 @@ function update
 	echo ">>>>> Updating $description..."
 	echo
 	
-	curl -R -z $unzipped -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
+	curl -R -z $timestamp -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
 	
 #	chmod 644 $zipped # allow wget to overwrite later
 	
@@ -38,11 +39,15 @@ function update
 	echo
 }
 
-update gi_taxid_nucl.dmp "GI to taxID dump (nucleotide)"
-update gi_taxid_prot.dmp "GI to taxID dump (protein)"
-update taxdump.tar 'Taxonomy dump'
-tar -xf taxdump.tar
-rm taxdump.tar
+update gi_taxid_nucl.dmp gi_taxid_nucl.dmp "GI to taxID dump (nucleotide)"
+update gi_taxid_prot.dmp gi_taxid_prot.dmp "GI to taxID dump (protein)"
+update taxdump.tar taxonomy.tab 'Taxonomy dump'
+
+if [ -e taxdump.tar ]
+then
+	tar -xf taxdump.tar
+	rm taxdump.tar
+fi
 
 cd $oldPath
 
