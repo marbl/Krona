@@ -73,6 +73,9 @@ Options:
 
 my ($input) = @ARGV;
 
+my $minScore = 100;
+my $maxScore = 0;
+
 my $tree = newTree();
 
 # taxonomy must be loaded for LCA
@@ -131,6 +134,18 @@ while ( my $line = <IN> )
 			print "$readID\ttaxID: $taxID\n";
 		}
 		
+		my $score = $values[11];
+		
+		if ( $score < $minScore )
+		{
+			$minScore = $score;
+		}
+		
+		if ( $score > $maxScore )
+		{
+			$maxScore = $score;
+		}
+		
 		add($tree, $taxID, $readLength, $values[11]);
 	}
 	
@@ -165,7 +180,7 @@ writeTree
 	'score',
 	0,
 	120,
-	30,
-	100
+	$minScore,
+	$maxScore
 );
 
