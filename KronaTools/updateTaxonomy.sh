@@ -1,11 +1,11 @@
+#! /bin/bash
+
 # Copyright © 2011, Battelle National Biodefense Institute (BNBI);
 # all rights reserved. Authored by: Brian Ondov, Nicholas Bergman, and
 # Adam Phillippy
 #
 # See the LICENSE.txt file included with this software for license information.
 
-
-#! /bin/bash
 
 oldPath=$(pwd)
 
@@ -22,22 +22,19 @@ function update
 	echo
 	echo ">>>>> Updating $description..."
 	echo
-	echo "      >>>>> Getting zipped file..."
-	echo
 	
-	wget -N ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
+	curl -R -z $unzipped -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
 	
-	chmod 644 $zipped # allow wget to overwrite later
+#	chmod 644 $zipped # allow wget to overwrite later
 	
-	if [ $zipped -nt $unzipped ]
+	if [ -e $zipped ]
 	then
-		echo "   Unzipping $description..."
-		gunzip -c $zipped > $unzipped
-		
+		echo "     >>>>> Unzipping $description..."
+		gunzip -f $zipped
 	fi
 	
 	echo
-	echo "      >>>>> $description is up to date."
+	echo "     >>>>> $description is up to date."
 	echo
 }
 
@@ -45,6 +42,7 @@ update gi_taxid_nucl.dmp "GI to taxID dump (nucleotide)"
 update gi_taxid_prot.dmp "GI to taxID dump (protein)"
 update taxdump.tar 'Taxonomy dump'
 tar -xf taxdump.tar
+rm taxdump.tar
 
 cd $oldPath
 
