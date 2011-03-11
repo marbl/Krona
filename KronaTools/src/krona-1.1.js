@@ -163,7 +163,9 @@ var maxKeySizeFactor = 2; // will be multiplied by font size
 var keySize;
 var keys;
 var keyBuffer = 10;
-var keyOffset;
+var currentKey;
+var keyMinTextLeft;
+var keyMaxAngle;
 
 var minRingWidthFactor = 5; // will be multiplied by font size
 var maxPossibleDepth; // the theoretical max that can be displayed
@@ -624,12 +626,14 @@ function Node()
 	
 	this.checkHighlightKey = function()
 	{
+		var offset = keyOffset();
+		
 		var xMin = imageWidth - keySize - margin - this.keyNameWidth - keyBuffer;
 		var xMax = imageWidth - margin;
-		var yMin = keyOffset;
-		var yMax = keyOffset + keySize;
+		var yMin = offset;
+		var yMax = offset + keySize;
 		
-		keyOffset += keySize + keyBuffer;
+		currentKey++;
 		
 		return (
 			mouseX > xMin &&
@@ -1302,6 +1306,7 @@ function Node()
 	
 	this.drawKey = function(angle, drawPattern, highlight)
 	{
+		var offset = keyOffset();
 		var percentage = this.getPercentage();
 		
 		var color;
@@ -1316,7 +1321,7 @@ function Node()
 		}
 		
 		var boxLeft = imageWidth - keySize - margin;
-		var textY = keyOffset + keySize / 2;
+		var textY = offset + keySize / 2;
 		
 		var label = this.name + '   ' + percentage + '%';
 		var labelLength;
@@ -1343,45 +1348,175 @@ function Node()
 		var dim = context.measureText(label);
 		this.keyNameWidth = dim.width;
 		var textLeft = boxLeft - keyBuffer - dim.width - fontSize / 2;
+		var labelLeft = textLeft;
+		
+		if ( labelLeft > keyMinTextLeft - fontSize / 2 )
+		{
+			keyMinTextLeft -= fontSize / 2;
+			
+			if ( keyMinTextLeft < centerX - gRadius + fontSize / 2 )
+			{
+				keyMinTextLeft = centerX - gRadius + fontSize / 2;
+			}
+			
+			labelLeft = keyMinTextLeft;
+		}
 		
 		var lineX = new Array();
 		var lineY = new Array();
 		
-		if ( angle > Math.PI * 2 )
+		var bendRadius;
+		var keyAngle = Math.atan((textY - centerY) / (labelLeft - centerX));
+		var arcAngle;
+		
+		if ( keyAngle < 0 )
 		{
-			var bendRadius = 
-				(angle < Math.PI * 2 && angle > Math.PI) ?
-				imageHeight / 2 - (keyOffset - imageHeight / 2) * (imageHeight / 2 - gRadius) / imageHeight * 2 :
-				imageHeight / 2 - (imageHeight - keyOffset) * (imageHeight / 2 - gRadius) / imageHeight * 2;
+			keyAngle += Math.PI;
+		}
+		
+		if ( angle > Math.PI || keyMaxAngle > Math.PI )
+		{
+			// allow lines to come underneath the chart
 			
-			lineX.push(centerX + Math.cos(angle) * gRadius);
-			lineY.push(centerY + Math.sin(angle) * gRadius);
+			angle -= Math.PI * 2;
+		}
+		
+		lineX.push(centerX + Math.cos(angle) * gRadius);
+		lineY.push(centerY + Math.sin(angle) * gRadius);
+		
+		if ( angle < keyAngle )
+		{
+			bendRadius = gRadius + buffer - buffer * currentKey / (keys + 1) / 2;
 			
-			var bendX1 = centerX + Math.cos(angle) * bendRadius;
-			var bendX2 = centerX + ((angle < Math.PI * 2 && angle > Math.PI) ? gRadius * 1.1 : imageWidth / 5);
-			var bendX3 = centerX + imageWidth / 3;//gRadius * 1.1;
-			
-			if ( textLeft > bendX1 && lineX[0] < bendX2 )
+			if ( centerY + bendRadius * Math.sin(angle) > textY )
 			{
-				lineX.push(bendX1);
-				lineY.push(centerY + Math.sin(angle) * bendRadius);
-				//lineY.push(centerY + gRadius * 1.1);
-			}
-			
-			if ( textLeft > bendX2 && lineX[lineX.length - 1] < bendX2 )
-			{
-				lineX.push(bendX2);
-				lineY.push(lineY[1]);
-			}
-			
-			if ( textLeft > bendX3 && lineX[lineX.length - 1] < bendX3 )
-			{
-				lineX.push(bendX3);
+				lineX.push((textY - centerY) / Math.tan(angle) + centerX);
 				lineY.push(textY);
 			}
+			else
+			{
+				var outside =
+					Math.sqrt
+					(
+						Math.pow(labelLeft - centerX, 2) +
+						Math.pow(textY - centerY, 2)
+					) > bendRadius;
+				
+				if ( outside )
+				{
+					if ( labelLeft < keyMinTextLeft - fontSize / 2 )
+					{
+						keyMinTextLeft = labelLeft - fontSize / 2;
+					}
+					else
+					{
+						keyMinTextLeft -= fontSize / 2;
+					}
+				}
+				
+				if ( angle < 0 || labelLeft < centerX + bendRadius * Math.cos(angle) )
+				{
+					if ( labelLeft > centerX + bendRadius )
+					{
+						arcAngle = 0;
+						
+						lineX.push(centerX + bendRadius);
+						lineY.push(textY);
+					}
+					else
+					{
+						if ( outside )
+						{
+							arcAngle = Math.acos((labelLeft - centerX) / bendRadius);
+							
+							lineX.push(labelLeft);
+							lineY.push(centerY + Math.sin(keyAngle) * bendRadius);
+						}
+						else
+						{
+							arcAngle = Math.asin((textY - centerY) / bendRadius);
+						}
+					}
+				}
+				else
+				{
+						arcAngle = angle;
+						
+						lineX.push(centerX + Math.cos(angle) * bendRadius);
+						lineY.push(centerY + Math.sin(angle) * bendRadius);
+				}
+			}
+		}
+		else
+		{
 			
-			lineX.push(textLeft);
+			bendRadius = gRadius + buffer * currentKey / (keys + 1) / 2 + buffer / 2;
+			
+			if ( angle < Math.PI / 2 && textY < centerY + bendRadius * Math.sin(angle) 
+			|| angle > Math.PI / 2 && textY < centerY + bendRadius)
+			{
+				arcAngle = Math.asin((textY - centerY) / bendRadius);
+			}
+			else
+			{
+				// find the angle of the normal to a tangent line that goes to
+				// the label
+				
+				var textDist = Math.sqrt
+				(
+					Math.pow(labelLeft - centerX, 2) +
+					Math.pow(textY - centerY, 2)
+				);
+				var tanAngle = Math.acos(bendRadius / textDist) + keyAngle;
+				
+				if ( angle < tanAngle || angle < Math.PI / 2 )//|| labelLeft < centerX )
+				{
+					// angle doesn't reach far enough for tangent; collapse and
+					// connect directly to label
+					
+					if ( (textY - centerY) / Math.tan(angle) + centerX > 0 )
+					{
+						lineX.push((textY - centerY) / Math.tan(angle) + centerX);
+						lineY.push(textY);
+					}
+					else
+					{
+						lineX.push(centerX + bendRadius * Math.cos(angle));
+						lineY.push(centerY + bendRadius * Math.sin(angle));
+					}
+					
+					arcAngle = angle;
+				}
+				else
+				{
+					arcAngle = tanAngle;
+					
+					if ( labelLeft < keyMinTextLeft - fontSize / 2 )
+					{
+						keyMinTextLeft = labelLeft - fontSize / 2;
+					}
+					else
+					{
+						keyMinTextLeft -= fontSize / 2;
+					}
+				}
+				
+//				lineX.push((textY - centerY) / Math.tan(angle) + centerX);
+//				lineY.push(textY);
+			}
+		}
+		
+		if ( arcAngle == angle || labelLeft > centerX + bendRadius * Math.cos(arcAngle) ||
+		textY > centerY + bendRadius * Math.sin(arcAngle))
+		{
+			lineX.push(labelLeft);
 			lineY.push(textY);
+			
+			if ( textLeft != labelLeft )
+			{
+				lineX.push(textLeft);
+				lineY.push(textY);
+			}
 		}
 		
 		context.globalAlpha = 1;
@@ -1392,14 +1527,14 @@ function Node()
 			
 			svg +=
 				'<rect fill="' + color + '" ' +
-				'x="' + boxLeft + '" y="' + keyOffset +
+				'x="' + boxLeft + '" y="' + offset +
 				'" width="' + keySize + '" height="' + keySize + '"/>';
 			
 			if ( drawPattern )
 			{
 				svg +=
 					'<rect fill="url(#hiddenPattern)" style="stroke:none" ' +
-					'x="' + boxLeft + '" y="' + keyOffset +
+					'x="' + boxLeft + '" y="' + offset +
 					'" width="' + keySize + '" height="' + keySize + '"/>';
 			}
 			
@@ -1453,26 +1588,26 @@ function Node()
 			context.strokeStyle = 'black';
 				context.globalAlpha = this.alphaLine.current();
 			
-			context.fillRect(boxLeft, keyOffset, keySize, keySize);
+			context.fillRect(boxLeft, offset, keySize, keySize);
 			
 			if ( drawPattern )
 			{
 				context.fillStyle = hiddenPattern;
-				context.fillRect(boxLeft, keyOffset, keySize, keySize);
-				context.fillRect(boxLeft, keyOffset, keySize, keySize);
+				context.fillRect(boxLeft, offset, keySize, keySize);
+				context.fillRect(boxLeft, offset, keySize, keySize);
 			}
 			
 			if ( this == highlightedNode || this == focusNode )
 			{
 				this.setHighlightStyle();
-				context.fillRect(boxLeft, keyOffset, keySize, keySize);
+				context.fillRect(boxLeft, offset, keySize, keySize);
 			}
 			else
 			{
 				context.lineWidth = thinLineWidth;
 			}
 			
-			context.strokeRect(boxLeft, keyOffset, keySize, keySize);
+			context.strokeRect(boxLeft, offset, keySize, keySize);
 			
 			if ( highlight )
 			{
@@ -1500,13 +1635,18 @@ function Node()
 			}
 			
 			context.textAlign = 'end';
+//			context.lineWidth *= .75;
 			context.fillStyle = 'black';
-			context.fillText(label, boxLeft - keyBuffer, keyOffset + keySize / 2);
+			context.fillText(label, boxLeft - keyBuffer, offset + keySize / 2);
+			
 			
 			if ( lineX.length )
 			{
 				context.beginPath();
+				//alert(this.name + ' ' + keyAngle);
 				context.moveTo(lineX[0], lineY[0]);
+				
+				context.arc(centerX, centerY, bendRadius, angle, arcAngle, angle > keyAngle);
 				
 				for ( var i = 1; i < lineX.length; i++ )
 				{
@@ -1520,7 +1660,7 @@ function Node()
 			context.translate(centerX, centerY);
 		}
 		
-		keyOffset += keySize + keyBuffer;
+		currentKey++;
 	}
 	
 	this.drawLabel = function(angle, highlight, selected)
@@ -2665,6 +2805,7 @@ function Node()
 			if ( ! canDisplayLabel && ! collapse && depth == 2 && this.canDisplayDepth() )
 			{
 				keys++;
+				keyMaxAngle = (this.angleStart.end + this.angleEnd.end) / 2;
 			}
 			
 			if ( canDisplayLabel || collapse )
@@ -3570,6 +3711,11 @@ function hueToRgb(m1, m2, hue)
 	return 255 * v;
 }
 
+function keyOffset()
+{
+	return imageHeight - (keys - currentKey + 1) * (keySize + keyBuffer) + keyBuffer - margin;
+}
+
 function lerp(value, fromStart, fromEnd, toStart, toEnd)
 {
 	return (value - fromStart) *
@@ -3614,8 +3760,8 @@ function load()
 			
 			case 'color':
 				hueName = element.getAttribute('attribute');
-				hueStart = Number(element.getAttribute('hueStart'));
-				hueEnd = Number(element.getAttribute('hueEnd'));
+				hueStart = Number(element.getAttribute('hueStart')) / 360;
+				hueEnd = Number(element.getAttribute('hueEnd')) / 360;
 				valueStart = Number(element.getAttribute('valueStart'));
 				valueEnd = Number(element.getAttribute('valueEnd'));
 				
@@ -3645,7 +3791,7 @@ function load()
 		
 		//useHue.checked = true;
 		useHueDiv.innerHTML =
-			'<br/>&nbsp;<input type="checkbox" id="useHue" />Color by ' + hueDisplayName;
+			'<br/><div style="float:left">&nbsp;</div><input type="checkbox" id="useHue"  style="float:left"/><div style="float:left">Color by<br/>' + hueDisplayName + '</div><br/><br/>';
 		useHueCheckBox = document.getElementById('useHue');
 		useHueCheckBox.onclick = draw;
 	}
@@ -3896,7 +4042,8 @@ function onSearchChange()
 
 function resetKeyOffset()
 {
-	keyOffset = imageHeight - keys * (keySize + keyBuffer) + keyBuffer - margin;
+	currentKey = 1;
+	keyMinTextLeft = imageWidth;
 }
 
 function rgbText(r, g, b)
