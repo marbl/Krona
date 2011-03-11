@@ -26,7 +26,6 @@ use Krona;
 my $outFile = 'metarep.krona.html';
 my $name = 'root';
 my $random;
-my $useHue;
 my $local;
 my $verbose;
 
@@ -34,7 +33,6 @@ GetOptions(
 	'o=s' => \$outFile,
 	'n=s' => \$name,
 	'r'   => \$random,
-	'h'   => \$useHue,
 	'l'   => \$local,
 	'v'   => \$verbose
 	);
@@ -63,12 +61,6 @@ Options:
 
    [-r]           Break ties for the top hit randomly.  Default is to use the
                   lowest common ancestor of all ties for the top hit.
-
-   [-h]           Set the hue of each taxon based on the average confidence of
-                  its predictions.  The range in hue from red to green
-                  represents PhymmBL confidence scores from 0 to 1.  Since
-                  species level predictions are not given confidence scores,
-                  they will inheret their genus level confidence.
 
    [-l]           Create a local chart, which does not require an internet
                   connection to view (but will only work on this computer).
@@ -161,13 +153,6 @@ my @attributeDisplayNames =
 	'Avg. % Similarity'
 );
 
-my $hueName;
-
-if ( $useHue )
-{
-	$hueName = 'score';
-}
-
 writeTree
 (
 	$tree,
@@ -177,7 +162,7 @@ writeTree
 	'magnitude',
 	\@attributeNames,
 	\@attributeDisplayNames,
-	$hueName,
+	'score',
 	0,
 	120,
 	30,
