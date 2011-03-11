@@ -26,7 +26,6 @@ use Krona;
 my $outFile;
 my $name = 'all';
 my $minConfidence = 0;
-my $colorConf;
 my $magFile;
 my $unclassified;
 my $phymm;
@@ -38,7 +37,6 @@ GetOptions(
 	'm=s' => \$magFile,
 	'i'   => \$unclassified,
 	'c=f' => \$minConfidence,
-	'h'   => \$colorConf,
 	'p'   => \$phymm,
 	'l'   => \$local
 	);
@@ -70,12 +68,6 @@ Options:
    [-c <number>]  Minimum confidence (0-1).  Each query sequence will only be
                   added to taxa that were predicted with a confidence score of
                   at least this value.
-
-   [-h]           Set the hue of each taxon based on the average confidence of
-                  its predictions.  The range in hue from red to green
-                  represents PhymmBL confidence scores from 0 to 1.  Since
-                  species level predictions are not given confidence scores,
-                  they will inheret their genus level confidence.
 
    [-p]           Input is phymm only (no confidence scores)
 
@@ -122,6 +114,9 @@ if ( defined $magFile )
 	
 	close MAG;
 }
+
+my $minConf = 1;
+my $maxConf = 0;
 
 foreach my $fileName ( @ARGV )
 {
@@ -233,15 +228,21 @@ foreach my $fileName ( @ARGV )
 
 # tree output
 
-my %attributeNames =
+my @attributeNames =
 (
-	'rank' => 'Rank',
-	'confidence' => 'Avg. conf.'
+	'rank',
+	'confidence'
+);
+
+my @attributeDisplayNames =
+(
+	'Rank',
+	'Avg. conf.'
 );
 
 my $hueName;
 
-if ( $colorConf )
+if ( ! $phymm )
 {
 	$hueName = 'confidence';
 }
@@ -253,12 +254,13 @@ writeTree
 	$outFile,
 	$local,
 	'magnitude',
-	\%attributeNames,
+	\@attributeNames,
+	\@attributeDisplayNames,
 	$hueName,
 	0,
 	.3333,
-	0,
-	1
+	$minConf,
+	$maxConf
 );
 
 # subroutines
@@ -275,6 +277,16 @@ sub addPhymm
 	
 	if ( defined $node && $confidence >= $minConfidence )
 	{
+		if ( $confidence < $minConf )
+		{
+			$minConf = $confidence;
+		}
+		
+		if ( $confidence > $maxConf )
+		{
+			$maxConf = $confidence;
+		}
+		
 		if ( ! defined ${$node}{'children'}{$child} )
 		{
 			${$node}{'children'}{$child} = ();
