@@ -165,7 +165,7 @@ var keys;
 var keyBuffer = 10;
 var currentKey;
 var keyMinTextLeft;
-var keyMaxAngle;
+var keyMinAngle;
 
 var minRingWidthFactor = 5; // will be multiplied by font size
 var maxPossibleDepth; // the theoretical max that can be displayed
@@ -242,10 +242,9 @@ var attributeDisplayNames = new Array();
 // For defining gradients
 //
 var hueDisplayName;
-var hueStart;
-var hueEnd;
-var valueStartText;
-var valueEndText;
+var hueStopPositions;
+var hueStopHues;
+var hueStopText;
 
 document.body.style.overflow = "hidden";
 window.onload = load;
@@ -294,86 +293,6 @@ function resize()
 function handleResize()
 {
 	updateViewNeeded = true;
-}
-
-function update()
-{
-	if ( ! head )
-	{
-		return;
-	}
-	
-	if ( mouseDown && focusNode != selectedNode )
-	{
-		var date = new Date();
-		
-		if ( date.getTime() - mouseDownTime > quickLookHoldLength )
-		{
-			if ( focusNode.hasChildren() )
-			{
-				expand(focusNode);
-				quickLook = true;
-			}
-		}
-	}
-	
-	if ( updateViewNeeded )
-	{
-		resize();
-		mouseX = -1;
-		mouseY = -1;
-		
-		collapse = collapseCheckBox.checked;
-		shorten = shortenCheckBox.checked;
-		checkSelectedCollapse();
-		updateMaxAbsoluteDepth();
-		
-		if ( focusNode.getCollapse() || focusNode.depth > maxAbsoluteDepth )
-		{
-			setFocus(selectedNode);
-		}
-		
-		updateView();
-		
-		updateViewNeeded = false;
-	}
-	
-	var date = new Date();
-	progress = (date.getTime() - tweenStartTime) / tweenLength;
-//	progress += .01;
-	
-	if ( progress >= 1 )
-	{
-		progress = 1;
-	}
-	
-	if ( progress != progressLast )
-	{
-		tweenFactor =
-			(1 / (1 + Math.exp(-tweenCurvature * (progress - .5))) - .5) /
-			(tweenMax - .5) / 2 + .5;
-		
-		if ( progress == 1 )
-		{
-			snapshotButton.disabled = false;
-			zoomOut = false;
-			
-			if ( ! quickLook )
-			{
-				checkHighlight();
-			}
-			
-			
-			if ( fpsDisplay )
-			{
-				fpsDisplay.innerHTML = 'fps: ' + Math.round(tweenFrames * 1000 / tweenLength);
-			}
-		}
-		
-		draw();
-	}
-	
-	progressLast = progress;
 }
 
 function Tween(start, end)
@@ -1374,148 +1293,95 @@ function Node()
 			keyAngle += Math.PI;
 		}
 		
-		if ( angle > Math.PI || keyMaxAngle > Math.PI )
+		if ( keyMinAngle == 0 || angle < keyMinAngle )
+		{
+			keyMinAngle = angle;
+		}
+		
+		if ( angle > Math.PI && keyMinAngle > Math.PI )
 		{
 			// allow lines to come underneath the chart
 			
 			angle -= Math.PI * 2;
 		}
 		
-		lineX.push(centerX + Math.cos(angle) * gRadius);
-		lineY.push(centerY + Math.sin(angle) * gRadius);
+		lineX.push(Math.cos(angle) * gRadius);
+		lineY.push(Math.sin(angle) * gRadius);
 		
-		if ( angle < keyAngle )
+		if ( angle < keyAngle && textY > centerY + Math.sin(angle) * (gRadius + buffer * (currentKey - 1) / (keys + 1) / 2 + buffer / 2) )
 		{
 			bendRadius = gRadius + buffer - buffer * currentKey / (keys + 1) / 2;
+		}
+		else
+		{
+			bendRadius = gRadius + buffer * currentKey / (keys + 1) / 2 + buffer / 2;
+		}
+		
+		var outside =
+			Math.sqrt
+			(
+				Math.pow(labelLeft - centerX, 2) +
+				Math.pow(textY - centerY, 2)
+			) > bendRadius;
+		
+		if ( ! outside )
+		{
+			arcAngle = Math.asin((textY - centerY) / bendRadius);
 			
-			if ( centerY + bendRadius * Math.sin(angle) > textY )
+			keyMinTextLeft = min(keyMinTextLeft, centerX + bendRadius * Math.cos(arcAngle) - fontSize / 2);
+			
+			if ( labelLeft < textLeft && textLeft > centerX + bendRadius * Math.cos(arcAngle) )
 			{
-				lineX.push((textY - centerY) / Math.tan(angle) + centerX);
-				lineY.push(textY);
-			}
-			else
-			{
-				var outside =
-					Math.sqrt
-					(
-						Math.pow(labelLeft - centerX, 2) +
-						Math.pow(textY - centerY, 2)
-					) > bendRadius;
-				
-				if ( outside )
-				{
-					if ( labelLeft < keyMinTextLeft - fontSize / 2 )
-					{
-						keyMinTextLeft = labelLeft - fontSize / 2;
-					}
-					else
-					{
-						keyMinTextLeft -= fontSize / 2;
-					}
-				}
-				
-				if ( angle < 0 || labelLeft < centerX + bendRadius * Math.cos(angle) )
-				{
-					if ( labelLeft > centerX + bendRadius )
-					{
-						arcAngle = 0;
-						
-						lineX.push(centerX + bendRadius);
-						lineY.push(textY);
-					}
-					else
-					{
-						if ( outside )
-						{
-							arcAngle = Math.acos((labelLeft - centerX) / bendRadius);
-							
-							lineX.push(labelLeft);
-							lineY.push(centerY + Math.sin(keyAngle) * bendRadius);
-						}
-						else
-						{
-							arcAngle = Math.asin((textY - centerY) / bendRadius);
-						}
-					}
-				}
-				else
-				{
-						arcAngle = angle;
-						
-						lineX.push(centerX + Math.cos(angle) * bendRadius);
-						lineY.push(centerY + Math.sin(angle) * bendRadius);
-				}
+				lineX.push(textLeft - centerX);
+				lineY.push(textY - centerY);
 			}
 		}
 		else
 		{
+			keyMinTextLeft = min(keyMinTextLeft, labelLeft - fontSize / 2);
 			
-			bendRadius = gRadius + buffer * currentKey / (keys + 1) / 2 + buffer / 2;
-			
-			if ( angle < Math.PI / 2 && textY < centerY + bendRadius * Math.sin(angle) 
-			|| angle > Math.PI / 2 && textY < centerY + bendRadius)
+			if ( angle < keyAngle )
 			{
-				arcAngle = Math.asin((textY - centerY) / bendRadius);
+				// flip everything over y = x
+				//
+				arcAngle = Math.PI / 2 - keyLineAngle
+				(
+					Math.PI / 2 - angle,
+					Math.PI / 2 - keyAngle,
+					bendRadius,
+					textY - centerY,
+					labelLeft - centerX,
+					lineY,
+					lineX
+				);
+				
 			}
 			else
 			{
-				// find the angle of the normal to a tangent line that goes to
-				// the label
-				
-				var textDist = Math.sqrt
+				arcAngle = keyLineAngle
 				(
-					Math.pow(labelLeft - centerX, 2) +
-					Math.pow(textY - centerY, 2)
+					angle,
+					keyAngle,
+					bendRadius,
+					labelLeft - centerX,
+					textY - centerY,
+					lineX,
+					lineY
 				);
-				var tanAngle = Math.acos(bendRadius / textDist) + keyAngle;
-				
-				if ( angle < tanAngle || angle < Math.PI / 2 )//|| labelLeft < centerX )
-				{
-					// angle doesn't reach far enough for tangent; collapse and
-					// connect directly to label
-					
-					if ( (textY - centerY) / Math.tan(angle) + centerX > 0 )
-					{
-						lineX.push((textY - centerY) / Math.tan(angle) + centerX);
-						lineY.push(textY);
-					}
-					else
-					{
-						lineX.push(centerX + bendRadius * Math.cos(angle));
-						lineY.push(centerY + bendRadius * Math.sin(angle));
-					}
-					
-					arcAngle = angle;
-				}
-				else
-				{
-					arcAngle = tanAngle;
-					
-					if ( labelLeft < keyMinTextLeft - fontSize / 2 )
-					{
-						keyMinTextLeft = labelLeft - fontSize / 2;
-					}
-					else
-					{
-						keyMinTextLeft -= fontSize / 2;
-					}
-				}
-				
-//				lineX.push((textY - centerY) / Math.tan(angle) + centerX);
-//				lineY.push(textY);
 			}
 		}
 		
-		if ( arcAngle == angle || labelLeft > centerX + bendRadius * Math.cos(arcAngle) ||
-		textY > centerY + bendRadius * Math.sin(arcAngle))
+		if ( labelLeft > centerX + bendRadius * Math.cos(arcAngle) ||
+		textY > centerY + bendRadius * Math.sin(arcAngle) + .01)
+//		if ( outside ||  )
 		{
-			lineX.push(labelLeft);
-			lineY.push(textY);
+			lineX.push(labelLeft - centerX);
+			lineY.push(textY - centerY);
 			
 			if ( textLeft != labelLeft )
 			{
-				lineX.push(textLeft);
-				lineY.push(textY);
+				lineX.push(textLeft - centerX);
+				lineY.push(textY - centerY);
 			}
 		}
 		
@@ -1537,6 +1403,32 @@ function Node()
 					'x="' + boxLeft + '" y="' + offset +
 					'" width="' + keySize + '" height="' + keySize + '"/>';
 			}
+			
+			svg +=
+				'<path class="line" style="stroke-width:' +
+				(highlight ? highlightLineWidth : thinLineWidth) +
+				'" d="M ' + (lineX[0] + centerX) + ',' +
+				(lineY[0] + centerY);
+			
+			if ( angle != arcAngle )
+			{
+				svg +=
+					' L ' + (centerX + bendRadius * Math.cos(angle)) + ',' +
+					(centerY + bendRadius * Math.sin(angle)) +
+					' A ' + bendRadius + ',' + bendRadius + ' 0 ' +
+					'0,' + (angle > arcAngle ? '0' : '1') + ' ' +
+					(centerX + bendRadius * Math.cos(arcAngle)) + ',' +
+					(centerY + bendRadius * Math.sin(arcAngle));
+			}
+			
+			for ( var i = 1; i < lineX.length; i++ )
+			{
+				svg +=
+					' L ' + (centerX + lineX[i]) + ',' +
+					(centerY + lineY[i]);
+			}
+			
+			svg += '"/>';
 			
 			if ( highlight )
 			{
@@ -1574,12 +1466,6 @@ function Node()
 				'<text x="' + (boxLeft - keyBuffer) + '" ' +
 				'y="' + textY + '" style=\'text-anchor:end;font:' + context.font + '\'>' +
 				labelSVG + '</text>';
-			
-			for ( var i = 0; i < lineX.length - 1; i++ )
-			{
-				svg += '<line x1="' + lineX[i] + '" y1="' + lineY[i] +
-					'" x2="' + lineX[i + 1] + '" y2="' + lineY[i + 1] + '"/>';
-			}
 		}
 		else
 		{
@@ -1608,6 +1494,23 @@ function Node()
 			}
 			
 			context.strokeRect(boxLeft, offset, keySize, keySize);
+			
+			if ( lineX.length )
+			{
+				context.beginPath();
+				//alert(this.name + ' ' + keyAngle);
+				context.moveTo(lineX[0] + centerX, lineY[0] + centerY);
+				
+				context.arc(centerX, centerY, bendRadius, angle, arcAngle, angle > arcAngle);
+				
+				for ( var i = 1; i < lineX.length; i++ )
+				{
+					context.lineTo(lineX[i] + centerX, lineY[i] + centerY);
+				}
+				
+				context.globalAlpha = this.alphaLine.current();
+				context.stroke();
+			}
 			
 			if ( highlight )
 			{
@@ -1639,23 +1542,6 @@ function Node()
 			context.fillStyle = 'black';
 			context.fillText(label, boxLeft - keyBuffer, offset + keySize / 2);
 			
-			
-			if ( lineX.length )
-			{
-				context.beginPath();
-				//alert(this.name + ' ' + keyAngle);
-				context.moveTo(lineX[0], lineY[0]);
-				
-				context.arc(centerX, centerY, bendRadius, angle, arcAngle, angle > keyAngle);
-				
-				for ( var i = 1; i < lineX.length; i++ )
-				{
-					context.lineTo(lineX[i], lineY[i]);
-				}
-				
-				context.globalAlpha = this.alphaLine.current();
-				context.stroke();
-			}
 			
 			context.translate(centerX, centerY);
 		}
@@ -2426,10 +2312,10 @@ function Node()
 				if
 				(
 					node.labelRadius.end * gRadius - fontSize < hypotenuse &&
-					this.labelWidth.end / 2 + .5 * fontSize > opposite
+					this.labelWidth.end / 2 + .75 * fontSize > opposite
 				)
 				{
-					this.labelWidth.end = opposite * 2 - fontSize;
+					this.labelWidth.end = opposite * 2 - 1.5 * fontSize;
 				}
 			}
 		}
@@ -2805,7 +2691,6 @@ function Node()
 			if ( ! canDisplayLabel && ! collapse && depth == 2 && this.canDisplayDepth() )
 			{
 				keys++;
-				keyMaxAngle = (this.angleStart.end + this.angleEnd.end) / 2;
 			}
 			
 			if ( canDisplayLabel || collapse )
@@ -3454,47 +3339,76 @@ function drawLegend()
 	
 	context.fillStyle = 'black';
 	context.textAlign = 'start';
-	context.fillText(valueStartText, textLeft, top + height);
-	context.fillText(valueEndText, textLeft, top);
+//	context.fillText(valueStartText, textLeft, top + height);
+//	context.fillText(valueEndText, textLeft, top);
 	context.fillText(hueDisplayName, left, imageHeight - fontSize * 1.5);
 	
 	var gradient = context.createLinearGradient(0, top + height, 0, top);
 	
-	gradient.addColorStop(0, hslText(hueStart));
-	
-	// since the gradient is RGB based, we need to add stops to hit all the
-	// colors in the spectrum
-	//
-	for ( var i = 1 / 6; i < 1; i += 1 / 6 )
+	for ( var i = 0; i < hueStopPositions.length; i++ )
 	{
+		gradient.addColorStop(hueStopPositions[i], hueStopHsl[i]);
+		
+		var textY = top + (1 - hueStopPositions[i]) * height;
+		
 		if
 		(
-			hueStart > hueEnd ?
-				i > hueEnd && i < hueStart :
-				i > hueStart && i < hueEnd
+			i == 0 ||
+			i == hueStopPositions.length - 1 ||
+			textY > top + fontSize && textY < top + height - fontSize
 		)
 		{
-			gradient.addColorStop
-			(
-				lerp(i, hueStart, hueEnd, 0, 1),
-				hslText(i)
-			);
-			
-			context.fillText
-			(
-				round(lerp(i, hueStart, hueEnd, Number(valueStartText), Number(valueEndText))),
-				textLeft,
-				lerp(i, hueStart, hueEnd, top + height, top)
-			);
+			context.fillText(hueStopText[i], textLeft, textY);
 		}
 	}
-	
-	gradient.addColorStop(1, hslText(hueEnd));
 	
 	context.fillStyle = gradient;
 	context.fillRect(left, top, width, height);
 	context.lineWidth = thinLineWidth;
 	context.strokeRect(left, top, width, height);
+}
+
+function drawLegendSVG()
+{
+	var left = imageWidth * .01;
+	var width = imageHeight * .0265;
+	var height = imageHeight * .15;
+	var top = imageHeight - fontSize * 3.5 - height;
+	var textLeft = left + width + fontSize / 2;
+
+	var text = '';
+	
+	text += svgText(hueDisplayName, left, imageHeight - fontSize * 1.5);
+	
+	var svgtest = '<linearGradient id="gradient" x1="0%" y1="100%" x2="0%" y2="0%">';
+	
+	for ( var i = 0; i < hueStopPositions.length; i++ )
+	{
+		svgtest +=
+			'<stop offset="' + round(hueStopPositions[i] * 100) +
+			'%" style="stop-color:' + hueStopHsl[i] + '"/>';
+		
+		var textY = top + (1 - hueStopPositions[i]) * height;
+		
+		if
+		(
+			i == 0 ||
+			i == hueStopPositions.length - 1 ||
+			textY > top + fontSize && textY < top + height - fontSize
+		)
+		{
+			text += svgText(hueStopText[i], textLeft, textY);
+		}
+	}
+	
+	svgtest += '</linearGradient>';
+	//alert(svgtest);
+	svg += svgtest;
+	svg +=
+		'<rect style="fill:url(#gradient)" x="' + left + '" y="' + top +
+		'" width="' + width + '" height="' + height + '"/>';
+	
+	svg += text;
 }
 
 function drawText(text, x, y, angle, anchor)
@@ -3711,6 +3625,96 @@ function hueToRgb(m1, m2, hue)
 	return 255 * v;
 }
 
+function interpolateHue(hueStart, hueEnd, valueStart, valueEnd)
+{
+	// since the gradient will be RGB based, we need to add stops to hit all the
+	// colors in the hue spectrum
+	
+	hueStopPositions = new Array();
+	hueStopHsl = new Array();
+	hueStopText = new Array();
+	
+	hueStopPositions.push(0);
+	hueStopHsl.push(hslText(hueStart));
+	hueStopText.push(round(valueStart));
+	
+	for
+	(
+		var i = (hueStart > hueEnd ? 5 / 6 : 1 / 6);
+		(hueStart > hueEnd ? i > 0 : i < 1);
+		i += (hueStart > hueEnd ? -1 : 1) / 6
+	)
+	{
+		if
+		(
+			hueStart > hueEnd ?
+				i > hueEnd && i < hueStart :
+				i > hueStart && i < hueEnd
+		)
+		{
+			hueStopPositions.push(lerp(i, hueStart, hueEnd, 0, 1));
+			hueStopHsl.push(hslText(i));
+			hueStopText.push(round(lerp
+			(
+				i,
+				hueStart,
+				hueEnd,
+				valueStart,
+				valueEnd
+			)));
+		}
+	}
+	
+	hueStopPositions.push(1);
+	hueStopHsl.push(hslText(hueEnd));
+	hueStopText.push(round(valueEnd));
+}
+
+function keyLineAngle(angle, keyAngle, bendRadius, keyX, keyY, pointsX, pointsY)
+{
+	if ( angle < Math.PI / 2 && keyY < bendRadius * Math.sin(angle) 
+	|| angle > Math.PI / 2 && keyY < bendRadius)
+	{
+		return Math.asin(keyY / bendRadius);
+	}
+	else
+	{
+		// find the angle of the normal to a tangent line that goes to
+		// the label
+		
+		var textDist = Math.sqrt
+		(
+			Math.pow(keyX, 2) +
+			Math.pow(keyY, 2)
+		);
+		
+		var tanAngle = Math.acos(bendRadius / textDist) + keyAngle;
+		
+		if ( angle < tanAngle || angle < Math.PI / 2 )//|| labelLeft < centerX )
+		{
+			// angle doesn't reach far enough for tangent; collapse and
+			// connect directly to label
+			
+			if ( keyY / Math.tan(angle) > 0 )
+			{
+				pointsX.push(keyY / Math.tan(angle));
+				pointsY.push(keyY);
+			}
+			else
+			{
+				pointsX.push(bendRadius * Math.cos(angle));
+				pointsY.push(bendRadius * Math.sin(angle));
+			}
+			
+			return angle;
+		}
+		else
+		{
+			return tanAngle;
+		}
+	}
+}
+
 function keyOffset()
 {
 	return imageHeight - (keys - currentKey + 1) * (keySize + keyBuffer) + keyBuffer - margin;
@@ -3732,8 +3736,9 @@ function load()
 	var magnitudeName;
 	
 	var hueName;
-//	var hueStart;
-//	var hueEnd;
+	var hueDefault;
+	var hueStart;
+	var hueEnd;
 	var valueStart;
 	var valueEnd;
 	
@@ -3764,7 +3769,13 @@ function load()
 				hueEnd = Number(element.getAttribute('hueEnd')) / 360;
 				valueStart = Number(element.getAttribute('valueStart'));
 				valueEnd = Number(element.getAttribute('valueEnd'));
-				
+				//
+				interpolateHue(hueStart, hueEnd, valueStart, valueEnd);
+				//
+				if ( element.getAttribute('default') == 'true' )
+				{
+					hueDefault = true;
+				}
 				break;
 			
 			case 'node':
@@ -3786,12 +3797,13 @@ function load()
 	{
 		hueDisplayName = attributeDisplayNames[attributeIndex(hueName)];
 		
-		valueStartText = round(valueStart).toString();
-		valueEndText = round(valueEnd).toString();
-		
 		//useHue.checked = true;
 		useHueDiv.innerHTML =
-			'<br/><div style="float:left">&nbsp;</div><input type="checkbox" id="useHue"  style="float:left"/><div style="float:left">Color by<br/>' + hueDisplayName + '</div><br/><br/>';
+			'<br/><div style="float:left">&nbsp;</div>' +
+			'<input type="checkbox" id="useHue" style="float:left" ' +
+			(hueDefault ? 'checked' : '') +
+			'/><div style="float:left">Color by<br/>' + hueDisplayName +
+			'</div><br/><br/>';
 		useHueCheckBox = document.getElementById('useHue');
 		useHueCheckBox.onclick = draw;
 	}
@@ -3830,10 +3842,6 @@ function loadTreeDOM
 		if ( attributeCurrent.nodeName == 'name' )
 		{
 			newNode.name = attributeCurrent.nodeValue;
-		}
- 		else if ( attributeCurrent.nodeName == 'hue' )
-		{
-			newNode.hue = Number(attributeCurrent.nodeValue);
 		}
 		else
 		{
@@ -3897,6 +3905,11 @@ function maxAbsoluteDepthIncrease()
 		maxAbsoluteDepth++;
 		handleResize();
 	}
+}
+
+function min(a, b)
+{
+	return a < b ? a : b;
 }
 
 function minWidth()
@@ -4007,6 +4020,18 @@ function onKeyDown(event)
 	{
 		event.preventDefault();
 	}
+	else if ( event.keyCode == 83 )
+	{
+		progress += .01;
+	}
+	else if ( event.keyCode == 66 )
+	{
+		progress -= .01;
+	}
+	else if ( event.keyCode == 70 )
+	{
+		progress = 1;
+	}
 }
 
 function onKeyUp(event)
@@ -4043,7 +4068,8 @@ function onSearchChange()
 function resetKeyOffset()
 {
 	currentKey = 1;
-	keyMinTextLeft = imageWidth;
+	keyMinTextLeft = centerX + gRadius + buffer - buffer / (keys + 1) / 2 + fontSize / 2;
+	keyMinAngle = 0;
 }
 
 function rgbText(r, g, b)
@@ -4222,6 +4248,11 @@ function snapshot()
 		focusNode.drawHighlightSVG();
 	}
 	
+	if ( hueDisplayName && useHue() )
+	{
+		drawLegendSVG();
+	}
+	
 	snapshotMode = false;
 	
 	svg += svgFooter();
@@ -4231,6 +4262,11 @@ function snapshot()
 		'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
 		'snapshot'
 	);
+}
+
+function svgFooter()
+{
+	return '</svg>';
 }
 
 function svgHeader()
@@ -4243,6 +4279,7 @@ function svgHeader()
 	"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\
 <svg width="' + imageWidth + '" height="' + imageHeight + '" version="1.1"\
 	xmlns="http://www.w3.org/2000/svg">\
+<title>Krona - ' + selectedNode.name + '</title>\
 <defs>\
 	<style type="text/css">\
 	text {font: ' + fontSize + 'px Times new roman; dominant-baseline:middle;baseline-shift:-10%}\
@@ -4267,9 +4304,91 @@ x="0" y="0" width="' + patternWidth + '" height="' + patternWidth + '">\
 ';
 }
 
-function svgFooter()
+function svgText(text, x, y)
 {
-	return '</svg>';
+	return '<text x="' + x + '" y="' + y +
+		'" style="text-anchor:start;font:' + fontNormal +
+		'">' + text + '</text>';
+}
+
+function update()
+{
+	if ( ! head )
+	{
+		return;
+	}
+	
+	if ( mouseDown && focusNode != selectedNode )
+	{
+		var date = new Date();
+		
+		if ( date.getTime() - mouseDownTime > quickLookHoldLength )
+		{
+			if ( focusNode.hasChildren() )
+			{
+				expand(focusNode);
+				quickLook = true;
+			}
+		}
+	}
+	
+	if ( updateViewNeeded )
+	{
+		resize();
+		mouseX = -1;
+		mouseY = -1;
+		
+		collapse = collapseCheckBox.checked;
+		shorten = shortenCheckBox.checked;
+		checkSelectedCollapse();
+		updateMaxAbsoluteDepth();
+		
+		if ( focusNode.getCollapse() || focusNode.depth > maxAbsoluteDepth )
+		{
+			setFocus(selectedNode);
+		}
+		
+		updateView();
+		
+		updateViewNeeded = false;
+	}
+	
+	var date = new Date();
+	progress = (date.getTime() - tweenStartTime) / tweenLength;
+//	progress += .01;
+	
+	if ( progress >= 1 )
+	{
+		progress = 1;
+	}
+	
+	if ( progress != progressLast )
+	{
+		tweenFactor =
+			(1 / (1 + Math.exp(-tweenCurvature * (progress - .5))) - .5) /
+			(tweenMax - .5) / 2 + .5;
+		
+		if ( progress == 1 )
+		{
+			snapshotButton.disabled = false;
+			zoomOut = false;
+			
+			if ( ! quickLook )
+			{
+				checkHighlight();
+			}
+			
+			
+			if ( fpsDisplay )
+			{
+				fpsDisplay.innerHTML = 'fps: ' + Math.round(tweenFrames * 1000 / tweenLength);
+			}
+		}
+		
+		draw();
+	}
+	
+	progressLast = progress;
 }
 
 function updateView()
