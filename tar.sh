@@ -1,4 +1,6 @@
-tar -cf KronaTools.tar \
+version=$1
+
+tar -cf KronaTools-${version}.tar \
 	KronaTools/scripts/extractTaxonomy.pl \
 	KronaTools/scripts/getContigMagnitudesCA.pl \
 	KronaTools/scripts/getContigMagnitudesNewbler.pl \
@@ -10,7 +12,7 @@ tar -cf KronaTools.tar \
 	KronaTools/scripts/importXML.pl \
 	KronaTools/scripts/indexGIs.pl \
 	KronaTools/lib/Krona.pm \
-	KronaTools/src/krona.js \
+	KronaTools/src/krona-${version}.js \
 	KronaTools/img/hidden.png \
 	KronaTools/install.pl \
 	KronaTools/updateTaxonomy.sh
