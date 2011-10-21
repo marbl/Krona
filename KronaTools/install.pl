@@ -33,29 +33,33 @@ createDir($path);
 createDir("$path/bin");
 createDir("$path/lib");
 
-print "Copying scripts...\n";
+print "Creating links...\n";
 
 foreach my $script qw
 (
-	getContigMagnitudesCA.pl
-	getContigMagnitudesNewbler.pl
-	importBLAST.pl
-	importMETAREP.pl
-	importMGRAST.pl
-	importPhymmBL.pl
-	importText.pl
-	importXML.pl
+	ClassifyBLAST
+	GetContigMagnitudes
+	ImportBLAST
+	ImportGalaxy
+	ImportMETAREP
+	ImportMGRAST
+	ImportPhymmBL
+	ImportRDP
+	ImportRDPComparison
+	ImportTaxonomy
+	ImportText
+	ImportXML
 )
 {
-	if ( system('ln', '-sf', "$scriptPath/$script", "$path/bin") )
+	if ( system('ln', '-sf', "$scriptPath/$script.pl", "$path/bin/kt$script") )
 	{
-		die "Couldn't copy files to $path/bin";
+		linkFail("$path/bin");
 	}
 }
 
 if ( system('ln', '-sf', "$libPath/Krona.pm", "$path/lib") )
 {
-	die "Couldn't copy files to $path/lib";
+	linkFail("$path/lib");
 }
 
 print "Creating taxonomy directory...\n";
@@ -89,10 +93,19 @@ taxonomy database.
 
 sub createDir
 {
-	my $dir = @_;
+	my ($dir) = @_;
 	
 	if ( ! -e $dir )
 	{
 		mkdir $dir or die "$dir does not exist and couldn't create";
 	}
+}
+
+sub linkFail
+{
+	my ($path) = @_;
+	
+	print "\nCouldn't link files to $path.  Do you have permission?\n";
+	print "(Use \"--prefix <path>\" to change install location)\n\n";
+	exit 1;
 }

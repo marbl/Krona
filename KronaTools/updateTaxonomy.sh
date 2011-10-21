@@ -6,11 +6,16 @@
 #
 # See the LICENSE.txt file included with this software for license information.
 
+local=$1
 
-oldPath=$(pwd)
-
-taxonomyPath=./taxonomy;
-cd $taxonomyPath;
+function die
+{
+	echo ""
+	echo ">>>>> Update failed."
+	echo "      $1"
+	echo ""
+	exit 1
+}
 
 function update
 {
@@ -20,27 +25,56 @@ function update
 	
 	zipped=${unzipped}.gz
 	
-	echo
 	echo ">>>>> Updating $description..."
-	echo
 	
-	curl -R -z $timestamp -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
+	if [ $local ] && [ $local == "--local" ]
+	then
+		if [ ! -e $zipped ]
+		then
+			die "Could not find $oldPath/taxonomy/$zipped.  Was it transfered?"
+		fi
+	else
+		curl -R -z $timestamp -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
+		return=$?
+		
+		if [ $return == "23" ]
+		then
+			die "Could not write '$oldPath/taxonomy/$zipped'. Do you have permission?"
+		fi
+		echo $return
+		if [ $return != "0" ]
+		then
+			die "Is your internet connection okay?"
+		fi
+	fi
 	
-#	chmod 644 $zipped # allow wget to overwrite later
-	
-	if [ -e $zipped ]
+	if [ $zipped -nt $timestamp ]
 	then
 		echo "     >>>>> Unzipping $description..."
 		gunzip -f $zipped
+		
+		if [ $? != "0" ]
+		then
+			die "Could not unzip $oldPath/taxonomy/$zipped. Do you have permission?"
+		fi
+	else
+		echo "     >>>>> $description is up to date."
 	fi
 	
-	echo
-	echo "     >>>>> $description is up to date."
-	echo
+	echo ""
 }
 
-update gi_taxid_nucl.dmp gi_taxid_nucl.dmp "GI to taxID dump (nucleotide)"
-update gi_taxid_prot.dmp gi_taxid_prot.dmp "GI to taxID dump (protein)"
+oldPath=$(pwd)
+taxonomyPath=./taxonomy;
+cd $taxonomyPath;
+
+if [ "$?" != "0" ]
+then
+	die "Could not enter '$oldPath/taxonomy'.  Did you run install.pl?"
+fi
+
+update gi_taxid_nucl.dmp gi_taxid.dat "GI to taxID dump (nucleotide)"
+update gi_taxid_prot.dmp gi_taxid.dat "GI to taxID dump (protein)"
 update taxdump.tar taxonomy.tab 'Taxonomy dump'
 
 if [ -e taxdump.tar ]
@@ -55,9 +89,13 @@ if [ taxonomy/gi_taxid_nucl.dmp -nt taxonomy/gi_taxid.dat ]
 then
 	echo ">>>>> Creating combined GI to taxID index..."
 	./scripts/indexGIs.pl
+	rm taxonomy/gi_taxid_nucl.dmp
+	rm taxonomy/gi_taxid_prot.dmp
 else
 	echo ">>>>> GI index is up to date"
 fi
+
+echo ""
 
 if [ taxonomy/nodes.dmp -nt taxonomy/taxonomy.tab ]
 then
@@ -67,6 +105,13 @@ else
 	echo ">>>>> Node info is up to date"
 fi
 
+echo ">>>>> Cleaning up..."
+
+rm taxonomy/*.dmp
+rm taxonomy/gc.prt
+rm taxonomy/readme.txt
+
 echo
 echo ">>>>> Finished."
 echo
+
