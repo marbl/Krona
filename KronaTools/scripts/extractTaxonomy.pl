@@ -62,7 +62,7 @@ foreach my $id ( sort {$a <=> $b} keys %data )
 	(
 		$id,
 		depth($id),
-		$data{$id}->{'parent'},
+		getParent($id),
 		$data{$id}->{'rank'},
 		$data{$id}->{'name'}
 	);
@@ -82,6 +82,21 @@ sub depth
 	}
 	else
 	{
-		return depth($data{$id}->{'parent'}) + 1;
+		return depth(getParent($id)) + 1;
 	}
+}
+
+sub getParent
+{
+	my ($id) = @_;
+	
+	my $parent = $id;
+	
+	do
+	{
+		$parent = $data{$parent}->{'parent'};
+	}
+	while ( $parent > 1 && $data{$parent}->{'rank'} eq 'no rank' );
+	
+	return $parent;
 }
