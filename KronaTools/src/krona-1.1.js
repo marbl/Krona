@@ -77,13 +77,15 @@
 var canvas;
 var context;
 var svg; // for snapshot mode
-var collapse;
+var collapse = true;
 var collapseCheckBox;
 var collapseLast;
+var compress;
+var compressCheckBox;
 var maxAbsoluteDepthText;
 var maxAbsoluteDepthButtonDecrease;
 var maxAbsoluteDepthButtonIncrease;
-var fontSize;
+var fontSize = 11;
 var fontSizeText;
 var fontSizeButtonDecrease;
 var fontSizeButtonIncrease;
@@ -103,11 +105,12 @@ var searchResults;
 var nSearchResults;
 var useHueCheckBox;
 var useHueDiv;
-
-addOptionElements();
-setCallBacks();
-
-var nodeID = 0; // incremented during loading to assign unique node IDs
+var datasetDropDown;
+var datasetButtonLast;
+var datasetButtonPrev;
+var datasetButtonNext;
+var keyControl;
+var showKeys = true;
 
 // Node references. Note that the meanings of 'selected' and 'focused' are
 // swapped in the docs.
@@ -177,11 +180,10 @@ var historyAlphaDelta = .25;
 // appearance
 //
 var lineOpacity = 0.3;
-var saturation = 0.55;
+var saturation = 0.5;
 var lightnessBase = 0.6;
 var lightnessMax = .8;
-var lightnessFactor = 0.0175;
-var thinLineWidth = .25;
+var thinLineWidth = .3;
 var highlightLineWidth = 1.5;
 var labelBoxBuffer = 6;
 var labelBoxRounding = 15;
@@ -190,11 +192,12 @@ var labelWidthFudge = 1.05; // The width of unshortened labels are set slightly
 							// finishes faster.
 var fontNormal;
 var fontBold;
-var fontFaceNormal = 'Times new roman';
+var fontFaceNormal = 'sans-serif';
 //var fontFaceBold = 'bold Arial';
 var nodeRadius;
 var angleFactor;
 var tickLength;
+var compressedRadii;
 
 // label staggering
 //
@@ -238,6 +241,7 @@ var fpsDisplay = document.getElementById('frameRate');
 //
 var attributeNames = new Array();
 var attributeDisplayNames = new Array();
+var magnitudeIndex;
 
 // For defining gradients
 //
@@ -246,25 +250,26 @@ var hueStopPositions;
 var hueStopHues;
 var hueStopText;
 
+// multiple datasets
+//
+var currentDataset = 0;
+var lastDataset = 0;
+var datasets = 1;
+var datasetNames;
+var datasetSelectSize = 40;
+var datasetAlpha = new Tween(0, 0);
+var datasetWidths = new Array();
+var datasetChanged;
+var datasetSelectWidth = 120;
+
 document.body.style.overflow = "hidden";
 window.onload = load;
 
 var image;
 var hiddenPattern;
 
-image = document.getElementById('hiddenImage');
-
-if ( image.complete )
-{
-	hiddenPattern = context.createPattern(image, 'repeat');
-}
-else
-{
-	image.onload = function()
-	{
-		hiddenPattern = context.createPattern(image, 'repeat');
-	}
-}
+canvas = document.getElementById('canvas');
+context = canvas.getContext('2d');
 
 function resize()
 {
@@ -284,10 +289,11 @@ function resize()
 	maxMapRadius = minDimension * .03;
 	buffer = minDimension * .1;
 	margin = minDimension * .015;
-	centerX = (imageWidth - mapWidth) / 2;
+	var leftMargin = datasets > 1 ? datasetSelectWidth + 30 : 0;
+	centerX = (imageWidth - mapWidth - leftMargin) / 2 + leftMargin;
 	centerY = imageHeight / 2;
 	gRadius = minDimension / 2 - buffer;
-	maxPossibleDepth = Math.floor(gRadius / (fontSize * minRingWidthFactor));
+	//context.font = '11px sans-serif';
 }
 
 function handleResize()
@@ -336,7 +342,10 @@ function Node()
 	
 	this.alphaLabel = new Tween(0, 1);
 	this.alphaLine = new Tween(0, 1);
+	this.alphaArc = new Tween(0, 0);
 	this.alphaWedge = new Tween(0, 1);
+	this.alphaOther = new Tween(0, 1);
+	this.alphaPattern = new Tween(0, 0);
 	this.children = Array();
 	this.parent = 0;
 	
@@ -388,18 +397,22 @@ function Node()
 	
 	this.canDisplayHistory = function()
 	{
+		var radiusInner;
+		
+		if ( compress )
+		{
+			radiusInner = compressedRadii[0];
+		}
+		else
+		{
+			radiusInner = nodeRadius;
+		}
+		
 		return (
 			-this.labelRadius.end * gRadius +
 			historySpacingFactor * fontSize / 2 <
-			nodeRadius * gRadius
+			radiusInner * gRadius
 			);
-	}
-	this.canDisplayLabel = function()
-	{
-		return (
-			(this.angleEnd.end - this.angleStart.end) *
-			(this.radiusInner.end * gRadius + gRadius) >=
-			minWidth());
 	}
 	
 	this.canDisplayLabelCurrent = function()
@@ -410,25 +423,16 @@ function Node()
 			minWidth());
 	}
 	
-	this.canHide = function(selected)
-	{
-		return	!(
-//			this.canDisplayLabel() ||//Current ||
-			this.canDisplayLabelCurrent() ||
-			this.getDepth() == selectedNode.getDepth() + 1 && selected || // keyed wedge
-			(
-				// was keyed wedge
-				this.getParent() == selectedNodeLast &&
-				selectedNode.hasParent(selectedNodeLast)
-			)
-		);
-	}
-	
 	this.checkHighlight = function()
 	{
 		if ( this.children.length == 0 && this == focusNode )
 		{
 			//return false;
+		}
+		
+		if ( this.hide )
+		{
+			return false;
 		}
 		
 		if ( this.radiusInner.end == 1 )
@@ -444,23 +448,13 @@ function Node()
 		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
 		var radiusInner = this.radiusInner.current() * gRadius;
 		
-		if ( this.canDisplayLabel() || this.getCollapse() )
+		for ( var i = 0; i < this.children.length; i++ )
 		{
-			for ( var i = 0; i < this.children.length; i++ )
+			highlighted = this.children[i].checkHighlight();
+			
+			if ( highlighted )
 			{
-				highlighted = this.children[i].checkHighlight();
-				
-				if ( highlighted )
-				{
-					return true;
-				}
-			}
-		}
-		else
-		{
-			if ( this.getDepth() - selectedNode.getDepth() != 1 )
-			{
-				return false;
+				return true;
 			}
 		}
 		
@@ -485,7 +479,7 @@ function Node()
 				this.getDepth() == selectedNode.getDepth() + 1
 			)
 			{
-				if ( this.checkHighlightKey() )
+				if ( showKeys && this.checkHighlightKey() )
 				{
 					highlighted = true;
 				}
@@ -624,133 +618,60 @@ function Node()
 		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
 		var radiusInner = this.radiusInner.current() * gRadius;
 		var canDisplayLabelCurrent = this.canDisplayLabelCurrent();
+		var hiddenSearchResults = false;
 		
-		if
-		(
-//			false &&
-			!(
-//				this.canDisplayLabel() ||//Current ||
-				canDisplayLabelCurrent ||
-				depth == 2 && selected || // keyed wedge
-				(
-					// was keyed wedge
-					this.getParent() == selectedNodeLast &&
-					selectedNode.hasParent(selectedNodeLast)
-				)
-			)
-		)
+		if ( ! this.hide )
 		{
-			//return this.canDisplayDepth(); // hidden
-		}
-		
-		var hiddenChildren = 0;
-		var firstHiddenChild = this.children.length;
-		var hiddenColorStart;
-		var canDisplayChildren = false;
-		var hiddenSearchResults = 0;
-		var hiddenHueTotal = 0;
-		
-		if ( canDisplayLabelCurrent )
-		{
-			// check if children will be displayed
-			//
 			for ( var i = 0; i < this.children.length; i++ )
 			{
-				var child = this.children[i];
-				
-				if
-				(
-					child.getDepth() - selectedNode.getDepth() + 1 <=
-					maxDisplayDepth && this.depth < maxAbsoluteDepth ||
-					progress < 1
-				)
+				if ( this.children[i].hide && this.children[i].containsSearchResult )
 				{
-					if ( child.canHide(selected) )
-					{
-						if ( hiddenChildren == 0 )
-						{
-							firstHiddenChild = i;
-						}
-						
-						if ( child.containsSearchResult )
-						{
-							hiddenSearchResults += child.containsSearchResult;
-						}
-						
-						if ( child.hue != null )
-						{
-							hiddenHueTotal += child.hue;
-						}
-						
-						hiddenChildren++;
-					}
-					else
-					{
-						hiddenChildren = 0;
-						firstHiddenChild = this.children.length;
-						hiddenSearchResults = 0;
-						hiddenHueTotal = 0;
-					}
-					
-					uncollapsed = child.getUncollapsed();
-					
-					if
-					(
-						uncollapsed.canDisplayLabelCurrent() &&
-						uncollapsed.alphaLine.current() > 0 &&
-						uncollapsed.alphaLabel.current() > 0
-					)
-					{
-						canDisplayChildren = true;
-						//break;
-					}
-				}
-				
-				if
-				(
-					child.getDepth() - selectedNode.getDepth() + 1 >
-					maxDisplayDepth &&
-					child.containsSearchResult
-				)
-				{
-					hiddenSearchResults = 1;
-				}
-				
-				if
-				(
-					child.depth > maxAbsoluteDepth &&
-					child.containsSearchResult
-				)
-				{
-					hiddenSearchResults = 1;
+					hiddenSearchResults = true;
 				}
 			}
 		}
 		
-		if ( this == focusNode ) // TEMP
-		{
-			//canDisplayChildren = true;
-		}
+		var drawChildren =
+			( ! this.hide || ! this.hidePrev && progress < 1 ) &&
+			( ! this.hideAlone || ! this.hideAlonePrev && progress < 1 );
 		
-		if ( this.alphaLine.current() > 0 || this.alphaLabel.current() > 0 )
+//		if ( this.alphaWedge.current() > 0 || this.alphaLabel.current() > 0 )
 		{
+			var lastChildAngleEnd;
+			
+			if ( this.hasChildren() )//canDisplayChildren )
+			{
+				lastChildAngleEnd =
+					this.children[this.children.length - 1].angleEnd.current()
+					+ rotationOffset;
+			}
+			
 			if ( labelMode )
 			{
 				var drawRadial =
 				!(
-					this.getParent() &&
-					this.getParent() != selectedNode &&
-					this.angleEnd.current() == this.getParent().angleEnd.current()
+					this.parent &&
+					this.parent != selectedNode &&
+					angleEndCurrent == this.parent.angleEnd.current() + rotationOffset
 				);
 				
-				this.drawLines(angleStartCurrent, angleEndCurrent, radiusInner, drawRadial);
-				
-				if
-				(
-					this == selectedNode
-				)
+				if ( angleStartCurrent != angleEndCurrent )
 				{
-					this.drawReferenceRings();
+					this.drawLines(angleStartCurrent, angleEndCurrent, radiusInner, drawRadial, selected);
+				}
+				
+				var alphaOtherCurrent = this.alphaOther.current();
+				var childRadiusInner;
+				
+				if ( this == selectedNode || alphaOtherCurrent )
+				{
+					childRadiusInner =
+						this.children[this.children.length - 1].radiusInner.current() * gRadius;
+				}
+				
+				if ( this == selectedNode )
+				{
+					this.drawReferenceRings(childRadiusInner);
 				}
 				
 				if
@@ -761,85 +682,123 @@ function Node()
 					(
 						this.searchResult ||
 						hiddenSearchResults ||
-						! canDisplayLabelCurrent &&
-						this.containsSearchResult
+						false
+//						this.hide &&
+//						this.containsSearchResult
 					)
 				)
 				{
 					this.drawHighlight();
 					searchHighlighted = true;
 				}
-				else if ( this == selectedNode || (canDisplayLabelCurrent) && this != highlightedNode && this != focusNode )
+				else if
+				(
+					this == selectedNode ||
+					//(canDisplayLabelCurrent) &&
+					this != highlightedNode &&
+					this != focusNode
+				)
 				{
-					context.globalAlpha = this.alphaLabel.current();
+					if ( this.radial != this.radialPrev && this.alphaLabel.end == 1 )
+					{
+						context.globalAlpha = tweenFactor;
+					}
+					else
+					{
+						context.globalAlpha = this.alphaLabel.current();
+					}
 					
 					if ( this == selectedNode )
 					{
 						context.font = fontBold;
 					}
-					else
-					{
-						context.font = fontNormal;
-					}
 					
 					this.drawLabel
 					(
 						(angleStartCurrent + angleEndCurrent) / 2,
-						(this.searchResult || hiddenSearchResults || !canDisplayLabelCurrent && this.containsSearchResult) && selected,
-						selected
+						(this.searchResult || hiddenSearchResults) && selected,
+						selected,
+						this.radial
+					);
+					
+					if ( this == selectedNode )
+					{
+						context.font = fontNormal;
+					}
+					
+					if ( this.radial != this.radialPrev && this.alphaLabel.start == 1 && progress < 1 )
+					{
+						context.globalAlpha = 1 - tweenFactor;
+						
+						this.drawLabel
+						(
+							(angleStartCurrent + angleEndCurrent) / 2,
+							(this.searchResult || hiddenSearchResults) && selected,
+							selected,
+							this.radialPrev
+						);
+					}
+				}
+				
+				if
+				(
+					alphaOtherCurrent &&
+					lastChildAngleEnd != null &&
+					(angleEndCurrent - lastChildAngleEnd) * (childRadiusInner + gRadius) >=
+					minWidth()
+				)
+				{
+					var lastChild = this.children[this.children.length - 1];
+					
+					//context.font = fontNormal;
+					context.globalAlpha = this.alphaOther.current();
+					
+					this.drawTextFlipped
+					(
+						'[unclassified '+ this.name + ']',
+						getPercentage
+						(
+							(
+								this.baseMagnitude +
+								this.magnitude -
+								lastChild.magnitude -
+								lastChild.baseMagnitude
+							) / this.magnitude
+						) + '%',
+						(lastChildAngleEnd + angleEndCurrent) / 2,
+						(childRadiusInner + gRadius) / 2,
+						true,
+						false,
+						false,
+						false
 					);
 				}
 			}
 			else
 			{
-				var currentR = this.r.current();
-				var currentG = this.g.current();
-				var currentB = this.b.current();
+				var alphaWedgeCurrent = this.alphaWedge.current();
 				
-				context.globalAlpha = 1;
-				
-				if
-				(
-					currentR < 255 ||
-					currentG < 255 ||
-					currentB < 255
-				)
+				if ( alphaWedgeCurrent || this.alphaOther.current() )
 				{
-					var fill;
-					
-					if ( useHue() )
-					{
-						fill = hslText(this.hue);
-						context.globalAlpha = this.alphaWedge.current();
-					}
-					else
-					{
-						fill = rgbText(currentR, currentG, currentB);
-					}
+					var currentR = this.r.current();
+					var currentG = this.g.current();
+					var currentB = this.b.current();
+						
+					var fill = rgbText(currentR, currentG, currentB);
 					
 					var radiusOuter;
 					var lastChildAngle;
-					var keyed = false;
-					
-					if
+					var truncateWedge =
 					(
-						!this.canDisplayLabel() &&
-						selected &&
-						depth == 2 &&
-						!this.getCollapse()
-					)
-					{
-						keyed = true;
-					}
+						this.hasChildren() &&
+						! this.keyed &&
+						(compress || depth < maxDisplayDepth) &&
+						drawChildren
+					);
 					
-					if
-					(
-						canDisplayChildren &&
-						! keyed &&
-						depth < maxDisplayDepth
-					)
+					if ( truncateWedge )
 					{
-						radiusOuter = this.children[0].getUncollapsed().radiusInner.current() * gRadius + 1;
+						radiusOuter = this.children[0].radiusInner.current() * gRadius;
 					}
 					else
 					{
@@ -860,48 +819,80 @@ function Node()
 						}
 					}
 					*/
-					var drawPattern = this.hasChildren() && ! canDisplayChildren;
+					context.globalAlpha = alphaWedgeCurrent;
 					
-					drawWedge
-					(
-						angleStartCurrent,
-						angleEndCurrent,
-						radiusInner,
-						radiusOuter,//this.radiusOuter.current() * gRadius,
-						//'rgba(0, 200, 0, .1)',
-						fill,
-						drawPattern ? this.alphaLine.current() : 0
-					);
-					
-					if ( this.hasChildren() && ! keyed )
+					if ( radiusInner != radiusOuter )
 					{
-						// fill in the extra space if the sum of our childrens'
-						// magnitudes is less than ours
+						drawWedge
+						(
+							angleStartCurrent,
+							angleEndCurrent,
+							radiusInner,
+							radiusOuter,//this.radiusOuter.current() * gRadius,
+							//'rgba(0, 200, 0, .1)',
+							fill,
+							this.alphaPattern.current()
+						);
 						
-						var lastChild = this.children[this.children.length - 1];
-						var lastChildAngleEnd = lastChild.angleEnd.current() + rotationOffset;
-						
-						if ( lastChildAngleEnd < angleEndCurrent )//&& false) // TEMP
+						if ( truncateWedge )
 						{
-							drawWedge
-							(
-								lastChildAngleEnd,
-								angleEndCurrent,
-								radiusOuter - 1,
-								gRadius,//this.radiusOuter.current() * gRadius,
-								//'rgba(200, 0, 0, .1)',
-								fill,
-								0
-							);
+							// fill in the extra space if the sum of our childrens'
+							// magnitudes is less than ours
+							
+							if ( lastChildAngleEnd < angleEndCurrent )//&& false) // TEMP
+							{
+								if ( radiusOuter > 1 )
+								{
+									// overlap slightly to hide the seam
+									
+	//								radiusOuter -= 1;
+								}
+								
+								if ( alphaWedgeCurrent < 1 )
+								{
+									context.globalAlpha = this.alphaOther.current();
+									drawWedge
+									(
+										lastChildAngleEnd,
+										angleEndCurrent,
+										radiusOuter,
+										gRadius,
+										'rgb(220,220,220)',
+										0
+									);
+									context.globalAlpha = alphaWedgeCurrent;
+								}
+								
+								drawWedge
+								(
+									lastChildAngleEnd,
+									angleEndCurrent,
+									radiusOuter,
+									gRadius,//this.radiusOuter.current() * gRadius,
+									//'rgba(200, 0, 0, .1)',
+									fill,
+									this.alphaPattern.current()
+								);
+							}
+						}
+						
+						if ( radiusOuter < gRadius )
+						{
+							// patch up the seam
+							//
+							context.beginPath();
+							context.arc(0, 0, radiusOuter, angleStartCurrent/*lastChildAngleEnd*/, angleEndCurrent, false);
+							context.strokeStyle = fill;
+							context.lineWidth = 1;
+							context.stroke();
 						}
 					}
 					
-					if ( keyed )
+					if ( this.keyed && selected && showKeys )//&& progress == 1 )
 					{
 						this.drawKey
 						(
 							(angleStartCurrent + angleEndCurrent) / 2,
-							drawPattern,
 							(
 								this == highlightedNode ||
 								this == focusNode ||
@@ -913,64 +904,57 @@ function Node()
 			}
 		}
 		
-		if ( canDisplayLabelCurrent || this.getCollapse() )
+		if ( drawChildren )
 		{
 			// draw children
 			//
-			for ( var i = 0; i < firstHiddenChild; i++ )
+			for ( var i = 0; i < this.children.length; i++ )
 			{
-				if
-				(
-					this.children[i].getDepth() - selectedNode.getDepth() + 1 <=
-					maxDisplayDepth ||
-					progress < 1
-				)
+				if ( this.drawHiddenChildren(i, selected, labelMode) )
+				{
+					i = this.children[i].hiddenEnd;
+				}
+				else
 				{
 					this.children[i].draw(labelMode, selected, searchHighlighted);
 				}
 			}
 		}
-		
-		if ( hiddenChildren > 0 && canDisplayChildren )//&& depth < maxDisplayDepth )
-		{
-			this.drawHiddenChildren
-			(
-				this.children[firstHiddenChild],
-				hiddenChildren,
-				selected,
-				labelMode,
-				hiddenSearchResults,
-				hiddenHueTotal / hiddenChildren
-			);
-		}
-		
-		return false; // not hidden
 	};
 	
 	this.drawHiddenChildren = function
 	(
 		firstHiddenChild,
-		hiddenChildren,
 		selected,
-		labelMode,
-		hiddenSearchResults,
-		hue
+		labelMode
 	)
 	{
-		// represent children that are too small to draw with a color
-		// gradient
+		var firstChild = this.children[firstHiddenChild];
 		
-		var angleStart = firstHiddenChild.angleStart.current() + rotationOffset;
-		var lastChild = this.children[this.children.length - 1];
+		if ( firstChild.hiddenEnd == null || firstChild.radiusInner.current() == 1 )
+		{
+			return false;
+		}
+		
+		for ( var i = firstHiddenChild; i < firstChild.hiddenEnd; i++ )
+		{
+			if ( ! this.children[i].hide || ! this.children[i].hidePrev && progress < 1 )
+			{
+				return false;
+			}
+		}
+		
+		var angleStart = firstChild.angleStart.current() + rotationOffset;
+		var lastChild = this.children[firstChild.hiddenEnd];
 		var angleEnd = lastChild.angleEnd.current() + rotationOffset;
-		var radiusInner = gRadius * this.children[0].radiusInner.current();
+		var radiusInner = gRadius * firstChild.radiusInner.current();
+		var hiddenChildren = firstChild.hiddenEnd - firstHiddenChild + 1;
 		
 		if ( labelMode )
 		{
-			var drawRadial = (angleEnd < this.angleEnd.current() + rotationOffset);
+			var hiddenSearchResults = 0; // TEMP
 			
-			this.drawLines(angleStart, angleEnd, radiusInner, drawRadial);
-			
+			//context.font = fontNormal;
 			if
 			(
 				selected &&
@@ -982,6 +966,7 @@ function Node()
 			{
 	//				context.globalAlpha = lastChild.getUncollapsed().alphaLabel.current();
 				context.fillStyle = 'black';//'rgb(90,90,90)';
+			context.globalAlpha = this.alphaWedge.current();
 				
 				this.drawHiddenLabel
 				(
@@ -994,26 +979,33 @@ function Node()
 				);
 			}
 		}
+		
+		for ( var i = firstHiddenChild; i <= firstChild.hiddenEnd; i++ )
+		{
+			// all hidden children must be completely hidden to draw together
+			
+			if ( this.children[i].alphaPattern.current() != this.children[i].alphaWedge.current() )
+			{
+				return false;
+			}
+		}
+		//return true;
+		
+		if ( labelMode )
+		{
+			var drawRadial = (angleEnd < this.angleEnd.current() + rotationOffset);
+			this.drawLines(angleStart, angleEnd, radiusInner, drawRadial);
+		}
 		else
 		{
-			context.globalAlpha = 1;
+			context.globalAlpha = this.alphaWedge.current();
 			
-			var fill;
-			
-			if ( useHue() )
-			{
-				fill = hslText(hue);
-				context.globalAlpha = firstHiddenChild.alphaWedge.current();
-			}
-			else
-			{
-				fill = rgbText
-				(
-					firstHiddenChild.r.current(),
-					firstHiddenChild.g.current(),
-					firstHiddenChild.b.current()
-				);
-			}
+			var fill = rgbText
+			(
+				firstChild.r.current(),
+				firstChild.g.current(),
+				firstChild.b.current()
+			);
 			
 			drawWedge
 			(
@@ -1022,9 +1014,11 @@ function Node()
 				radiusInner,
 				gRadius,//this.radiusOuter.current() * gRadius,
 				fill,
-				this.alphaLine.current()
+				context.globalAlpha
 			);
 		}
+		
+		return true;
 	}
 	
 	this.drawHiddenLabel = function(angleStart, angleEnd, value, hiddenSearchResults)
@@ -1033,7 +1027,7 @@ function Node()
 		var labelRadius = gRadius + fontSize;//(radiusInner + radius) / 2;
 		
 		drawTick(gRadius - fontSize * .75, fontSize * 1.5, textAngle);
-		this.drawTextFlipped(value.toString(), 0, textAngle, labelRadius, true, hiddenSearchResults);
+		this.drawTextFlipped(value.toString() + ' more', 0, textAngle, labelRadius, true, hiddenSearchResults);
 	}
 	
 	this.drawHighlight = function()
@@ -1050,15 +1044,6 @@ function Node()
 	
 	this.drawHighlightCanvas = function()
 	{
-		if ( !this.hasChildren() && this.getParent() != selectedNode )
-		{
-			//this.getParent().drawHighlight();
-		}
-		
-		var hiddenChildren = 0;
-		var hiddenAngleStart;
-		var highlightHidden = false;
-		
 		// set style
 		//
 		context.save();
@@ -1093,7 +1078,76 @@ function Node()
 			context.stroke();
 		}
 		
-		var canDisplayChildren = false;
+		// check if hidden children should be highlighted
+		//
+		for ( var i = 0; i < this.children.length; i++ )
+		{
+			if
+			(
+				this.children[i].getDepth() - selectedNode.getDepth() + 1 <=
+				maxDisplayDepth &&
+				this.children[i].hiddenEnd != null
+			)
+			{
+				var firstChild = this.children[i];
+				var lastChild = this.children[firstChild.hiddenEnd];
+				var hiddenAngleStart = firstChild.angleStart.current() + rotationOffset;
+				var hiddenAngleEnd = lastChild.angleEnd.current() + rotationOffset;
+				var hiddenRadiusInner = gRadius * firstChild.radiusInner.current();
+				
+				this.setHighlightStyle();
+				
+				context.beginPath();
+				context.arc(0, 0, hiddenRadiusInner, hiddenAngleStart, hiddenAngleEnd, false);
+				context.arc(0, 0, gRadius, hiddenAngleEnd, hiddenAngleStart, true);
+				context.closePath();
+				
+				context.strokeStyle = 'rgb(90,90,90)';
+				context.fill();
+				context.stroke();
+				
+				if ( ! this.containsSearchResult )
+				{
+					this.drawHiddenLabel
+					(
+						hiddenAngleStart,
+						hiddenAngleEnd,
+						firstChild.hiddenEnd - i + 1
+					);
+				}
+				
+				i = firstChild.hiddenEnd;
+			}
+		}
+		
+//			context.strokeStyle = 'black';
+		context.fillStyle = 'black';
+		
+		var highlight = ! ( progress < 1 && zoomOut && this == selectedNodeLast );
+		
+		if ( highlight )
+		{
+			context.font = fontBold;
+		}
+		
+		var angle = (angleEndCurrent + angleStartCurrent) / 2;
+		
+		if ( ! (this.keyed && showKeys) )
+		{
+			this.drawLabel(angle, true, true, this.radial);
+		}
+		
+		if ( highlight )
+		{
+			context.font = fontNormal;
+		}
+	}
+	
+	this.drawHighlightSVG = function()
+	{
+		var angleStartCurrent = this.angleStart.current() + rotationOffset;
+		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
+		var radiusInner = this.radiusInner.current() * gRadius;
 		
 		// check if hidden children should be highlighted
 		//
@@ -1103,49 +1157,25 @@ function Node()
 			(
 				this.children[i].getDepth() - selectedNode.getDepth() + 1 <=
 				maxDisplayDepth &&
-				!this.children[i].canDisplayLabel()
+				this.children[i].hiddenEnd != null
 			)
 			{
-				if ( hiddenChildren == 0 )
-				{
-					hiddenAngleStart = this.children[i].angleStart.current() + rotationOffset;
-				}
+				var firstChild = this.children[i];
+				var lastChild = this.children[firstChild.hiddenEnd];
+				var hiddenAngleStart = firstChild.angleStart.current() + rotationOffset;
+				var hiddenAngleEnd = lastChild.angleEnd.current() + rotationOffset;
+				var hiddenRadiusInner = gRadius * firstChild.radiusInner.current();
 				
-				hiddenChildren++;
-			}
-			else
-			{
-				canDisplayChildren = true;
-				hiddenChildren = 0;
-			}
-		}
-		//
-		if ( canDisplayChildren && hiddenChildren > 0 && this.canDisplayLabel() )
-		{
-			var lastChild = this.children[this.children.length - 1];
-			var hiddenAngleEnd = lastChild.angleEnd.current() + rotationOffset;
-			var hiddenRadiusInner = gRadius * this.children[0].radiusInner.current();
-			
-			// this needs to be untranslated because browsers vary on whether
-			// they apply translations for isPointInPath
-			//
-			context.translate(-centerX, -centerY);
-			//
-			context.beginPath();
-			context.arc(centerX, centerY, hiddenRadiusInner, hiddenAngleStart, hiddenAngleEnd, false);
-			context.arc(centerX, centerY, gRadius, hiddenAngleEnd, hiddenAngleStart, true);
-			context.closePath();
-			//
-			var highlightHidden = context.isPointInPath(mouseX, mouseY);
-			//
-			context.translate(centerX, centerY);
-			
-			if ( highlightHidden )
-			{
-				context.strokeStyle = 'rgb(90,90,90)';
-				context.fill();
-				context.stroke();
-				context.fillStyle = 'black';
+				drawWedge
+				(
+					hiddenAngleStart,
+					hiddenAngleEnd,
+					hiddenRadiusInner,
+					gRadius,
+					'rgba(255, 255, 255, .3)',
+					0,
+					true
+				);
 				
 				if ( ! this.containsSearchResult )
 				{
@@ -1153,38 +1183,13 @@ function Node()
 					(
 						hiddenAngleStart,
 						hiddenAngleEnd,
-						hiddenChildren
+						firstChild.hiddenEnd - i + 1
 					);
 				}
-				highlightHidden = true;
+				
+				i = firstChild.hiddenEnd;
 			}
 		}
-		
-//			context.strokeStyle = 'black';
-		context.fillStyle = 'black';
-		
-		if ( progress < 1 && zoomOut && this == selectedNodeLast)
-		{
-			context.font = fontNormal;
-		}
-		else
-		{
-			context.font = fontBold;
-		}
-		
-		var angle = (angleEndCurrent + angleStartCurrent) / 2;
-		
-		if ( this.canDisplayLabel() )
-		{
-			this.drawLabel(angle, true, false);
-		}
-	}
-	
-	this.drawHighlightSVG = function()
-	{
-		var angleStartCurrent = this.angleStart.current() + rotationOffset;
-		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
-		var radiusInner = this.radiusInner.current() * gRadius;
 		
 		drawWedge
 		(
@@ -1201,9 +1206,9 @@ function Node()
 		
 		context.font = fontBold;
 		
-		if ( this.canDisplayLabel() )
+		if ( !(this.keyed && showKeys) )
 		{
-			this.drawLabel(angle, true, false);
+			this.drawLabel(angle, true, false, this.radial);
 		}
 	}
 	
@@ -1220,30 +1225,21 @@ function Node()
 		
 		context.fillStyle = 'black';
 		context.font = fontBold;
-		this.drawLabel(3 * Math.PI / 2, true, false);
+		this.drawLabel(3 * Math.PI / 2, true, true, false);
+		context.font = fontNormal;
 	}
 	
-	this.drawKey = function(angle, drawPattern, highlight)
+	this.drawKey = function(angle, highlight)
 	{
 		var offset = keyOffset();
-		var percentage = this.getPercentage();
-		
-		var color;
-		
-		if ( useHue() )
-		{
-			color = hslText(this.hue);
-		}
-		else
-		{
-			color = rgbText(this.r.end, this.g.end, this.b.end);
-		}
-		
+		var color = rgbText(this.r.end, this.g.end, this.b.end);
+		var patternAlpha = this.alphaPattern.end;
 		var boxLeft = imageWidth - keySize - margin;
 		var textY = offset + keySize / 2;
 		
-		var label = this.name + '   ' + percentage + '%';
 		var labelLength;
+		var label = this.keyLabel;
+		var keyNameWidth;
 		
 		if ( highlight )
 		{
@@ -1255,18 +1251,18 @@ function Node()
 			}
 		}
 		
-		if ( this == highlightedNode || this == focusNode )
+		if ( highlight )
 		{
 			context.font = fontBold
+			var dim = context.measureText(label);
+			keyNameWidth = dim.width;
 		}
 		else
 		{
-			context.font = fontNormal;
+			keyNameWidth = this.keyNameWidth;
 		}
 		
-		var dim = context.measureText(label);
-		this.keyNameWidth = dim.width;
-		var textLeft = boxLeft - keyBuffer - dim.width - fontSize / 2;
+		var textLeft = boxLeft - keyBuffer - keyNameWidth - fontSize / 2;
 		var labelLeft = textLeft;
 		
 		if ( labelLeft > keyMinTextLeft - fontSize / 2 )
@@ -1385,18 +1381,18 @@ function Node()
 			}
 		}
 		
-		context.globalAlpha = 1;
+		context.globalAlpha = this.alphaWedge.current();
 		
 		if ( snapshotMode )
 		{
-			var labelSVG = this.name + '&#160;&#160;&#160;' + percentage + '%';
+			var labelSVG = this.name + '&#160;&#160;&#160;' + this.getPercentage() + '%';
 			
 			svg +=
 				'<rect fill="' + color + '" ' +
 				'x="' + boxLeft + '" y="' + offset +
 				'" width="' + keySize + '" height="' + keySize + '"/>';
 			
-			if ( drawPattern )
+			if ( patternAlpha )
 			{
 				svg +=
 					'<rect fill="url(#hiddenPattern)" style="stroke:none" ' +
@@ -1472,15 +1468,29 @@ function Node()
 			context.fillStyle = color;
 			context.translate(-centerX, -centerY);
 			context.strokeStyle = 'black';
-				context.globalAlpha = this.alphaLine.current();
+				context.globalAlpha = 1;//this.alphaWedge.current();
 			
 			context.fillRect(boxLeft, offset, keySize, keySize);
 			
-			if ( drawPattern )
+			if ( patternAlpha )
 			{
+				context.globalAlpha = patternAlpha;
 				context.fillStyle = hiddenPattern;
+				
+				// make clipping box for Firefox performance
+				context.beginPath();
+				context.moveTo(boxLeft, offset);
+				context.lineTo(boxLeft + keySize, offset);
+				context.lineTo(boxLeft + keySize, offset + keySize);
+				context.lineTo(boxLeft, offset + keySize);
+				context.closePath();
+				context.save();
+				context.clip();
+				
 				context.fillRect(boxLeft, offset, keySize, keySize);
 				context.fillRect(boxLeft, offset, keySize, keySize);
+				
+				context.restore(); // remove clipping region
 			}
 			
 			if ( this == highlightedNode || this == focusNode )
@@ -1508,8 +1518,9 @@ function Node()
 					context.lineTo(lineX[i] + centerX, lineY[i] + centerY);
 				}
 				
-				context.globalAlpha = this.alphaLine.current();
+				context.globalAlpha = this.alphaWedge.current();
 				context.stroke();
+				context.globalAlpha = 1;
 			}
 			
 			if ( highlight )
@@ -1546,16 +1557,35 @@ function Node()
 			context.translate(centerX, centerY);
 		}
 		
+		if ( highlight )
+		{
+			context.font = fontNormal;
+		}
+		
 		currentKey++;
 	}
 	
-	this.drawLabel = function(angle, highlight, selected)
+	this.drawLabel = function(angle, highlight, selected, radial)
 	{
+		if ( ! highlight && this.alphaLabel.current() == 0 )
+		{
+			return;
+		}
+		
 		var innerText;
 		var label;
-		var radius = this.labelRadius.current() * gRadius;
+		var radius;
 		
-		if ( this.radial && (selected || highlight ) )
+		if ( radial )
+		{
+			radius = (this.radiusInner.current() + 1) * gRadius / 2;
+		}
+		else
+		{
+			radius = this.labelRadius.current() * gRadius;
+		}
+		
+		if ( radial && (selected || highlight ) )
 		{
 			var percentage = this.getPercentage();
 			innerText = percentage + '%';
@@ -1563,7 +1593,7 @@ function Node()
 		
 		if
 		(
-			! this.radial &&
+			! radial &&
 			this != selectedNode &&
 			! highlight &&
 			( !zoomOut || this != selectedNodeLast)
@@ -1582,19 +1612,22 @@ function Node()
 			innerText,
 			angle,
 			radius,
-			this.radial,
+			radial,
 			highlight,
 			this.shouldAddSearchResultsString() && (!selected || this == selectedNode || highlight),
 			true
 		);
 		
+		var depth = this.getDepth() - selectedNode.getDepth() + 1;
+		
 		if
 		(
-			! this.radial &&
+			! radial &&
 			! highlight &&
 			this != selectedNode &&
 			this.angleEnd.end != this.angleStart.end &&
-			this.nameWidth > (this.angleEnd.end - this.angleStart.end) * Math.abs(radius) &&
+			nLabelOffsets[depth - 2] > 2 &&
+			this.labelWidth.current() > (this.angleEnd.end - this.angleStart.end) * Math.abs(radius) &&
 			! ( zoomOut && this == selectedNodeLast ) &&
 			this.labelRadius.end > 0
 		)
@@ -1602,7 +1635,9 @@ function Node()
 			// name extends beyond wedge; draw tick mark towards the central
 			// radius for easier identification
 			
-			var radiusCenter = (this.getDepth() - selectedNode.getDepth() + .5) * nodeRadius;
+			var radiusCenter = compress ?
+				(compressedRadii[depth - 1] + compressedRadii[depth - 2]) / 2 :
+				(depth - .5) * nodeRadius;
 			
 			if ( this.labelRadius.end > radiusCenter )
 			{
@@ -1629,7 +1664,7 @@ function Node()
 		}
 	}
 	
-	this.drawLines = function(angleStart, angleEnd, radiusInner, drawRadial)
+	this.drawLines = function(angleStart, angleEnd, radiusInner, drawRadial, selected)
 	{
 		if ( snapshotMode )
 		{
@@ -1649,15 +1684,19 @@ function Node()
 				var x4 = centerX + radiusInner * Math.cos(angleEnd);
 				var y4 = centerY + radiusInner * Math.sin(angleEnd);
 				
-				dArray =
-				[
-					" M ", x4, ",", y4,
-					" A ", radiusInner, ",", radiusInner, " 0 ", longArc, " 0 ", x1, ",", y1
-				];
+				if ( this.alphaArc.end )
+				{
+					var dArray =
+					[
+						" M ", x4, ",", y4,
+						" A ", radiusInner, ",", radiusInner, " 0 ", longArc,
+							" 0 ", x1, ",", y1
+					];
+					
+					svg += '<path class="line" d="' + dArray.join('') + '"/>';
+				}
 				
-				svg += '<path class="line" d="' + dArray.join('') + '"/>';
-				
-				if ( drawRadial )
+				if ( drawRadial && this.alphaLine.end )
 				{
 					svg += '<line x1="' + x3 + '" y1="' + y3 + '" x2="' + x4 + '" y2="' + y4 + '"/>';
 				}
@@ -1665,21 +1704,31 @@ function Node()
 		}
 		else
 		{
-			var x1 = gRadius * Math.cos(angleEnd);
-			var y1 = gRadius * Math.sin(angleEnd);
-			
 			context.lineWidth = thinLineWidth;
+			context.strokeStyle = 'black';
 			context.beginPath();
 			context.arc(0, 0, radiusInner, angleStart, angleEnd, false);
+			context.globalAlpha = this.alphaArc.current();
+			context.stroke();
 			
 			if ( drawRadial )
 			{
-				context.lineTo(x1, y1);
+				var x1 = radiusInner * Math.cos(angleEnd);
+				var y1 = radiusInner * Math.sin(angleEnd);
+				var x2 = gRadius * Math.cos(angleEnd);
+				var y2 = gRadius * Math.sin(angleEnd);
+				
+				context.beginPath();
+				context.moveTo(x1, y1);
+				context.lineTo(x2, y2);
+				
+//				if ( this.getCollapse() )//( selected && this != selectedNode )
+				{
+					context.globalAlpha = this.alphaLine.current();
+				}
+				
+				context.stroke();
 			}
-			
-			context.strokeStyle = 'black';
-			context.globalAlpha = this.alphaLine.current();
-			context.stroke();
 		}
 	}
 	
@@ -1710,77 +1759,114 @@ function Node()
 		context.textAlign = 'end';
 		context.textBaseline = 'middle';
 		
-		if ( this == child )
+		var textX = box.x - mapRadius - mapBuffer;
+		var percentage = getPercentage(child.magnitude / this.magnitude);
+		
+		var highlight = this == selectedNode || this == highlightedNode;
+		
+		if ( highlight )
 		{
 			context.font = fontBold;
-			context.fillText(this.name, box.x, box.y);
+		}
+		
+		context.fillText(percentage + '% of', textX, box.y - mapRadius / 3);
+		context.fillText(this.name, textX, box.y + mapRadius / 3);
+		
+		if ( highlight )
+		{
 			context.font = fontNormal;
+		}
+		
+		if ( this == highlightedNode && this != selectedNode )
+		{
+			context.fillStyle = 'rgb(245, 245, 245)';
+//			context.fillStyle = 'rgb(200, 200, 200)';
 		}
 		else
 		{
-			var textX = box.x - mapRadius - mapBuffer;
-			var percentage = getPercentage(child.magnitude / this.magnitude);
-			
-			if ( this == selectedNode )
+			context.fillStyle = 'rgb(255, 255, 255)';
+		}
+		
+		context.beginPath();
+		context.arc(box.x, box.y, mapRadius, 0, Math.PI * 2, true);
+		context.closePath();
+		context.fill();
+		
+		if ( this == selectedNode )
+		{
+			context.lineWidth = 1;
+			context.fillStyle = 'rgb(100, 100, 100)';
+		}
+		else
+		{
+			if ( this == highlightedNode )
 			{
-				context.font = fontBold;
-			}
-			
-			context.fillText(percentage + '% of', textX, box.y - mapRadius / 3);
-			context.fillText(this.name, textX, box.y + mapRadius / 3);
-			
-			if ( this == highlightedNode && this != selectedNode )
-			{
-				context.fillStyle = 'rgb(245, 245, 245)';
-	//			context.fillStyle = 'rgb(200, 200, 200)';
-			}
-			else
-			{
-				context.fillStyle = 'rgb(255, 255, 255)';
-			}
-			
-			context.beginPath();
-			context.arc(box.x, box.y, mapRadius, 0, Math.PI * 2, true);
-			context.closePath();
-			context.fill();
-			
-			if ( this == selectedNode )
-			{
-				context.lineWidth = 1;
-				context.fillStyle = 'rgb(100, 100, 100)';
+				context.lineWidth = .2;
+				context.fillStyle = 'rgb(190, 190, 190)';
 			}
 			else
 			{
-				if ( this == highlightedNode )
-				{
-					context.lineWidth = .2;
-					context.fillStyle = 'rgb(190, 190, 190)';
-				}
-				else
-				{
-					context.lineWidth = .2;
-					context.fillStyle = 'rgb(200, 200, 200)';
-				}
+				context.lineWidth = .2;
+				context.fillStyle = 'rgb(200, 200, 200)';
 			}
-			
-			context.stroke();
-			context.beginPath();
+		}
+		
+		var maxDepth = this.getMaxDepth();
+		
+		if ( ! compress && maxDepth > maxPossibleDepth + this.getDepth() - 1 )
+		{
+			maxDepth = maxPossibleDepth + this.getDepth() - 1;
+		}
+		
+		if ( this.getDepth() < selectedNode.getDepth() )
+		{
+			if ( child.getDepth() - 1 >= maxDepth )
+			{
+				maxDepth = child.getDepth();
+			}
+		}
+		
+		var radiusInner;
+		
+		if ( compress )
+		{
+			radiusInner = 0;
+//				Math.atan(child.getDepth() - this.getDepth()) /
+//				Math.PI * 2 * .9;
+		}
+		else
+		{
+			radiusInner =
+				(child.getDepth() - this.getDepth()) /
+				(maxDepth - this.getDepth() + 1);
+		}
+		
+		context.stroke();
+		context.beginPath();
+		
+		if ( radiusInner == 0 )
+		{
 			context.moveTo(box.x, box.y);
-			context.arc(box.x, box.y, mapRadius, angleStart, angleEnd, false);
-			context.closePath();
-			context.fill();
-			
-			if ( this == highlightedNode && this != selectedNode )
-			{
-				context.lineWidth = 1;
-				context.stroke();
-			}
+		}
+		else
+		{
+			context.arc(box.x, box.y, mapRadius * radiusInner, angleEnd, angleStart, true);
+		}
+		
+		context.arc(box.x, box.y, mapRadius, angleStart, angleEnd, false);
+		context.closePath();
+		context.fill();
+		
+		if ( this == highlightedNode && this != selectedNode )
+		{
+			context.lineWidth = 1;
+			context.stroke();
 		}
 		
 		context.restore();
 	}
 	
-	this.drawReferenceRings = function()
+	this.drawReferenceRings = function(childRadiusInner)
 	{
 		if ( snapshotMode )
 		{
@@ -1793,11 +1879,9 @@ function Node()
 		}
 		else
 		{
-			var childRadiusInner = this.children[0].getUncollapsed().radiusInner.current();
-			
 			context.globalAlpha = 1 - this.alphaLine.current();//this.getUncollapsed().alphaLine.current();
 			context.beginPath();
-			context.arc(0, 0, childRadiusInner * gRadius, 0, Math.PI * 2, false);
+			context.arc(0, 0, childRadiusInner, 0, Math.PI * 2, false);
 			context.stroke();
 			context.beginPath();
 			context.arc(0, 0, gRadius, 0, Math.PI * 2, false);
@@ -2012,6 +2096,11 @@ function Node()
 		}
 	}
 	
+	this.getMagnitude = function()
+	{
+		return this.attributes[magnitudeIndex][currentDataset];
+	}
+	
 	this.getMapPosition = function()
 	{
 		return {
@@ -2022,27 +2111,24 @@ function Node()
 		};
 	}
 	
-	this.getNodeByID = function(id)
+	this.getMaxDepth = function(limit)
 	{
-		if ( this.nodeID == id )
+		var max;
+		
+		if ( collapse )
 		{
-			return this;
+			return this.maxDepthCollapsed;
 		}
 		else
 		{
-			var node = null;
-			
-			for (var i = 0; i < this.children.length; i++)
+			if ( this.maxDepth > maxAbsoluteDepth )
 			{
-				node = this.children[i].getNodeByID(id);
-				
-				if ( node != null )
-				{
-					break;
-				}
+				return maxAbsoluteDepth;
 			}
-			
-			return node;
+			else
+			{
+				return this.maxDepth;
+			}
 		}
 	}
 	
@@ -2081,7 +2167,7 @@ function Node()
 	
 	this.hasChildren = function()
 	{
-		return this.children.length && this.depth < maxAbsoluteDepth;
+		return this.children.length && this.depth < maxAbsoluteDepth && this.magnitude;
 	}
 	
 	this.hasParent = function(parent)
@@ -2103,44 +2189,40 @@ function Node()
 		}
 	}
 	
-	this.maxDepth = function()
+	this.maxVisibleDepth = function(maxDepth)
 	{
-		var currentMaxDepth = 0;
+		var childInnerRadius;
+		var depth = this.getDepth() - selectedNode.getDepth() + 1;
+		var currentMaxDepth = depth;
 		
-		//if ( this.canDisplayDepth() )
+		if ( this.hasChildren() && depth < maxDepth)
 		{
-			for ( i in this.children )
+			var lastChild = this.children[this.children.length - 1];
+			
+			if ( this.name == 'Pseudomonadaceae' )
 			{
-				var currentDepth = this.children[i].maxDepth();
-				
-				if ( currentDepth > currentMaxDepth )
-				{
-					currentMaxDepth = currentDepth;
-				}
+				var x = 3;
 			}
 			
-			//if ( !this.getCollapse() )
+			if
+			(
+				lastChild.baseMagnitude + lastChild.magnitude <
+				this.baseMagnitude + this.magnitude
+			)
 			{
 				currentMaxDepth++;
 			}
-		}
-		
-		return currentMaxDepth;
-	}
-	
-	this.maxVisibleDepth = function(depth, maxDepth)
-	{
-		var currentMaxDepth = 0;
-		var childInnerRadius = depth / maxDepth;
-		
-		if ( this.canDisplayDepth() )
-		{
-			if ( this.getCollapse() )
+			
+			if ( compress )
 			{
-				depth++;
+				childInnerRadius = compressedRadii[depth - 1];
+			}
+			else
+			{
+				childInnerRadius = (depth) / maxDepth;
 			}
 			
-			for ( i in this.children )
+			for ( var i = 0; i < this.children.length; i++ )
 			{
 				if
 				(//true ||
@@ -2151,18 +2233,13 @@ function Node()
 					minWidth()
 				)
 				{
-					var currentDepth = this.children[i].maxVisibleDepth(depth, maxDepth);
+					var childMaxDepth = this.children[i].maxVisibleDepth(maxDepth);
 					
-					if ( currentDepth > currentMaxDepth )
+					if ( childMaxDepth > currentMaxDepth )
 					{
-						currentMaxDepth = currentDepth;
+						currentMaxDepth = childMaxDepth;
 					}
 				}
-			}
-			
-			if ( !this.getCollapse() )
-			{
-				currentMaxDepth++;
 			}
 		}
 		
@@ -2175,7 +2252,6 @@ function Node()
 		
 		if ( ! this.radial )//&& fontSize != fontSizeLast )
 		{
-			context.font = fontNormal;
 			var dim = context.measureText(this.name);
 			this.nameWidth = dim.width;
 		}
@@ -2227,19 +2303,6 @@ function Node()
 		return this.containsSearchResult;
 	}
 	
-	this.setBaseMagnitude = function(baseMagnitude)
-	{
-		this.baseMagnitude = baseMagnitude;
-		
-		for ( var i = 0; i < this.children.length; i++ )
-		{
-			this.children[i].setBaseMagnitude(baseMagnitude);
-			baseMagnitude += this.children[i].magnitude;
-		}
-		
-		this.maxChildMagnitude = baseMagnitude;
-	}
-	
 	this.setDepth = function(depth, depthCollapsed)
 	{
 		this.depth = depth;
@@ -2248,7 +2311,9 @@ function Node()
 		if
 		(
 			this.children.length == 1 &&
-			this.children[0].magnitude == this.magnitude
+//			this.magnitude > 0 &&
+			this.children[0].magnitude == this.magnitude &&
+			( head.children.length > 1 || this.children[0].children.length )
 		)
 		{
 			this.collapse = true;
@@ -2288,56 +2353,101 @@ function Node()
 			return; // don't need to set width
 		}
 		
-		if ( ! node.canDisplayLabel() )
+		if ( node.hide )
 		{
+			alert('wtf');
 			return;
 		}
 		
 		var angle = (this.angleStart.end + this.angleEnd.end) / 2;
-		var a = Math.abs(angle - (node.angleStart.end + node.angleEnd.end) / 2); // angle difference
+		var a; // angle difference
 		
-		if ( node.radial )
+		if ( node == selectedNode )
 		{
-			if ( a > Math.PI )
+			a = Math.abs(angle - node.angleOther);
+		}
+		else
+		{
+			a = Math.abs(angle - (node.angleStart.end + node.angleEnd.end) / 2);
+		}
+		
+		if ( a == 0 )
+		{
+			return;
+		}
+		
+		if ( a > Math.PI )
+		{
+			a = 2 * Math.PI - a;
+		}
+		
+		if ( node.radial || node == selectedNode )
+		{
+			var nodeLabelRadius;
+			
+			if ( node == selectedNode )
 			{
-				a = 2 * Math.PI - a;
+				// radial 'other' label
+				
+				nodeLabelRadius = (node.children[0].radiusInner.end + 1) / 2;
+			}
+			else
+			{
+				nodeLabelRadius = (node.radiusInner.end + 1) / 2;
 			}
 			
 			if ( a < Math.PI / 2 )
 			{
-				var r = this.labelRadius.end * gRadius - .5 * fontSize
+				var r = this.labelRadius.end * gRadius + .5 * fontSize
 				var hypotenuse = r / Math.cos(a);
 				var opposite = r * Math.tan(a);
+				var fontRadius = .8 * fontSize;
 				
 				if
 				(
-					node.labelRadius.end * gRadius - fontSize < hypotenuse &&
-					this.labelWidth.end / 2 + .75 * fontSize > opposite
+					nodeLabelRadius * gRadius < hypotenuse &&
+					this.labelWidth.end / 2 + fontRadius > opposite
 				)
 				{
-					this.labelWidth.end = opposite * 2 - 1.5 * fontSize;
+					this.labelWidth.end = 2 * (opposite - fontRadius);
 				}
+			}
+		}
+		else if
+		(
+			this.labelRadius.end == node.labelRadius.end &&
+			a < Math.PI / 4
+		)
+		{
+			// same radius with small angle; use circumferential approximation
+			
+			var dist = a * this.labelRadius.end * gRadius - fontSize * (1 - a * 4 / Math.PI) * 1.3;
+			
+			if ( this.labelWidth.end < dist )
+			{
+				node.restrictLabelWidth((dist - this.labelWidth.end / 2) * 2);
+			}
+			else if ( node.labelWidth.end < dist )
+			{
+				this.restrictLabelWidth((dist - node.labelWidth.end / 2) * 2);
+			}
+			else
+			{
+				// both labels reach halfway point; restrict both
+				
+				this.labelWidth.end = dist;
+				node.labelWidth.end = dist
 			}
 		}
 		else
 		{
-			// different tracks; find intersection and shorten one if needed
-			
-			if ( a > Math.PI )
-			{
-				a = 2 * Math.PI - a;
-			}
-			
-			var r1;
-			var r2;
-			
-			var fontFudge = .35 * fontSize;
-			
-			r1 = this.labelRadius.end * gRadius;
-			r2 = node.labelRadius.end * gRadius;
+			var r1 = this.labelRadius.end * gRadius;
+			var r2 = node.labelRadius.end * gRadius;
 			
 			// first adjust the radii to account for the height of the font by shifting them
 			// toward each other
+			//
+			var fontFudge = .35 * fontSize;
 			//
 			if ( this.labelRadius.end < node.labelRadius.end )
 			{
@@ -2368,175 +2478,290 @@ function Node()
 			
 			// distance from our label center to the intersection of the two tangents
 			//
-			var l1 = Math.abs(Math.sin(a + b - Math.PI / 2) * dist / Math.sin(Math.PI - a)) - .4 * fontSize;
+			var l1 = Math.sin(a + b - Math.PI / 2) * dist / Math.sin(Math.PI - a);
 			
 			// distance from other label center the the intersection of the two tangents
 			//
-			var l2 = Math.abs(Math.sin(Math.PI / 2 - b) * dist / Math.sin(Math.PI - a)) - .4 * fontSize;
+			var l2 = Math.sin(Math.PI / 2 - b) * dist / Math.sin(Math.PI - a);
 			
+			l1 = Math.abs(l1) - .4 * fontSize;
+			l2 = Math.abs(l2) - .4 * fontSize;
+/*			
+			// amount to shorten the distances because of the height of the font
+			//
+			var l3 = 0;
+			var fontRadius = fontSize * .55;
+			//
+			if ( l1 < 0 || l2 < 0 )
+			{
+				var l4 = fontRadius / Math.tan(a);
+			l1 = Math.abs(l1);
+			l2 = Math.abs(l2);
+			
+				l1 -= l4;
+				l2 -= l4;
+			}
+			else
+			{
+				var c = Math.PI - a;
+				
+				l3 = fontRadius * Math.tan(c / 2);
+			}
+*/			
 			if ( this.labelWidth.end / 2 > l1 && node.labelWidth.end / 2 > l2 )
 			{
-				// intersection
+				// shorten the farthest one from the intersection
 				
-				if ( r1 == r2 )
+				if ( l1 > l2 )
 				{
-					this.restrictLabelWidth(2 * l1);
-					node.restrictLabelWidth(2 * l2);
+					this.restrictLabelWidth(2 * (l1));// - l3 - fontRadius));
 				}
 				else
 				{
-					if ( l1 > l2 )
-					{
-						this.restrictLabelWidth(2 * l1);
-					}
-					else
-					{
-						node.restrictLabelWidth(2 * l2);
-					}
+					node.restrictLabelWidth(2 * (l2));// - l3 - fontRadius));
 				}
+			}/*
+			else if ( this.labelWidth.end / 2 > l1 + l3 && node.labelWidth.end / 2 > l2 - l3 )
+			{
+				node.restrictLabelWidth(2 * (l2 - l3));
+			}
+			else if ( this.labelWidth.end / 2 > l1 - l3 && node.labelWidth.end / 2 > l2 + l3 )
+			{
+				this.restrictLabelWidth(2 * (l1 - l3));
+			}*/
+		}
+	}
+	
+	this.setMagnitudes = function(baseMagnitude)
+	{
+		this.magnitude = this.getMagnitude();
+		this.baseMagnitude = baseMagnitude;
+		
+		for ( var i = 0; i < this.children.length; i++ )
+		{
+			this.children[i].setMagnitudes(baseMagnitude);
+			baseMagnitude += this.children[i].magnitude;
+		}
+		
+		this.maxChildMagnitude = baseMagnitude;
+	}
+	
+	this.setMaxDepths = function()
+	{
+		this.maxDepth = this.depth;
+		this.maxDepthCollapsed = this.depthCollapsed;
+		
+		for ( i in this.children )
+		{
+			var child = this.children[i];
+			
+			child.setMaxDepths();
+			
+			if ( child.maxDepth > this.maxDepth )
+			{
+				this.maxDepth = child.maxDepth;
+			}
+			
+			if
+			(
+				child.maxDepthCollapsed > this.maxDepthCollapsed &&
+				(child.depth <= maxAbsoluteDepth || maxAbsoluteDepth == 0)
+			)
+			{
+				this.maxDepthCollapsed = child.maxDepthCollapsed;
 			}
 		}
 	}
 	
-	this.setTargets = function(hueMin, hueMax)
+	this.setTargetLabelRadius = function()
 	{
+		var depth = this.getDepth() - selectedNode.getDepth() + 1;
+		var index = depth - 2;
+		var labelOffset = labelOffsets[index];
+		
+		if ( this.radial )
+		{
+			//this.labelRadius.setTarget((this.radiusInner.end + 1) / 2);
+			var max =
+				depth == maxDisplayDepth ?
+				1 :
+				compressedRadii[index + 1];
+			
+			this.labelRadius.setTarget((compressedRadii[index] + max) / 2);
+		}
+		else
+		{
+			var radiusCenter;
+			var width;
+			
+			if ( compress )
+			{
+				if ( nLabelOffsets[index] > 1 )
+				{
+					this.labelRadius.setTarget
+					(
+						lerp
+						(
+							labelOffset + .75,
+							0,
+							nLabelOffsets[index] + .5,
+							compressedRadii[index],
+							compressedRadii[index + 1]
+						)
+					);
+				}
+				else
+				{
+					this.labelRadius.setTarget((compressedRadii[index] + compressedRadii[index + 1]) / 2);
+				}
+			}
+			else
+			{
+				radiusCenter =
+					nodeRadius * (depth - 1) +
+					nodeRadius / 2;
+				width = nodeRadius;
+				
+				this.labelRadius.setTarget
+				(
+					radiusCenter + width * ((labelOffset + 1) / (nLabelOffsets[index] + 1) - .5)
+				);
+			}
+		}
+		
+		if ( ! this.hide && ! this.keyed && nLabelOffsets[index] )
+		{
+			// check last and first labels in each track for overlap
+			
+			for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+			{
+				for ( var j = 0; j <= nLabelOffsets[i]; j++ )
+				{
+					var last = labelLastNodes[i][j];
+					var first = labelFirstNodes[i][j];
+					
+					if ( last )
+					{
+						if ( j == nLabelOffsets[i] )
+						{
+							// last is radial
+							this.setLabelWidth(last);
+						}
+						else
+						{
+							last.setLabelWidth(this);
+						}
+					}
+					
+					if ( first )
+					{
+						if ( j == nLabelOffsets[i] )
+						{
+							this.setLabelWidth(first);
+						}
+						else
+						{
+							first.setLabelWidth(this);
+						}
+					}
+				}
+			}
+			
+			if ( selectedNode.canDisplayLabelOther )
+			{
+				this.setLabelWidth(selectedNode); // in case there is an 'other' label
+			}
+			
+			if ( this.radial )
+			{
+				// use the last 'track' of this depth for radial
+				
+				labelLastNodes[index][nLabelOffsets[index]] = this;
+				
+				if ( labelFirstNodes[index][nLabelOffsets[index]] == 0 )
+				{
+					labelFirstNodes[index][nLabelOffsets[index]] = this;
+				}
+			}
+			else
+			{
+				labelLastNodes[index][labelOffset] = this;
+				
+				// update offset
+				
+				labelOffsets[index] += 1;
+				
+				if ( labelOffsets[index] > nLabelOffsets[index] )
+				{
+					labelOffsets[index] -= nLabelOffsets[index];
+					
+					if ( !(nLabelOffsets[index] & 1) )
+					{
+						labelOffsets[index]--;
+					}
+				}
+				else if ( labelOffsets[index] == nLabelOffsets[index] )
+				{
+					labelOffsets[index] -= nLabelOffsets[index];
+					
+					if ( false && !(nLabelOffsets[index] & 1) )
+					{
+						labelOffsets[index]++;
+					}
+				}
+				
+				if ( labelFirstNodes[index][labelOffset] == 0 )
+				{
+					labelFirstNodes[index][labelOffset] = this;
+				}
+			}
+		}
+		else if ( this.hide )
+		{
+			this.labelWidth.end = 0;
+		}
+	}
+	
+	this.setTargets = function()
+	{
+		if ( this == selectedNode )
+		{
+			this.setTargetsSelected
+			(
+				0,
+				1,
+				lightnessBase,
+				false,
+				false
+			);
+			return;
+		}
+		
 		var depthRelative = this.getDepth() - selectedNode.getDepth();
-		var parentOfSelected =
-		(
+		
+		var parentOfSelected = selectedNode.hasParent(this);
+/*		(
 //			! this.getCollapse() &&
 			this.baseMagnitude <= selectedNode.baseMagnitude &&
 			this.baseMagnitude + this.magnitude >=
 			selectedNode.baseMagnitude + selectedNode.magnitude
 		);
-		
-		if ( this == selectedNode || parentOfSelected )
+*/		
+		if ( parentOfSelected )
 		{
 			this.resetLabelWidth();
 		}
 		else
 		{
-			context.font = fontNormal;
+			//context.font = fontNormal;
 			var dim = context.measureText(this.name);
 			this.nameWidth = dim.width;
-			this.labelWidth.setTarget(this.labelWidth.end);
+			//this.labelWidth.setTarget(this.labelWidth.end);
+			this.labelWidth.setTarget(0);
 		}
 		
-		if ( this == selectedNode )
-		{
-//			if ( relativeColorCheckBox.checked )
-			{
-				// reset hue min and max to use the full color spectrum
-				// for the selected node
-				
-				hueMin = 0;
-				hueMax = 1;
-			}
-			
-			for ( var i = 0; i < this.children.length; i++ )
-			{
-				this.children[i].setTargetsSelected
-				(
-					hueMin + i * (hueMax - hueMin) / this.children.length,
-					hueMin + (i + 1) * (hueMax - hueMin) / this.children.length,
-					false
-				);
-			}
-			
-			this.labelWidth.setTarget(this.nameWidth * labelWidthFudge);
-		}
-		else
-		{
-			for ( var i = 0; i < this.children.length; i++ )
-			{
-				this.children[i].setTargets
-				(
-					hueMin + i * (hueMax - hueMin) / this.children.length,
-					hueMin + (i + 1) * (hueMax - hueMin) / this.children.length
-				);
-			}
-		}
-		
-		if ( this.getDepth() <= selectedNode.getDepth() )
-		{
-			// collapse in
-			
-			this.radiusInner.setTarget(0);
-			this.alphaLine.setTarget(0);
-			
-			if ( parentOfSelected )
-			{
-				this.labelRadius.setTarget
-				(
-					(this.getDepth() - selectedNode.getDepth()) *
-					historySpacingFactor * fontSize / gRadius
-				);
-				this.scale.setTarget(1 - (selectedNode.getDepth() - this.getDepth()) / 18); // TEMP
-			}
-			else
-			{
-				this.labelRadius.setTarget(0);
-				this.scale.setTarget(1); // TEMP
-			}
-		}
-		else if ( nodeRadius * depthRelative > 1 )
-		{
-			// collapse out
-			
-			this.radiusInner.setTarget(1);
-			this.alphaLine.setTarget(0);
-			this.labelRadius.setTarget(1);
-			this.scale.setTarget(1); // TEMP
-		}
-		else
-		{
-			// don't collapse
-			
-			this.radiusInner.setTarget(nodeRadius * (depthRelative));
-			this.alphaLine.setTarget(0);
-			this.scale.setTarget(1); // TEMP
-			
-			if ( this == selectedNode )
-			{
-				this.labelRadius.setTarget(0);
-			}
-			else
-			{
-				this.labelRadius.setTarget(nodeRadius * (depthRelative) + nodeRadius / 2);
-			}
-		}
-		
-		this.r.setTarget(255);
-		this.g.setTarget(255);
-		this.b.setTarget(255);
-		this.alphaWedge.setTarget(0);
-		
-		if ( this == selectedNode )
-		{
-			this.alphaLabel.setTarget(1);
-			this.radial = false;
-		}
-		else if ( parentOfSelected && ! this.getCollapse() )
-		{
-			var alpha =
-			(
-				1 -
-				(selectedNode.getDepth() - this.getDepth()) /
-				(Math.floor(nodeRadius * gRadius / (historySpacingFactor * fontSize) - .5) + 1)
-			);
-			
-			if ( alpha < 0 )
-			{
-				//alpha = 0;
-			}
-			
-			this.alphaLabel.setTarget(alpha);
-			this.radial = false;
-		}
-		else
-		{
-			this.alphaLabel.setTarget(0);
-		}
-		
+		// set angles
+		//
 		if ( this.baseMagnitude <= selectedNode.baseMagnitude )
 		{
 			this.angleStart.setTarget(0);
@@ -2545,9 +2770,10 @@ function Node()
 		{
 			this.angleStart.setTarget(Math.PI * 2);
 		}
-		
+		//
 		if
 		(
+			parentOfSelected ||
 			this.baseMagnitude + this.magnitude >=
 			selectedNode.baseMagnitude + selectedNode.magnitude
 		)
@@ -2558,57 +2784,218 @@ function Node()
 		{
 			this.angleEnd.setTarget(0);
 		}
-	}
-	
-	this.setTargetsSelected = function(hueMin, hueMax, focused)
-	{
-		var collapse = this.getCollapse();
-		var depth = this.getDepth() - selectedNode.getDepth() + 1;
-		var canDisplayChildren = false;
 		
-		if ( this == focusNode )
-		{
-			focused = true;
-		}
-		
-		if ( hueMax - hueMin > 1 / 6 )
-		{
-			hueMax = hueMin + 1 / 6;
-		}
-		
+		// children
+		//
 		for ( var i = 0; i < this.children.length; i++ )
 		{
-			this.children[i].setTargetsSelected
-			(
-				hueMin + i * (hueMax - hueMin) / this.children.length,
-				hueMin + (i + 1) * (hueMax - hueMin) / this.children.length,
-				focused
-			);
+			this.children[i].setTargets();
+		}
+		
+		if ( this.getDepth() <= selectedNode.getDepth() )
+		{
+			// collapse in
 			
-			if ( this.children[i].canDisplayLabel() )
+			this.radiusInner.setTarget(0);
+			
+			if ( parentOfSelected )
 			{
-				canDisplayChildren = true;
+				this.labelRadius.setTarget
+				(
+					(depthRelative) *
+					historySpacingFactor * fontSize / gRadius
+				);
+				//this.scale.setTarget(1 - (selectedNode.getDepth() - this.getDepth()) / 18); // TEMP
+			}
+			else
+			{
+				this.labelRadius.setTarget(0);
+				//this.scale.setTarget(1); // TEMP
+			}
+		}
+		else if ( depthRelative + 1 > maxDisplayDepth )
+		{
+			// collapse out
+			
+			this.radiusInner.setTarget(1);
+			this.labelRadius.setTarget(1);
+			//this.scale.setTarget(1); // TEMP
+		}
+		else
+		{
+			// don't collapse
+			
+			if ( compress )
+			{
+				this.radiusInner.setTarget(compressedRadii[depthRelative - 1]);
+			}
+			else
+			{
+				this.radiusInner.setTarget(nodeRadius * (depthRelative));
+			}
+			
+			//this.scale.setTarget(1); // TEMP
+			
+			if ( this == selectedNode )
+			{
+				this.labelRadius.setTarget(0);
+			}
+			else
+			{
+				if ( compress )
+				{
+					this.labelRadius.setTarget
+					(
+						(compressedRadii[depthRelative - 1] + compressedRadii[depthRelative]) / 2
+					);
+				}
+				else
+				{
+					this.labelRadius.setTarget(nodeRadius * (depthRelative) + nodeRadius / 2);
+				}
 			}
 		}
 		
-		var baseMagnitudeRelative = this.baseMagnitude - selectedNode.baseMagnitude;
+//		this.r.start = this.r.end;
+//		this.g.start = this.g.end;
+//		this.b.start = this.b.end;
 		
-		this.angleStart.setTarget(baseMagnitudeRelative * angleFactor);
-		this.angleEnd.setTarget((baseMagnitudeRelative + this.magnitude) * angleFactor);
-	 	
-	 	var hue;
-	 	
-	 	if ( false && useHue() && this.hue == null )
-	 	{
-			this.r.setTarget(240);
-			this.g.setTarget(240);
-			this.b.setTarget(240);
-	 	}
-	 	else
-	 	{
-			var lightness;
+		this.r.setTarget(255);
+		this.g.setTarget(255);
+		this.b.setTarget(255);
+
+		this.alphaLine.setTarget(0);
+		this.alphaArc.setTarget(0);
+		this.alphaWedge.setTarget(0);
+		this.alphaPattern.setTarget(0);
+		this.alphaOther.setTarget(0);
+		
+		if ( parentOfSelected && ! this.getCollapse() )
+		{
+			var alpha =
+			(
+				1 -
+				(selectedNode.getDepth() - this.getDepth()) /
+				(Math.floor((compress ? compressedRadii[0] : nodeRadius) * gRadius / (historySpacingFactor * fontSize) - .5) + 1)
+			);
 			
-			if ( this.hue == null || ! useHue.checked )
+			if ( alpha < 0 )
+			{
+				alpha = 0;
+			}
+			
+			this.alphaLabel.setTarget(alpha);
+			this.radial = false;
+		}
+		else
+		{
+			this.alphaLabel.setTarget(0);
+		}
+		
+		this.hideAlonePrev = this.hideAlone;
+		this.hidePrev = this.hide;
+		
+		if ( parentOfSelected )
+		{
+			this.hideAlone = false;
+			this.hide = false;
+		}
+		
+		if ( this.getParent() == selectedNode.getParent() )
+		{
+			this.hiddenEnd = null;
+		}
+		
+		this.radialPrev = this.radial;
+	}
+	
+	this.setTargetsSelected = function(hueMin, hueMax, lightness, hide, nextSiblingHidden)
+	{
+		var collapse = this.getCollapse();
+		var depth = this.getDepth() - selectedNode.getDepth() + 1;
+		var canDisplayChildLabels = false;
+		var lastChild;
+		
+		if ( this.hasChildren() )//&& ! hide )
+		{
+			lastChild = this.children[this.children.length - 1];
+			this.hideAlone = true;
+		}
+		else
+		{
+			this.hideAlone = false;
+		}
+		
+		// set child wedges
+		//
+		for ( var i = 0; i < this.children.length; i++ )
+		{
+			this.children[i].setTargetWedge();
+			
+			if
+			(
+				! this.children[i].hide &&
+				( collapse || depth < maxDisplayDepth ) &&
+				this.depth < maxAbsoluteDepth
+			)
+			{
+				canDisplayChildLabels = true;
+				this.hideAlone = false;
+			}
+		}
+		
+		if ( this == selectedNode || lastChild && lastChild.angleEnd.end < this.angleEnd.end - .01)
+		{
+			this.hideAlone = false;
+		}
+		
+		if ( this.hideAlonePrev == undefined )
+		{
+			this.hideAlonePrev = this.hideAlone;
+		}
+		
+		if ( this == selectedNode )
+		{
+			var otherArc = 
+				angleFactor *
+				(
+					this.baseMagnitude + this.magnitude -
+					lastChild.baseMagnitude - lastChild.magnitude
+				);
+			this.canDisplayLabelOther =
+				otherArc *
+				(this.children[0].radiusInner.end + 1) * gRadius >=
+				minWidth();
+			
+			if ( this.canDisplayLabelOther )
+			{
+				this.angleOther = Math.PI * 2 - otherArc / 2;
+			}
+			
+			this.angleStart.setTarget(0);
+			this.angleEnd.setTarget(Math.PI * 2);
+			this.radiusInner.setTarget(0);
+			this.hidePrev = this.hide;
+			this.hide = false;
+			this.hideAlonePrev = this.hideAlone;
+			this.hideAlone = false;
+			this.keyed = false;
+		}
+		
+		if ( hueMax - hueMin > 1 / 12 )
+		{
+			hueMax = hueMin + 1 / 12;
+		}
+		
+		// set lightness
+		//
+		if ( ! ( hide || this.hideAlone ) )
+		{
+			if ( useHue() )
+			{
+				lightness = (lightnessBase + lightnessMax) / 2;
+			}
+			else
 			{
 				lightness = lightnessBase + (depth - 1) * lightnessFactor;
 				
@@ -2617,14 +3004,180 @@ function Node()
 					lightness = lightnessMax;
 				}
 			}
-			else
+		}
+		
+		if ( hide )
+		{
+			this.hide = true;
+		}
+		
+		if ( this.hidePrev == undefined )
+		{
+			this.hidePrev = this.hide;
+		}
+		
+		var hiddenStart = -1;
+		var hiddenHueNumer = 0;
+		var hiddenHueDenom = 0;
+		var i = 0;
+		
+		if ( ! this.hide )
+		{
+			this.hiddenEnd = null;
+		}
+		
+		while ( true )
+		{
+			if ( ! this.hideAlone && ! hide && ( i == this.children.length || ! this.children[i].hide ) )
 			{
-				lightness = (lightnessBase + lightnessMax) / 2;
+				// reached a non-hidden child or the end; set targets for
+				// previous group of hidden children (if any) using their
+				// average hue
+				
+				if ( hiddenStart != -1 )
+				{
+					var hiddenHue = hiddenHueDenom ? hiddenHueNumer / hiddenHueDenom : hueMin;
+					
+					for ( var j = hiddenStart; j < i; j++ )
+					{
+						this.children[j].setTargetsSelected
+						(
+							hiddenHue,
+							null,
+							lightness,
+							false,
+							j < i - 1
+						);
+						
+						this.children[j].hiddenEnd = null;
+					}
+					
+					this.children[hiddenStart].hiddenEnd = i - 1;
+				}
 			}
 			
+			if ( i == this.children.length )
+			{
+				break;
+			}
+			
+			var child = this.children[i];
+			var childHueMin;
+			var childHueMax;
+			
+			if ( this.magnitude > 0 && ! this.hide && ! this.hideAlone )
+			{
+				if ( useHue() )
+				{
+					childHueMin = child.hues[currentDataset];
+				}
+				else if ( this == selectedNode )
+				{
+					if ( this.children.length > 6 )
+					{
+						childHueMin = (1 - Math.pow(1 - i / this.children.length, 1.4)) * .95;
+						childHueMax = (1 - Math.pow(1 - (i + .35) / this.children.length, 1.4)) * .95;
+					}
+					else
+					{
+						childHueMin = i / this.children.length;
+						childHueMax = (i + .35) / this.children.length;
+					}
+				}
+				else
+				{
+					childHueMin = lerp
+					(
+						child.baseMagnitude,
+						this.baseMagnitude, 
+						this.baseMagnitude + this.magnitude,
+						hueMin,
+						hueMax
+					);
+					childHueMax = lerp
+					(
+						child.baseMagnitude + child.magnitude * .7,
+						this.baseMagnitude,
+						this.baseMagnitude + this.magnitude,
+						hueMin,
+						hueMax
+					);
+				}
+			}
+			else
+			{
+				childHueMin = hueMin;
+				childHueMax = hueMax;
+			}
+			
+			if ( ! this.hideAlone && ! hide && ! this.hide && child.hide )
+			{
+				if ( hiddenStart == -1 )
+				{
+					hiddenStart = i;
+				}
+				
+				if ( useHue() )
+				{
+					hiddenHueNumer += childHueMin * child.magnitude;
+					hiddenHueDenom += child.magnitude;
+				}
+				else
+				{
+					hiddenHueNumer += childHueMin;
+					hiddenHueDenom++;
+				}
+			}
+			else
+			{
+				hiddenStart = -1;
+				
+				this.children[i].setTargetsSelected
+				(
+					childHueMin,
+					childHueMax,
+					lightness,
+					hide || this.keyed || this.hideAlone || this.hide && ! collapse,
+					false
+				);
+			}
+			
+			i++;
+		}
+		
+	 	if ( this.hues && this.magnitude )
+	 	{
+		 	this.hue.setTarget(this.hues[currentDataset]);
+			
+			if ( this.attributes[magnitudeIndex][lastDataset] == 0 )
+			{
+				this.hue.start = this.hue.end;
+			}
+		}
+	 	
+		this.radialPrev = this.radial;
+		
+		if ( this == selectedNode )
+		{
+			this.resetLabelWidth();
+			this.labelWidth.setTarget(this.nameWidth * labelWidthFudge);
+			this.alphaWedge.setTarget(0);
+			this.alphaLabel.setTarget(1);
+			this.alphaOther.setTarget(1);
+			this.alphaArc.setTarget(0);
+			this.alphaLine.setTarget(0);
+			this.alphaPattern.setTarget(0);
+			this.r.setTarget(255);
+			this.g.setTarget(255);
+			this.b.setTarget(255);
+			this.radial = false;
+			this.labelRadius.setTarget(0);
+		}
+		else
+		{
 			var rgb = hslToRgb
 			(
-				false && useHue() ? this.hue : hueMin,// TEMP
+				hueMin,
 				saturation,
 				lightness
 			);
@@ -2632,192 +3185,217 @@ function Node()
 			this.r.setTarget(rgb.r);
 			this.g.setTarget(rgb.g);
 			this.b.setTarget(rgb.b);
+			this.alphaOther.setTarget(0);
+			
 			this.alphaWedge.setTarget(1);
-		}
-		
-		this.scale.setTarget(1); // TEMP
-		
-		if ( depth > maxDisplayDepth || ! this.canDisplayDepth() )
-		{
-//			this.radiusInner.setTarget(1 + (depth - maxDisplayDepth) * .01);
-			this.radiusInner.setTarget(1);
 			
-			this.alphaLabel.setTarget(0);
-			this.alphaLine.setTarget(0);
-		}
-		else
-		{
-			this.radiusInner.setTarget(nodeRadius * (depth - 1));
-			
-			if ( collapse )
+			if ( this.hide || this.hideAlone )
 			{
-				this.alphaLabel.setTarget(0);
-				this.alphaLine.setTarget(0);
+				this.alphaPattern.setTarget(1);
 			}
 			else
 			{
-				this.alphaLabel.setTarget(1);
-				this.alphaLine.setTarget(1);
-			}
-		}
-		
-		// TEMP
-		//
-		if ( focused )
-		{
-			this.radiusOuter.setTarget(1.1);
-		}
-		else
-		{
-			this.radiusOuter.setTarget(1);
-		}
-		
-		var canDisplayLabel = this.canDisplayLabel();
-		
-		// set radial
-		//
-		if
-		(
-			! collapse &&
-			canDisplayLabel &&
-			depth <= maxDisplayDepth &&
-			this.canDisplayDepth() ||
-			depth == 2 ||
-			! canDisplayChildren && canDisplayLabel
-		)
-		{
-			this.radial = true;
-			
-			if ( ! canDisplayLabel && ! collapse && depth == 2 && this.canDisplayDepth() )
-			{
-				keys++;
+				this.alphaPattern.setTarget(0);
 			}
 			
-			if ( canDisplayLabel || collapse )
+			// set radial
+			//
+			if ( ! ( hide || this.hide ) )//&& ! this.keyed )
 			{
-				if ( depth != maxDisplayDepth && this.depth != maxAbsoluteDepth )
+				if ( this.hideAlone )
 				{
-					for ( var i in this.children )
+					this.radial = true;
+				}
+				else if ( false && canDisplayChildLabels )
+				{
+					this.radial = false;
+				}
+				else
+				{
+					this.radial = true;
+					
+					if ( this.hasChildren() && depth < maxDisplayDepth )
 					{
-						// if we are going to display any children, the text
-						// should be tangential; otherwise, radial
+						var lastChild = this.children[this.children.length - 1];
 						
-						if ( this.children[i].canDisplayLabel() )
+						if
+						(
+							lastChild.angleEnd.end == this.angleEnd.end ||
+							(
+								(this.angleStart.end + this.angleEnd.end) / 2 -
+								lastChild.angleEnd.end
+							) * (this.radiusInner.end + 1) * gRadius * 2 <
+							minWidth()
+						)
 						{
 							this.radial = false;
 						}
 					}
 				}
 			}
-		}
-		
-		this.resetLabelWidth();
-		
-		// set labelRadius target
-		//
-		if ( collapse )
-		{
-			this.labelRadius.setTarget(this.radiusInner.end);
-		}
-		else
-		{
-			if ( depth > maxDisplayDepth || ! this.canDisplayDepth() )
+			
+			// set alphaLabel
+			//
+			if
+			(
+				collapse ||
+				hide ||
+				this.hide ||
+				this.keyed ||
+				depth > maxDisplayDepth ||
+				! this.canDisplayDepth()
+			)
 			{
-				this.labelRadius.setTarget(1);
+				this.alphaLabel.setTarget(0);
 			}
 			else
 			{
-				var labelOffset = labelOffsets[depth];
-				
-				if ( this.radial )
+				if
+				(
+					(this.radial || nLabelOffsets[depth - 2])
+				)
 				{
-					this.labelRadius.setTarget((this.radiusInner.end + 1) / 2);
+					this.alphaLabel.setTarget(1);
 				}
 				else
 				{
-					var radiusCenter =
-						nodeRadius * (depth - 1) +
-						nodeRadius / 2;
+					this.alphaLabel.setTarget(0);
 					
-					this.labelRadius.setTarget
-					(
-						radiusCenter + ((labelOffset + 1) / (nLabelOffsets + 1) - .5) * nodeRadius
-					);
-				}
-				
-				if ( canDisplayLabel )
-				{
-					// check last and first labels in each track for overlap
-					
-					for ( var i = 2; i <= maxDisplayDepth; i++ )
+					if ( this.radialPrev )
 					{
-						for ( var j = 0; j <= nLabelOffsets; j++ )
-						{
-							var last = labelLastNodes[i][j];
-							var first = labelFirstNodes[i][j];
-							
-							if ( last )
-							{
-								if ( j == nLabelOffsets )
-								{
-									// last is radial
-									this.setLabelWidth(last);
-								}
-								else
-								{
-									last.setLabelWidth(this);
-								}
-							}
-							
-							if ( first )
-							{
-								if ( j == nLabelOffsets )
-								{
-									this.setLabelWidth(first);
-								}
-								else
-								{
-									first.setLabelWidth(this);
-								}
-							}
-						}
+						this.alphaLabel.start = 0;
 					}
-					
-					if ( ! this.radial )
-					{
-						labelLastNodes[depth][labelOffset] = this;
-						
-						// update offset
-						
-						labelOffsets[depth]++;
-						
-						if ( labelOffsets[depth] == nLabelOffsets )
-						{
-							labelOffsets[depth] = 0;
-						}
-						
-						if ( labelFirstNodes[depth][labelOffset] == 0 )
-						{
-							labelFirstNodes[depth][labelOffset] = this;
-						}
-					}
-					else
-					{
-						// use the last 'track' of this depth for radial
-						
-						labelLastNodes[depth][nLabelOffsets] = this;
-						
-						if ( labelFirstNodes[depth][nLabelOffsets] == 0 )
-						{
-							labelFirstNodes[depth][nLabelOffsets] = this;
-						}
-					}
-				}
-				else
-				{
-					this.labelWidth.end = 0;
 				}
 			}
+			
+			// set alphaArc
+			//
+			if
+			(
+				collapse ||
+				hide ||
+				depth > maxDisplayDepth ||
+				! this.canDisplayDepth()
+			)
+			{
+				this.alphaArc.setTarget(0);
+			}
+			else
+			{
+				this.alphaArc.setTarget(1);
+			}
+			
+			// set alphaLine
+			//
+			if
+			(
+				hide ||
+				this.hide && nextSiblingHidden ||
+				depth > maxDisplayDepth ||
+				! this.canDisplayDepth()
+			)
+			{
+				this.alphaLine.setTarget(0);
+			}
+			else
+			{
+				this.alphaLine.setTarget(1);
+			}
+			
+			//if (  ! this.radial )
+			{
+				this.resetLabelWidth();
+			}
+			
+			// set labelRadius target
+			//
+			if ( collapse )
+			{
+				this.labelRadius.setTarget(this.radiusInner.end);
+			}
+			else
+			{
+				if ( depth > maxDisplayDepth || ! this.canDisplayDepth() )
+				{
+					this.labelRadius.setTarget(1);
+				}
+				else
+				{
+					this.setTargetLabelRadius();
+				}
+			}
+		}
+	}
+	
+	this.setTargetWedge = function()
+	{
+		var depth = this.getDepth() - selectedNode.getDepth() + 1;
+		
+		// set angles
+		//
+		var baseMagnitudeRelative = this.baseMagnitude - selectedNode.baseMagnitude;
+		//
+		this.angleStart.setTarget(baseMagnitudeRelative * angleFactor);
+		this.angleEnd.setTarget((baseMagnitudeRelative + this.magnitude) * angleFactor);
+		
+		// set radiusInner
+		//
+		if ( depth > maxDisplayDepth || ! this.canDisplayDepth() )
+		{
+			this.radiusInner.setTarget(1);
+		}
+		else
+		{
+			if ( compress )
+			{
+				this.radiusInner.setTarget(compressedRadii[depth - 2]);
+			}
+			else
+			{
+				this.radiusInner.setTarget(nodeRadius * (depth - 1));
+			}
+		}
+		
+		if ( this.hide != undefined )
+		{
+			this.hidePrev = this.hide;
+		}
+		
+		if ( this.hideAlone != undefined )
+		{
+			this.hideAlonePrev = this.hideAlone;
+		}
+		
+		// set hide
+		//
+		if
+		(
+			(this.angleEnd.end - this.angleStart.end) *
+			(this.radiusInner.end * gRadius + gRadius) <
+			minWidth()
+		)
+		{
+			if ( depth == 2 && ! this.getCollapse() && this.depth <= maxAbsoluteDepth )
+			{
+				this.keyed = true;
+				keys++;
+				this.hide = false;
+				
+				var percentage = this.getPercentage();
+				this.keyLabel = this.name + '   ' + percentage + '%';
+				var dim = context.measureText(this.keyLabel);
+				this.keyNameWidth = dim.width;
+			}
+			else
+			{
+				this.keyed = false;
+				this.hide = depth > 2;
+			}
+		}
+		else
+		{
+			this.keyed = false;
+			this.hide = false;
 		}
 	}
 	
@@ -2864,59 +3442,161 @@ function Node()
 	
 	this.sort = function()
 	{
-		this.children.sort(function(a, b){return b.magnitude - a.magnitude});
+		this.children.sort(function(a, b){return b.getMagnitude() - a.getMagnitude()});
 		
 		for (var i = 0; i < this.children.length; i++)
 		{
 			this.children[i].sort();
 		}
 	}
-	
-	this.update = function()
-	{
-	}
 }
 
-function addOptionElements()
+function addOptionElement(position, innerHTML, title)
 {
-	document.getElementById('details').style.fontSize = '9pt';
+	var div = document.createElement("div");
+	div.style.position = 'absolute';
+	div.style.top = position + 'px';
+	div.innerHTML = innerHTML;
+	
+	if ( title )
+	{
+		div.title = title;
+	}
+	
+	document.body.insertBefore(div, canvas);
+	return position + div.clientHeight;
+}
+
+function addOptionElements(hueName, hueDefault)
+{
+	document.body.style.font = '11px sans-serif';
+	var position = 5;
+	
 	document.getElementById('details').innerHTML = '\
 <span id="detailsName" style="font-weight:bold"></span>&nbsp;\
 <input type="button" id="detailsExpand" onclick="expand(focusNode);"\
 value="&harr;" title="Expand this wedge to become the new focus of the chart"/><br/>\
-<div id="detailsInfo" style="float:right"></div>\
-';
-	document.getElementById('options').style.fontSize = '9pt';
-	document.getElementById('options').innerHTML ='\
-&nbsp;<input type="button" id="back" value="&larr;" title="Go back"/>\
-<input type="button" id="up" value="&uarr;" title="Go up to parent"/>\
-<input type="button" id="forward" value="&rarr;" title="Go forward"/> \
+<div id="detailsInfo" style="float:right"></div>';
+
+	keyControl = document.createElement('input');
+	keyControl.type = 'button';
+	keyControl.value = showKeys ? 'x' : '…';
+	keyControl.style.position = '';
+	keyControl.style.position = 'fixed';
+	keyControl.style.visibility = 'hidden';
+	
+	document.body.insertBefore(keyControl, canvas);
+	
+//	document.getElementById('options').style.fontSize = '9pt';
+	position = addOptionElement
+	(
+		position,
+'&nbsp;<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+<input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
 <input type="button" value="x" onclick="clearSearch()"/> \
-<span id="searchResults"></span><br/>\
-&nbsp;<div title="Maximum depth to display, counted from &quot;all&quot; and \
-including collapsed nodes.">\
-&nbsp;<input type="button" id="maxAbsoluteDepthDecrease" value="-"/>\
+<span id="searchResults"></span>'
+	);
+	
+	if ( datasets > 1 )
+	{
+		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
+		
+		var select =
+			'<div style="float:left">&nbsp;</div><div style="float:left">' +
+			'<select id="datasets" style="width:' + datasetSelectWidth +
+			'px"' + 'size="' + size + '" onchange="onDatasetChange()">';
+		
+		for ( var i = 0; i < datasetNames.length; i++ )
+		{
+			select += '<option>' + datasetNames[i] + '</option>';
+		}
+		
+		select +=
+			'</select></div>' +
+			'<input title="Previous dataset (Shortcut: &uarr;)" id="prevDataset" type="button" value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
+			'<input title="Switch to the last dataset that was viewed (Shortcut: TAB)" id="lastDataset" type="button" style="font:11px Times new roman" value="last" onclick="selectLastDataset()"/>' +
+			'<br/><input title="Next dataset (Shortcut: &darr;)" id="nextDataset" type="button" value="&darr;" onclick="nextDataset()"/><br/>';
+		
+		position = addOptionElement(position + 5, select);
+		
+		datasetDropDown = document.getElementById('datasets');
+		datasetButtonLast = document.getElementById('lastDataset');
+		datasetButtonPrev = document.getElementById('prevDataset');
+		datasetButtonNext = document.getElementById('nextDataset');
+	}
+	
+	position = addOptionElement
+	(
+		position + 5,
+'&nbsp;<input type="button" id="maxAbsoluteDepthDecrease" value="-"/>\
 <span id="maxAbsoluteDepth"></span>\
-&nbsp;<input type="button" id="maxAbsoluteDepthIncrease" value="+"/> max depth\
-</div>\
-<div title="Collapse nodes that are entirely composed of one child by \
-displaying that child in their place">\
-&nbsp;<input type="checkbox" id="collapse" checked="checked" />collapse\
-</div>\
-<br/>&nbsp;<input type="button" id="fontSizeDecrease" value="-"/>\
+&nbsp;<input type="button" id="maxAbsoluteDepthIncrease" value="+"/> Max depth',
+'Maximum depth to display, counted from the top level \
+and including collapsed wedges.'
+	);
+	
+	position = addOptionElement
+	(
+		position,
+'&nbsp;<input type="button" id="fontSizeDecrease" value="-"/>\
 <span id="fontSize"></span>\
-&nbsp;<input type="button" id="fontSizeIncrease" value="+"/> font size\
-<div title="Prevent labels from overlapping by shortening them">\
-&nbsp;<input type="checkbox" id="shorten" checked="checked" />shorten labels</div>\
-<div id="useHueDiv">\
-</div>\
-<br/>&nbsp;<input type="button" id="snapshot" value="snapshot" \
-title="Render the current view as SVG (Scalable Vector Graphics), a publication-\
-quality format that can be printed and saved (see Help for browser compatibility">\
-<br/><br/>&nbsp;<input type="button" id="help" value="?"\
-onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>\
-';
+&nbsp;<input type="button" id="fontSizeIncrease" value="+"/> Font size'
+	);
+	
+	if ( hueName )
+	{
+		hueDisplayName = attributeDisplayNames[attributeIndex(hueName)];
+		
+		position = addOptionElement
+		(
+			position + 5,
+			'<div style="float:left">&nbsp;</div>' +
+			'<input type="checkbox" id="useHue" style="float:left" ' +
+			'/><div style="float:left">Color by<br/>' + hueDisplayName +
+			'</div>'
+		);
+		
+		useHueCheckBox = document.getElementById('useHue');
+		useHueCheckBox.checked = hueDefault;
+		useHueCheckBox.onclick = handleResize;
+	}
+	/*
+	position = addOptionElement
+	(
+		position + 5,
+		'&nbsp;<input type="checkbox" id="shorten" checked="checked" />Shorten labels</div>',
+		'Prevent labels from overlapping by shortening them'
+	);
+	
+	position = addOptionElement
+	(
+		position,
+		'&nbsp;<input type="checkbox" id="compress" checked="checked" />Compress',
+		'Compress wedges if needed to show the entire depth'
+	);
+	*/
+	position = addOptionElement
+	(
+		position,
+		'&nbsp;<input type="checkbox" id="collapse" checked="checked" />Collapse',
+		'Collapse wedges that are redundant (entirely composed of another wedge)'
+	);
+	
+	position = addOptionElement
+	(
+		position + 5,
+		'&nbsp;<input type="button" id="snapshot" value="snapshot"/>',
+'Render the current view as SVG (Scalable Vector Graphics), a publication-\
+quality format that can be printed and saved (see Help for browser compatibility)'
+	);
+	
+	position = addOptionElement
+	(
+		position + 5,
+'&nbsp;<input type="button" id="help" value="?"\
+onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>'
+	);
 }
 
 function arrow(angleStart, angleEnd, radiusInner)
@@ -3215,6 +3895,8 @@ function draw()
 		}
 	}
 	
+	drawDatasetName();
+	
 	//drawHistory();
 	
 	context.translate(-centerX, -centerY);
@@ -3231,7 +3913,7 @@ function draw()
 	
 	mapBuffer = mapRadius / 2;
 	
-	context.font = fontNormal;
+	//context.font = fontNormal;
 	pathRoot.drawMap(pathRoot);
 	
 	if ( hueDisplayName && useHue() )
@@ -3304,6 +3986,35 @@ function drawBubbleSVG(x, y, width, height, radius, rotation)
 		')"/>';
 }
 
+function drawDatasetName()
+{
+	var alpha = datasetAlpha.current();
+	
+	if ( alpha > 0 )
+	{
+		var radius = gRadius * compressedRadii[0] / -2;
+		
+		if ( alpha > 1 )
+		{
+			alpha = 1;
+		}
+		
+		context.globalAlpha = alpha;
+		context.textAlign = 'center';
+		
+		drawBubble(0, -radius, datasetWidths[currentDataset], false, false);
+		
+		context.fillStyle = 'black';
+		context.font = fontBold;
+		context.fillText
+		(
+			datasetNames[currentDataset],
+			0,
+			radius
+		)
+	}
+}
+
 function drawHistory()
 {
 	var alpha = 1;
@@ -3339,6 +4050,7 @@ function drawLegend()
 	
 	context.fillStyle = 'black';
 	context.textAlign = 'start';
+	context.font = fontNormal;
 //	context.fillText(valueStartText, textLeft, top + height);
 //	context.fillText(valueEndText, textLeft, top);
 	context.fillText(hueDisplayName, left, imageHeight - fontSize * 1.5);
@@ -3417,8 +4129,8 @@ function drawText(text, x, y, angle, anchor)
 	{
 		svg +=
 			'<text x="' + (centerX + x) + '" y="' + (centerY + y) +
-			'" style=\'text-anchor:' + anchor + ';font:' + context.font +
-			'\' transform="rotate(' + degrees(angle) + ',' + centerX + ',' + centerY + ')">' +
+			'" style="text-anchor:' + anchor + ';font:' + context.font +
+			'" transform="rotate(' + degrees(angle) + ',' + centerX + ',' + centerY + ')">' +
 			text + '</text>';
 	}
 	else
@@ -3467,6 +4179,11 @@ function drawWedge
 	highlight
 )
 {
+	if ( context.globalAlpha == 0 && ! snapshotMode )
+	{
+		return;
+	}
+	
 	if ( snapshotMode )
 	{
 		var longArc = angleEnd - angleStart > Math.PI ? 1 : 0;
@@ -3506,6 +4223,8 @@ function drawWedge
 	}
 	else
 	{
+		angleEnd += 1 / gRadius;
+		
 		context.fillStyle = color;
 		context.beginPath();
 		context.arc(0, 0, radiusInner, angleStart, angleEnd, false);
@@ -3561,18 +4280,29 @@ function getPercentage(fraction)
 
 function hslText(hue)
 {
-	var hslArray =
-	[
-		'hsl(',
-		Math.floor(hue * 360),
-		',',
-		Math.floor(saturation * 100),
-		'%,',
-		Math.floor((lightnessBase + lightnessMax) * 50),
-		'%)'
-	];
-	
-	return hslArray.join('');
+	if ( 1 || snapshotMode )
+	{
+		// Safari doesn't seem to allow hsl() in SVG
+		
+		var rgb = hslToRgb(hue, saturation, (lightnessBase + lightnessMax) / 2);
+		
+		return rgbText(rgb.r, rgb.g, rgb.b);
+	}
+	else
+	{
+		var hslArray =
+		[
+			'hsl(',
+			Math.floor(hue * 360),
+			',',
+			Math.floor(saturation * 100),
+			'%,',
+			Math.floor((lightnessBase + lightnessMax) * 50),
+			'%)'
+		];
+		
+		return hslArray.join('');
+	}
 }
 
 function hslToRgb(h, s, l)
@@ -3730,6 +4460,24 @@ function lerp(value, fromStart, fromEnd, toStart, toEnd)
 
 function load()
 {
+	if ( context == undefined )
+	{
+		document.body.innerHTML = '\
+<br/>This browser does not support HTML5 (see \
+<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">Browser support</a>).\
+	';
+		return;
+	}
+
+	if ( typeof context.fillText != 'function' )
+	{
+		document.body.innerHTML = '\
+<br/>This browser does not support HTML5 canvas text (see \
+<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">Browser support</a>).\
+	';
+		return;
+	}
+	
 	resize();
 	
 	var xmlElements = document.getElementsByTagName('data');
@@ -3751,6 +4499,23 @@ function load()
 		
 		switch ( element.tagName.toLowerCase() )
 		{
+			case 'options':
+				for ( var i = 0; i < element.attributes.length; i++ )
+				{
+					switch ( element.attributes[i].nodeName )
+					{
+						case 'collapse':
+							collapse =
+								element.attributes[i].nodeValue == 'true';
+							break;
+						case 'key':
+							showKeys =
+								element.attributes[i].nodeValue == 'true';
+							break;
+					}
+				}
+				break;
+				
 			case 'magnitude':
 				magnitudeName = element.getAttribute('attribute');
 				break;
@@ -3778,6 +4543,11 @@ function load()
 				}
 				break;
 			
+			case 'datasets':
+				datasetNames = element.getAttribute('names').split(',');
+				datasets = datasetNames.length;
+				break;
+			
 			case 'node':
 				head = loadTreeDOM
 				(
@@ -3793,30 +4563,57 @@ function load()
 		}
 	}
 	
-	if ( hueName )
+	// get GET options
+	//
+	var urlHalves = String(document.location).split('?');
+	//
+	if ( urlHalves[1] )
 	{
-		hueDisplayName = attributeDisplayNames[attributeIndex(hueName)];
+		var vars = urlHalves[1].split('&');
 		
-		//useHue.checked = true;
-		useHueDiv.innerHTML =
-			'<br/><div style="float:left">&nbsp;</div>' +
-			'<input type="checkbox" id="useHue" style="float:left" ' +
-			(hueDefault ? 'checked' : '') +
-			'/><div style="float:left">Color by<br/>' + hueDisplayName +
-			'</div><br/><br/>';
-		useHueCheckBox = document.getElementById('useHue');
-		useHueCheckBox.onclick = draw;
+		for ( i = 0; i < vars.length; i++ )
+		{
+			var pair = vars[i].split('=');
+			
+			switch ( pair[0] )
+			{
+				case 'collapse':
+					collapse = pair[1] == 'true';
+					break;
+				
+				case 'key':
+					showKeys = pair[1] == 'true';
+					break;
+				
+				case 'color':
+					hueDefault = pair[1] == 'true';
+					break;
+			}
+		}
 	}
 	
-	//head = head.collapse();
-	head.sort();
-	head.setDepth(1, 1);
-	head.setBaseMagnitude(0);
+	// set magnitudeIndex
+	//
+	for ( var i = 0; i < attributeNames.length; i++ )
+	{
+		if ( attributeNames[i] == magnitudeName )
+		{
+			magnitudeIndex = i;
+			break;
+		}
+	}
 	
-	maxAbsoluteDepth = head.maxDepth();
+	addOptionElements(hueName, hueDefault);
+	setCallBacks();
+	
+	head.sort();
+	maxAbsoluteDepth = 0;
+	selectDataset(0);
+	maxAbsoluteDepth = head.maxDepth;
 	selectNode(head);
 	
 	setInterval(update, 20);
+	
 	window.onresize = handleResize;
 	updateMaxAbsoluteDepth();
 	updateViewNeeded = true;
@@ -3845,24 +4642,53 @@ function loadTreeDOM
 		}
 		else
 		{
-			newNode.attributes[attributeIndex(attributeCurrent.nodeName)] =
-				attributeCurrent.nodeValue;
-			
-			if ( attributeCurrent.nodeName == magnitudeName )
+			var attributeValues = attributeCurrent.nodeValue.split(',');
+			if
+			(
+				attributeCurrent.nodeName == magnitudeName ||
+				attributeCurrent.nodeName == hueName
+			)
 			{
-				newNode.magnitude = Number(attributeCurrent.nodeValue);
+				for ( var j = 0; j < attributeValues.length; j++ )
+				{
+					attributeValues[j] = Number(attributeValues[j]);
+				}
+				
+				while ( attributeValues.length < datasets )
+				{
+					attributeValues.push(0);
+				}
 			}
+			
+			newNode.attributes[attributeIndex(attributeCurrent.nodeName)] =
+				attributeValues;
 			
 			if ( attributeCurrent.nodeName == hueName && newNode.hue == null )
 			{
-				newNode.hue = lerp
-				(
-					Number(attributeCurrent.nodeValue),
-					valueStart,
-					valueEnd,
-					hueStart,
-					hueEnd
-				);
+				newNode.hues = new Array();
+				
+				for ( var j = 0; j < attributeValues.length; j++ )
+				{
+					newNode.hues.push(lerp
+					(
+						attributeValues[j],
+						valueStart,
+						valueEnd,
+						hueStart,
+						hueEnd
+					));
+					
+					if ( newNode.hues[j] < hueStart == hueStart < hueEnd )
+					{
+						newNode.hues[j] = hueStart;
+					}
+					else if ( newNode.hues[j] > hueEnd == hueStart < hueEnd )
+					{
+						newNode.hues[j] = hueEnd;
+					}
+				}
+				
+				newNode.hue = new Tween(newNode.hues[0], newNode.hues[0]);
 			}
 		}
 	}
@@ -3894,15 +4720,17 @@ function maxAbsoluteDepthDecrease()
 	if ( maxAbsoluteDepth > 2 )
 	{
 		maxAbsoluteDepth--;
+		head.setMaxDepths();
 		handleResize();
 	}
 }
 
 function maxAbsoluteDepthIncrease()
 {
-	if ( maxAbsoluteDepth < head.maxDepth() )
+	if ( maxAbsoluteDepth < head.maxDepth )
 	{
 		maxAbsoluteDepth++;
+		head.setMaxDepths();
 		handleResize();
 	}
 }
@@ -3918,7 +4746,7 @@ function minWidth()
 	// label if it's at the highest level being viewed, multiplied by 2 to make
 	// further calculations simpler
 	
-	return (fontSize * 2.5);
+	return (fontSize * 2.3);
 }
 
 function mouseMove(e)
@@ -3977,6 +4805,7 @@ function navigateBack()
 		}
 		
 		setSelectedNode(nodeHistory[nodeHistoryPosition]);
+		updateDatasetButtons();
 		updateView();
 	}
 }
@@ -4010,14 +4839,69 @@ function navigateForward()
 		}
 		
 		setSelectedNode(newNode);
+		updateDatasetButtons();
 		updateView();
 	}
 }
 
+function nextDataset()
+{
+	var newDataset = currentDataset;
+	
+	do
+	{
+		if ( newDataset == datasets - 1 )
+		{
+			newDataset = 0;
+		}
+		else
+		{
+			newDataset++;
+		}
+	}
+	while ( datasetDropDown.options[newDataset].disabled )
+	
+	selectDataset(newDataset);
+}
+
+function onDatasetChange()
+{
+	selectDataset(datasetDropDown.selectedIndex);
+}
+
 function onKeyDown(event)
 {
-	if ( event.keyCode == 8 && document.activeElement.id != 'search' )
+	if ( event.keyCode == 37 && document.activeElement.id != 'search' )
 	{
+		navigateBack();
+		event.preventDefault();
+	}
+	else if ( event.keyCode == 39 && document.activeElement.id != 'search' )
+	{
+		navigateForward();
+		event.preventDefault();
+	}
+	else if ( event.keyCode == 38 && datasets > 1 )
+	{
+		prevDataset();
+		
+		//if ( document.activeElement.id == 'datasets' )
+		{
+			event.preventDefault();
+		}
+	}
+	else if ( event.keyCode == 40 && datasets > 1 )
+	{
+		nextDataset();
+		
+		//if ( document.activeElement.id == 'datasets' )
+		{
+			event.preventDefault();
+		}
+	}
+	else if ( event.keyCode == 9 && datasets > 1 )
+	{
+		selectLastDataset();
 		event.preventDefault();
 	}
 	else if ( event.keyCode == 83 )
@@ -4036,11 +4920,7 @@ function onKeyDown(event)
 
 function onKeyUp(event)
 {
-	if ( event.keyCode == 8 && document.activeElement.id != 'search' )
-	{
-		navigateBack();
-	}
-	else if ( event.keyCode == 27 && document.activeElement.id == 'search' )
+	if ( event.keyCode == 27 && document.activeElement.id == 'search' )
 	{
 		search.value = '';
 		onSearchChange();
@@ -4063,6 +4943,26 @@ function onSearchChange()
 	
 	setFocus(selectedNode);
 	draw();
+}
+
+function prevDataset()
+{
+	var newDataset = currentDataset;
+	
+	do
+	{
+		if ( newDataset == 0 )
+		{
+			newDataset = datasets - 1;
+		}
+		else
+		{
+			newDataset--;
+		}
+	}
+	while ( datasetDropDown.options[newDataset].disabled );
+	
+	selectDataset(newDataset);
 }
 
 function resetKeyOffset()
@@ -4090,7 +4990,7 @@ function rgbText(r, g, b)
 
 function round(number)
 {
-	if ( number >= 1 )
+	if ( number >= 1 || number <= -1 )
 	{
 		return number.toFixed(0);
 	}
@@ -4123,21 +5023,29 @@ function roundedRectangle(x, y, width, height, radius)
 	context.lineTo(x, y + radius);
 }
 
+function passClick(e)
+{
+	mouseClick(e);
+}
+
 function setCallBacks()
 {
-	canvas = document.getElementById('canvas');
 	canvas.onselectstart = function(){return false;} // prevent unwanted highlighting
-	context = canvas.getContext('2d');
 	document.onmousemove = mouseMove;
+	//document.getElementById('options').onclick = passClick;
 	window.onblur = focusLost;
 	window.onmouseout = focusLost;
 	document.onkeyup = onKeyUp;
 	document.onkeydown = onKeyDown;
 	canvas.onmousedown = mouseClick;
 	document.onmouseup = mouseUp;
+	keyControl.onclick = toggleKeys;
 	collapseCheckBox = document.getElementById('collapse');
-	collapse = collapseCheckBox.checked;
+	collapseCheckBox.checked = collapse;
 	collapseCheckBox.onclick = handleResize;
+//	compressCheckBox = document.getElementById('compress');
+//	compress = compressCheckBox.checked;
+//	compressCheckBox.onclick = handleResize;
 	relativeColorCheckBox = document.getElementById('relativeColor');
 	//relativeColorCheckBox.onchange = handleResize;
 	maxAbsoluteDepthText = document.getElementById('maxAbsoluteDepth');
@@ -4145,20 +5053,19 @@ function setCallBacks()
 	maxAbsoluteDepthButtonIncrease = document.getElementById('maxAbsoluteDepthIncrease');
 	maxAbsoluteDepthButtonDecrease.onclick = maxAbsoluteDepthDecrease;
 	maxAbsoluteDepthButtonIncrease.onclick = maxAbsoluteDepthIncrease;
-	fontSize = 12;
 	fontSizeText = document.getElementById('fontSize');
 	fontSizeButtonDecrease = document.getElementById('fontSizeDecrease');
 	fontSizeButtonIncrease = document.getElementById('fontSizeIncrease');
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
-	shortenCheckBox = document.getElementById('shorten');
-	shortenCheckBox.onclick = handleResize;
+//	shortenCheckBox = document.getElementById('shorten');
+//	shortenCheckBox.onclick = handleResize;
 	maxAbsoluteDepth = 0;
 	backButton = document.getElementById('back');
-	upButton = document.getElementById('up');
-	forwardButton = document.getElementById('forward');
 	backButton.onclick = navigateBack;
-	upButton.onclick = navigateUp;
+//	upButton = document.getElementById('up');
+	forwardButton = document.getElementById('forward');
+//	upButton.onclick = navigateUp;
 	forwardButton.onclick = navigateForward;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
@@ -4170,6 +5077,43 @@ function setCallBacks()
 	search.onkeyup = onSearchChange;
 	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
+
+	image = document.getElementById('hiddenImage');
+
+	if ( image.complete )
+	{
+		hiddenPattern = context.createPattern(image, 'repeat');
+	}
+	else
+	{
+		image.onload = function()
+		{
+			hiddenPattern = context.createPattern(image, 'repeat');
+		}
+	}
+}
+
+function selectDataset(newDataset)
+{
+	lastDataset = currentDataset;
+	currentDataset = newDataset
+	if ( datasets > 1 )
+	{
+		datasetDropDown.selectedIndex = currentDataset;
+		updateDatasetButtons();
+		datasetAlpha.start = 1.5;
+		datasetChanged = true;
+	}
+	head.setMagnitudes(0);
+	head.setDepth(1, 1);
+	head.setMaxDepths();
+	handleResize();
+}
+
+function selectLastDataset()
+{
+	selectDataset(lastDataset);
+	handleResize();
 }
 
 function selectNode(newNode)
@@ -4189,6 +5133,8 @@ function selectNode(newNode)
 		setSelectedNode(newNode);
 		//updateView();
 	}
+	
+	updateDatasetButtons();
 }
 
 function setFocus(node)
@@ -4203,9 +5149,20 @@ function setFocus(node)
 	{
 		if ( node.attributes[i] != undefined )
 		{
+			var value;
+			
+			if ( node.attributes[i].length > 1 )
+			{
+				value = node.attributes[i][currentDataset]
+			}
+			else
+			{
+				value = node.attributes[i][0];
+			}
+			
 			table +=
 				'<tr><td><strong>' + attributeDisplayNames[i] + ':</strong></td><td>' +
-				node.attributes[i] + '</td></tr>';
+				value + '</td></tr>';
 		}
 	}
 	
@@ -4260,7 +5217,7 @@ function snapshot()
 	snapshotWindow = window.open
 	(
 		'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
-		'snapshot'
+		'_blank'
 	);
 }
 
@@ -4279,7 +5236,9 @@ function svgHeader()
 	"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\
 <svg width="' + imageWidth + '" height="' + imageHeight + '" version="1.1"\
 	xmlns="http://www.w3.org/2000/svg">\
-<title>Krona - ' + selectedNode.name + '</title>\
+<title>Krona (snapshot) - ' +
+(datasets > 1 ? datasetNames[currentDataset] + ' - ' : '') + selectedNode.name +
+'</title>\
 <defs>\
 	<style type="text/css">\
 	text {font: ' + fontSize + 'px Times new roman; dominant-baseline:middle;baseline-shift:-10%}\
@@ -4290,14 +5249,15 @@ function svgHeader()
 	path.line {fill:none;stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	line {stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	line.tick {stroke-width:' + thinLineWidth * fontSize / 6 + ';}\
+	line.pattern {stroke-width:' + thinLineWidth * fontSize / 18 + ';}\
 	circle {fill:none;stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	rect {stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	.highlight {stroke:black;stroke-width:'+ highlightLineWidth + ';}\
 	</style>\
 <pattern id="hiddenPattern" patternUnits="userSpaceOnUse" \
 x="0" y="0" width="' + patternWidth + '" height="' + patternWidth + '">\
-<line x1="0" y1="0" x2="' + patternWidth / 2 + '" y2="' + patternWidth / 2 + '"/>\
-<line x1="' + patternWidth / 2 + '" y1="' + patternWidth +
+<line class="pattern" x1="0" y1="0" x2="' + patternWidth / 2 + '" y2="' + patternWidth / 2 + '"/>\
+<line class="pattern" x1="' + patternWidth / 2 + '" y1="' + patternWidth +
 '" x2="' + patternWidth + '" y2="' + patternWidth / 2 + '"/>\
 </pattern>\
 </defs>\
@@ -4309,6 +5269,27 @@ function svgText(text, x, y)
 	return '<text x="' + x + '" y="' + y +
 		'" style="text-anchor:start;font:' + fontNormal +
 		'">' + text + '</text>';
+}
+
+function toggleKeys()
+{
+	if ( showKeys )
+	{
+		keyControl.value = '…';
+		showKeys = false;
+	}
+	else
+	{
+		keyControl.value = 'x';
+		showKeys = true;
+	}
+	
+	updateKeyControl();
+	
+	if ( progress == 1 )
+	{
+		draw();
+	}
 }
 
 function update()
@@ -4339,13 +5320,19 @@ function update()
 		mouseY = -1;
 		
 		collapse = collapseCheckBox.checked;
-		shorten = shortenCheckBox.checked;
+		compress = true;//compressCheckBox.checked;
+		shorten = true;//shortenCheckBox.checked;
+		
 		checkSelectedCollapse();
 		updateMaxAbsoluteDepth();
 		
 		if ( focusNode.getCollapse() || focusNode.depth > maxAbsoluteDepth )
 		{
 			setFocus(selectedNode);
+		}
+		else
+		{
+			setFocus(focusNode);
 		}
 		
 		updateView();
@@ -4373,9 +5360,11 @@ function update()
 			snapshotButton.disabled = false;
 			zoomOut = false;
 			
+			//updateKeyControl();
+			
 			if ( ! quickLook )
 			{
-				checkHighlight();
+				//checkHighlight();
 			}
 			
 			
@@ -4391,6 +5380,81 @@ function update()
 	progressLast = progress;
 }
 
+function updateDatasetButtons()
+{
+	if ( datasets == 1 )
+	{
+		return;
+	}
+	
+	var node = selectedNode ? selectedNode : head;
+	
+	datasetButtonLast.disabled =
+		node.attributes[magnitudeIndex][lastDataset] == 0;
+	
+	datasetButtonPrev.disabled = true;
+	datasetButtonNext.disabled = true;
+	
+	for ( var i = 0; i < datasets; i++ )
+	{
+		var disable = node.attributes[magnitudeIndex][i] == 0;
+		
+		datasetDropDown.options[i].disabled = disable;
+		
+		if ( ! disable )
+		{
+			if ( i != currentDataset )
+			{
+				datasetButtonPrev.disabled = false;
+				datasetButtonNext.disabled = false;
+			}
+		}
+	}
+}
+
+function updateDatasetWidths()
+{
+	if ( datasets > 1 )
+	{
+		for ( var i = 0; i < datasets; i++ )
+		{
+			context.font = fontBold;
+			var dim = context.measureText(datasetNames[i]);
+			datasetWidths[i] = dim.width;
+		}
+	}
+}
+
+function updateKeyControl()
+{
+	if ( keys == 0 )//|| progress != 1 )
+	{
+		keyControl.style.visibility = 'hidden';
+	}
+	else
+	{
+		keyControl.style.visibility = 'visible';
+		keyControl.style.right = margin + 'px';
+		
+		if ( showKeys )
+		{
+			keyControl.style.top =
+				imageHeight -
+				(
+					keys * (keySize + keyBuffer) -
+					keyBuffer +
+					margin +
+					keyControl.clientHeight * 1.5
+				) + 'px';
+		}
+		else
+		{
+			keyControl.style.top =
+				(imageHeight - margin - keyControl.clientHeight) + 'px';
+		}
+	}
+}
+
 function updateView()
 {
 	if ( selectedNode.depth > maxAbsoluteDepth - 1 )
@@ -4402,53 +5466,160 @@ function updateView()
 	
 	angleFactor = 2 * Math.PI / (selectedNode.magnitude);
 	
+	maxPossibleDepth = Math.floor(gRadius / (fontSize * minRingWidthFactor));
+	
+	if ( maxPossibleDepth < 4 )
+	{
+		maxPossibleDepth = 4;
+	}
+	
+	var minRadiusInner = fontSize * 8 / gRadius;
+	var minRadiusFirst = fontSize * 6 / gRadius;
+	var minRadiusOuter = fontSize * 5 / gRadius;
+	
+	if ( .25 < minRadiusInner )
+	{
+		minRadiusInner = .25;
+	}
+	
+	if ( .15 < minRadiusFirst )
+	{
+		minRadiusFirst = .15;
+	}
+	
+	if ( .15 < minRadiusOuter )
+	{
+		minRadiusOuter = .15;
+	}
+	
 	// visibility of nodes depends on the depth they are displayed at,
 	// so we need to set the max depth assuming they can all be displayed
 	// and iterate it down based on the deepest child node we can display
 	//
 	var maxDepth;
-	var newMaxDepth = selectedNode.maxDepth();
+	var newMaxDepth = selectedNode.getMaxDepth() - selectedNode.getDepth() + 1;
 	//
 	do
 	{
 		maxDepth = newMaxDepth;
 		
-		if ( maxDepth > maxPossibleDepth )
+		if ( ! compress && maxDepth > maxPossibleDepth )
 		{
 			maxDepth = maxPossibleDepth;
 		}
 		
-		newMaxDepth = selectedNode.maxVisibleDepth(1, maxDepth);
-		
-		if ( newMaxDepth > maxPossibleDepth )
+		if ( compress )
 		{
-			newMaxDepth = maxPossibleDepth;
+			compressedRadii = new Array(maxDepth);
+			
+			compressedRadii[0] = minRadiusInner;
+			
+			var offset = 0;
+			
+			while
+			(
+				lerp
+				(
+					Math.atan(offset + 2),
+					Math.atan(offset + 1),
+					Math.atan(maxDepth + offset - 1),
+					minRadiusInner,
+					1 - minRadiusOuter
+				) - minRadiusInner > minRadiusFirst &&
+				offset < 10
+			)
+			{
+				offset++;
+			}
+			
+			offset--;
+			
+			for ( var i = 1; i < maxDepth; i++ )
+			{
+				compressedRadii[i] = lerp
+				(
+					Math.atan(i + offset),
+					Math.atan(offset),
+					Math.atan(maxDepth + offset - 1),
+					minRadiusInner,
+					1 - minRadiusOuter
+				)
+			}
+		}
+		else
+		{
+			nodeRadius = 1 / maxDepth;
+		}
+		
+		newMaxDepth = selectedNode.maxVisibleDepth(maxDepth);
+		
+		if ( compress )
+		{
+			if ( newMaxDepth <= maxPossibleDepth )
+			{
+//				compress
+			}
+		}
+		else
+		{
+			if ( newMaxDepth > maxPossibleDepth )
+			{
+				newMaxDepth = maxPossibleDepth;
+			}
 		}
 	}
 	while ( newMaxDepth < maxDepth );
 	
-	if ( maxDepth < 2 )
-	{
-		maxDepth = 2;
-	}
-	
 	maxDisplayDepth = maxDepth;
-	nodeRadius = 1 / maxDepth;
-	nLabelOffsets = Math.max(Math.floor(Math.sqrt((nodeRadius * gRadius / fontSize)) * 1.5), 3);
-	lightnessFactor = (lightnessMax - lightnessBase) / maxDepth;
+	
+	lightnessFactor = (lightnessMax - lightnessBase) / (maxDepth > 8 ? 8 : maxDepth);
 	keys = 0;
 	
-	labelOffsets = new Array(maxDepth + 1);
-	labelLastNodes = new Array(maxDepth + 1);
-	labelFirstNodes = new Array(maxDepth + 1);
+	nLabelOffsets = new Array(maxDisplayDepth - 1);
+	labelOffsets = new Array(maxDisplayDepth - 1);
+	labelLastNodes = new Array(maxDisplayDepth - 1);
+	labelFirstNodes = new Array(maxDisplayDepth - 1);
 	
-	for ( var i = 0; i <= maxDepth; i++ )
+	for ( var i = 0; i < maxDisplayDepth - 1; i++ )
 	{
-		labelOffsets[i] = 0;
-		labelLastNodes[i] = new Array(nLabelOffsets + 1);
-		labelFirstNodes[i] = new Array(nLabelOffsets + 1);
+		if ( compress )
+		{
+			if ( i == maxDisplayDepth - 1 )
+			{
+				nLabelOffsets[i] = 0;
+			}
+			else
+			{
+				var width =
+					(compressedRadii[i + 1] - compressedRadii[i]) *
+					gRadius;
+				
+				nLabelOffsets[i] = Math.floor(width / fontSize / 1.2);
+				
+				if ( nLabelOffsets[i] > 2 )
+				{
+					nLabelOffsets[i] = min
+					(
+						Math.floor(width / fontSize / 1.75),
+						5
+					);
+				}
+			}
+		}
+		else
+		{
+			nLabelOffsets[i] = Math.max
+			(
+				Math.floor(Math.sqrt((nodeRadius * gRadius / fontSize)) * 1.5),
+				3
+			);
+		}
 		
-		for ( var j = 0; j <= nLabelOffsets; j++ )
+		labelOffsets[i] = Math.floor((nLabelOffsets[i] - 1) / 2);
+		labelLastNodes[i] = new Array(nLabelOffsets[i] + 1);
+		labelFirstNodes[i] = new Array(nLabelOffsets[i] + 1);
+		
+		for ( var j = 0; j <= nLabelOffsets[i]; j++ )
 		{
 			// these arrays will allow nodes with neighboring labels to link to
 			// each other to determine max label length
@@ -4460,12 +5631,13 @@ function updateView()
 	
 	fontSizeText.innerHTML = fontSize;
 	fontNormal = fontSize + 'px ' + fontFaceNormal;
+	context.font = fontNormal;
 	fontBold = 'bold ' + fontSize + 'px ' + fontFaceNormal;
 	tickLength = fontSize * .7;
 	
-	head.setTargets(0, 1);
+	head.setTargets(0);
 	
-	keySize = ((imageHeight - margin * 2) * 1 / 2) / keys * 3 / 4;
+	keySize = ((imageHeight - margin * 3) * 1 / 2) / keys * 3 / 4;
 	
 	if ( keySize > fontSize * maxKeySizeFactor )
 	{
@@ -4476,10 +5648,22 @@ function updateView()
 	
 	fontSizeLast = fontSize;
 	
+	if ( datasetChanged )
+	{
+		datasetChanged = false;
+	}
+	else
+	{
+		datasetAlpha.start = 0;
+	}
+	
 	var date = new Date();
 	tweenStartTime = date.getTime();
 	progress = 0;
 	tweenFrames = 0;
+	
+	updateKeyControl();
+	updateDatasetWidths();
 	
 	document.title = 'Krona - ' + selectedNode.name;
 	updateNavigationButtons();
@@ -4488,9 +5672,9 @@ function updateView()
 	maxAbsoluteDepthText.innerHTML = maxAbsoluteDepth - 1;
 	
 	maxAbsoluteDepthButtonDecrease.disabled = (maxAbsoluteDepth == 2);
-	maxAbsoluteDepthButtonIncrease.disabled = (maxAbsoluteDepth == head.maxDepth());
+	maxAbsoluteDepthButtonIncrease.disabled = (maxAbsoluteDepth == head.maxDepth);
 	
-	if ( collapse != collapseLast )
+	if ( collapse != collapseLast && search.value != '' )
 	{
 		onSearchChange();
 		collapseLast = collapse;
@@ -4508,7 +5692,7 @@ function updateMaxAbsoluteDepth()
 function updateNavigationButtons()
 {
 	backButton.disabled = (nodeHistoryPosition == 0);
-	upButton.disabled = (selectedNode.getParent() == 0);
+//	upButton.disabled = (selectedNode.getParent() == 0);
 	forwardButton.disabled = (nodeHistoryPosition == nodeHistory.length);
 }
 
