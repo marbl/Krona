@@ -1,18 +1,26 @@
-version=$1
-
-tar -cf KronaTools-${version}.tar \
-	KronaTools/scripts/extractTaxonomy.pl \
-	KronaTools/scripts/getContigMagnitudesCA.pl \
-	KronaTools/scripts/getContigMagnitudesNewbler.pl \
-	KronaTools/scripts/importBLAST.pl \
-	KronaTools/scripts/importMETAREP.pl \
-	KronaTools/scripts/importMGRAST.pl \
-	KronaTools/scripts/importPhymmBL.pl \
-	KronaTools/scripts/importText.pl \
-	KronaTools/scripts/importXML.pl \
-	KronaTools/scripts/indexGIs.pl \
-	KronaTools/lib/Krona.pm \
-	KronaTools/src/krona-${version}.js \
-	KronaTools/img/hidden.png \
-	KronaTools/install.pl \
-	KronaTools/updateTaxonomy.sh
+release="KronaTools-$1"
+mv KronaTools $release
+tar -cf $release.tar \
+	$release/scripts/ClassifyBLAST.pl \
+	$release/scripts/extractTaxonomy.pl \
+	$release/scripts/GetContigMagnitudes.pl \
+	$release/scripts/ImportBLAST.pl \
+	$release/scripts/ImportGalaxy.pl \
+	$release/scripts/ImportMETAREP.pl \
+	$release/scripts/ImportMGRAST.pl \
+	$release/scripts/ImportPhymmBL.pl \
+	$release/scripts/ImportRDP.pl \
+	$release/scripts/ImportRDPComparison.pl \
+	$release/scripts/ImportTaxonomy.pl \
+	$release/scripts/ImportText.pl \
+	$release/scripts/ImportXML.pl \
+	$release/scripts/indexGIs.pl \
+	$release/lib/Krona.pm \
+	$release/src/krona-$2.js \
+	$release/img/hidden.png \
+	$release/install.pl \
+	$release/updateTaxonomy.sh \
+	$release/deployResources.sh \
+	$release/README.txt \
+	$release/LICENSE.txt
+mv $release KronaTools
