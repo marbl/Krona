@@ -192,12 +192,13 @@ var labelWidthFudge = 1.05; // The width of unshortened labels are set slightly
 							// finishes faster.
 var fontNormal;
 var fontBold;
-var fontFaceNormal = 'sans-serif';
+var fontFamily = 'sans-serif';
 //var fontFaceBold = 'bold Arial';
 var nodeRadius;
 var angleFactor;
 var tickLength;
 var compressedRadii;
+var highlightFill = 'rgba(255, 255, 255, .3)';
 
 // label staggering
 //
@@ -374,19 +375,6 @@ function Node()
 		head.labelPrev = this;
 	}
 	
-	this.addSearchResultString = function(label)
-	{
-		var searchResults = this.containsSearchResult;
-		
-		if ( this.searchResult )
-		{
-			// don't count ourselves
-			searchResults--;
-		}
-		
-		return label + ' - ' + searchResults + (searchResults > 1 ? ' results' : ' result');
-	}
-	
 	this.canDisplayDepth = function()
 	{
 		// whether this node is at a depth that can be displayed, according
@@ -512,9 +500,9 @@ function Node()
 		
 		var width = this.nameWidth;
 		
-		if ( this.shouldAddSearchResultsString() )
+		if ( this.searchResultChildren() )
 		{
-			var results = this.addSearchResultString('');
+			var results = searchResultString(this.searchResultChildren());
 			var dim = context.measureText(results);
 			width += dim.width;
 		}
@@ -620,17 +608,17 @@ function Node()
 		var canDisplayLabelCurrent = this.canDisplayLabelCurrent();
 		var hiddenSearchResults = false;
 		
-		if ( ! this.hide )
+/*		if ( ! this.hide )
 		{
 			for ( var i = 0; i < this.children.length; i++ )
 			{
-				if ( this.children[i].hide && this.children[i].containsSearchResult )
+				if ( this.children[i].hide && this.children[i].searchResults )
 				{
 					hiddenSearchResults = true;
 				}
 			}
 		}
-		
+*/		
 		var drawChildren =
 			( ! this.hide || ! this.hidePrev && progress < 1 ) &&
 			( ! this.hideAlone || ! this.hideAlonePrev && progress < 1 );
@@ -680,20 +668,47 @@ function Node()
 					! searchHighlighted &&
 					this != selectedNode &&
 					(
-						this.searchResult ||
-						hiddenSearchResults ||
+						this.isSearchResult ||
+						this.hideAlone && this.searchResultChildren() ||
 						false
 //						this.hide &&
 //						this.containsSearchResult
 					)
 				)
 				{
-					this.drawHighlight();
+					drawWedge
+					(
+						angleStartCurrent,
+						angleEndCurrent,
+						radiusInner,
+						gRadius,
+						highlightFill,
+						0,
+						true
+					);
+					
+					if
+					(
+						this.keyed &&
+						! showKeys &&
+						this.searchResults &&
+						! searchHighlighted &&
+						this != highlightedNode &&
+						this != focusNode
+					)
+					{
+						var angle = (angleEndCurrent + angleStartCurrent) / 2;
+						this.drawLabel(angle, true, false, true, true);
+					}
+					
+					//this.drawHighlight(false);
 					searchHighlighted = true;
 				}
-				else if
+				
+				if
 				(
 					this == selectedNode ||
+//					true
 					//(canDisplayLabelCurrent) &&
 					this != highlightedNode &&
 					this != focusNode
@@ -708,23 +723,15 @@ function Node()
 						context.globalAlpha = this.alphaLabel.current();
 					}
 					
-					if ( this == selectedNode )
-					{
-						context.font = fontBold;
-					}
-					
 					this.drawLabel
 					(
 						(angleStartCurrent + angleEndCurrent) / 2,
-						(this.searchResult || hiddenSearchResults) && selected,
+						this.hideAlone && this.searchResultChildren() ||
+						(this.isSearchResult || hiddenSearchResults) && selected,
+						this == selectedNode && ! this.radial,
 						selected,
 						this.radial
 					);
-					
-					if ( this == selectedNode )
-					{
-						context.font = fontNormal;
-					}
 					
 					if ( this.radial != this.radialPrev && this.alphaLabel.start == 1 && progress < 1 )
 					{
@@ -733,7 +740,8 @@ function Node()
 						this.drawLabel
 						(
 							(angleStartCurrent + angleEndCurrent) / 2,
-							(this.searchResult || hiddenSearchResults) && selected,
+							(this.isSearchResult || hiddenSearchResults) && selected,
+							this == selectedNodeLast && ! this.radialPrev,
 							selected,
 							this.radialPrev
 						);
@@ -753,7 +761,7 @@ function Node()
 					//context.font = fontNormal;
 					context.globalAlpha = this.alphaOther.current();
 					
-					this.drawTextFlipped
+					drawTextPolar
 					(
 						'[unclassified '+ this.name + ']',
 						getPercentage
@@ -770,7 +778,8 @@ function Node()
 						true,
 						false,
 						false,
-						false
+						0,
+						0
 					);
 				}
 			}
@@ -896,8 +905,9 @@ function Node()
 							(
 								this == highlightedNode ||
 								this == focusNode ||
-								this.containsSearchResult
-							)
+								this.searchResults
+							),
+							this == highlightedNode || this == focusNode
 						);
 					}
 				}
@@ -910,7 +920,7 @@ function Node()
 			//
 			for ( var i = 0; i < this.children.length; i++ )
 			{
-				if ( this.drawHiddenChildren(i, selected, labelMode) )
+				if ( this.drawHiddenChildren(i, selected, labelMode, searchHighlighted) )
 				{
 					i = this.children[i].hiddenEnd;
 				}
@@ -926,7 +936,8 @@ function Node()
 	(
 		firstHiddenChild,
 		selected,
-		labelMode
+		labelMode,
+		searchHighlighted
 	)
 	{
 		var firstChild = this.children[firstHiddenChild];
@@ -952,9 +963,13 @@ function Node()
 		
 		if ( labelMode )
 		{
-			var hiddenSearchResults = 0; // TEMP
+			var hiddenSearchResults = 0;
 			
-			//context.font = fontNormal;
+			for ( var i = firstHiddenChild; i <= firstChild.hiddenEnd; i++ )
+			{
+				hiddenSearchResults += this.children[i].searchResults;
+			}
+			
 			if
 			(
 				selected &&
@@ -964,21 +979,19 @@ function Node()
 				hiddenSearchResults
 			)
 			{
-	//				context.globalAlpha = lastChild.getUncollapsed().alphaLabel.current();
-				context.fillStyle = 'black';//'rgb(90,90,90)';
-			context.globalAlpha = this.alphaWedge.current();
+				context.globalAlpha = this.alphaWedge.current();
 				
 				this.drawHiddenLabel
 				(
 					angleStart,
 					angleEnd,
-					hiddenSearchResults ?
-						hiddenSearchResults + ' result' + (hiddenSearchResults > 1 ? 's' : '') :
-						hiddenChildren,
+					hiddenChildren,
 					hiddenSearchResults
 				);
 			}
 		}
+		
+		var drawWedges = true;
 		
 		for ( var i = firstHiddenChild; i <= firstChild.hiddenEnd; i++ )
 		{
@@ -986,17 +999,34 @@ function Node()
 			
 			if ( this.children[i].alphaPattern.current() != this.children[i].alphaWedge.current() )
 			{
-				return false;
+				drawWedges = false;
+				break;
 			}
 		}
-		//return true;
 		
 		if ( labelMode )
 		{
-			var drawRadial = (angleEnd < this.angleEnd.current() + rotationOffset);
-			this.drawLines(angleStart, angleEnd, radiusInner, drawRadial);
+			if ( drawWedges )
+			{
+				var drawRadial = (angleEnd < this.angleEnd.current() + rotationOffset);
+				this.drawLines(angleStart, angleEnd, radiusInner, drawRadial);
+			}
+			
+			if ( hiddenSearchResults && ! searchHighlighted )
+			{
+				drawWedge
+				(
+					angleStart,
+					angleEnd,
+					radiusInner,
+					gRadius,//this.radiusOuter.current() * gRadius,
+					highlightFill,
+					0,
+					true
+				);
+			}
 		}
-		else
+		else if ( drawWedges )
 		{
 			context.globalAlpha = this.alphaWedge.current();
 			
@@ -1014,11 +1044,12 @@ function Node()
 				radiusInner,
 				gRadius,//this.radiusOuter.current() * gRadius,
 				fill,
-				context.globalAlpha
+				context.globalAlpha,
+				false
 			);
 		}
 		
-		return true;
+		return drawWedges;
 	}
 	
 	this.drawHiddenLabel = function(angleStart, angleEnd, value, hiddenSearchResults)
@@ -1027,33 +1058,27 @@ function Node()
 		var labelRadius = gRadius + fontSize;//(radiusInner + radius) / 2;
 		
 		drawTick(gRadius - fontSize * .75, fontSize * 1.5, textAngle);
-		this.drawTextFlipped(value.toString() + ' more', 0, textAngle, labelRadius, true, hiddenSearchResults);
+		drawTextPolar
+		(
+			value.toString() + ' more',
+			0, // inner text
+			textAngle,
+			labelRadius,
+			true, // radial
+			hiddenSearchResults, // bubble
+			this == highlightedNode || this == focusNode, // bold
+			false,
+			hiddenSearchResults
+		);
 	}
 	
-	this.drawHighlight = function()
+	this.drawHighlight = function(bold)
 	{
-		if ( snapshotMode )
-		{
-			this.drawHighlightSVG();
-		}
-		else
-		{
-			this.drawHighlightCanvas();
-		}
-	}
-	
-	this.drawHighlightCanvas = function()
-	{
-		// set style
-		//
-		context.save();
-		context.lineWidth = highlightLineWidth;
-		
 		var angleStartCurrent = this.angleStart.current() + rotationOffset;
 		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
 		var radiusInner = this.radiusInner.current() * gRadius;
 		
-		this.setHighlightStyle();
+		//this.setHighlightStyle();
 		
 		if ( this == focusNode && this == highlightedNode && this.hasChildren() )
 		{
@@ -1067,87 +1092,17 @@ function Node()
 		}
 		else
 		{
-	//		context.globalAlpha = 1;
-			
-			context.beginPath();
-			context.arc(0, 0, radiusInner, angleStartCurrent, angleEndCurrent, false);
-			context.arc(0, 0, gRadius, angleEndCurrent, angleStartCurrent, true);
-			context.closePath();
-			
-			context.fill();
-			context.stroke();
-		}
-		
-		// check if hidden children should be highlighted
-		//
-		for ( var i = 0; i < this.children.length; i++ )
-		{
-			if
+			drawWedge
 			(
-				this.children[i].getDepth() - selectedNode.getDepth() + 1 <=
-				maxDisplayDepth &&
-				this.children[i].hiddenEnd != null
-			)
-			{
-				var firstChild = this.children[i];
-				var lastChild = this.children[firstChild.hiddenEnd];
-				var hiddenAngleStart = firstChild.angleStart.current() + rotationOffset;
-				var hiddenAngleEnd = lastChild.angleEnd.current() + rotationOffset;
-				var hiddenRadiusInner = gRadius * firstChild.radiusInner.current();
-				
-				this.setHighlightStyle();
-				
-				context.beginPath();
-				context.arc(0, 0, hiddenRadiusInner, hiddenAngleStart, hiddenAngleEnd, false);
-				context.arc(0, 0, gRadius, hiddenAngleEnd, hiddenAngleStart, true);
-				context.closePath();
-				
-				context.strokeStyle = 'rgb(90,90,90)';
-				context.fill();
-				context.stroke();
-				
-				if ( ! this.containsSearchResult )
-				{
-					this.drawHiddenLabel
-					(
-						hiddenAngleStart,
-						hiddenAngleEnd,
-						firstChild.hiddenEnd - i + 1
-					);
-				}
-				
-				i = firstChild.hiddenEnd;
-			}
+				angleStartCurrent,
+				angleEndCurrent,
+				radiusInner,
+				gRadius,
+				highlightFill,
+				0,
+				true
+			);
 		}
-		
-//			context.strokeStyle = 'black';
-		context.fillStyle = 'black';
-		
-		var highlight = ! ( progress < 1 && zoomOut && this == selectedNodeLast );
-		
-		if ( highlight )
-		{
-			context.font = fontBold;
-		}
-		
-		var angle = (angleEndCurrent + angleStartCurrent) / 2;
-		
-		if ( ! (this.keyed && showKeys) )
-		{
-			this.drawLabel(angle, true, true, this.radial);
-		}
-		
-		if ( highlight )
-		{
-			context.font = fontNormal;
-		}
-	}
-	
-	this.drawHighlightSVG = function()
-	{
-		var angleStartCurrent = this.angleStart.current() + rotationOffset;
-		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
-		var radiusInner = this.radiusInner.current() * gRadius;
 		
 		// check if hidden children should be highlighted
 		//
@@ -1177,7 +1132,7 @@ function Node()
 					true
 				);
 				
-				if ( ! this.containsSearchResult )
+				if ( ! this.searchResults )
 				{
 					this.drawHiddenLabel
 					(
@@ -1191,24 +1146,16 @@ function Node()
 			}
 		}
 		
-		drawWedge
-		(
-			angleStartCurrent,
-			angleEndCurrent,
-			radiusInner,
-			gRadius,
-			'rgba(255, 255, 255, .3)',
-			0,
-			true
-		);
+//			context.strokeStyle = 'black';
+		context.fillStyle = 'black';
 		
-		var angle = (angleStartCurrent + angleEndCurrent) / 2;
+		var highlight = ! ( progress < 1 && zoomOut && this == selectedNodeLast );
 		
-		context.font = fontBold;
+		var angle = (angleEndCurrent + angleStartCurrent) / 2;
 		
-		if ( !(this.keyed && showKeys) )
+		if ( ! (this.keyed && showKeys) )
 		{
-			this.drawLabel(angle, true, false, this.radial);
+			this.drawLabel(angle, true, bold, true, this.radial);
 		}
 	}
 	
@@ -1224,12 +1171,11 @@ function Node()
 		context.fillStyle = "rgba(255, 255, 255, .6)";
 		
 		context.fillStyle = 'black';
-		context.font = fontBold;
 		this.drawLabel(3 * Math.PI / 2, true, true, false);
 		context.font = fontNormal;
 	}
 	
-	this.drawKey = function(angle, highlight)
+	this.drawKey = function(angle, highlight, bold)
 	{
 		var offset = keyOffset();
 		var color = rgbText(this.r.end, this.g.end, this.b.end);
@@ -1245,17 +1191,15 @@ function Node()
 		{
 			labelLength = label.length;
 			
-			if ( this.shouldAddSearchResultsString() )
+			if ( this.searchResultChildren() )
 			{
-				label = this.addSearchResultString(label);
+				label = label + searchResultString(this.searchResultChildren());
 			}
 		}
 		
 		if ( highlight )
 		{
-			context.font = fontBold
-			var dim = context.measureText(label);
-			keyNameWidth = dim.width;
+			keyNameWidth = measureText(label, bold);
 		}
 		else
 		{
@@ -1402,7 +1346,7 @@ function Node()
 			
 			svg +=
 				'<path class="line" style="stroke-width:' +
-				(highlight ? highlightLineWidth : thinLineWidth) +
+				(bold ? highlightLineWidth : thinLineWidth) +
 				'" d="M ' + (lineX[0] + centerX) + ',' +
 				(lineY[0] + centerY);
 			
@@ -1430,38 +1374,35 @@ function Node()
 			{
 				var labelLength = label.length;
 				
-				if ( this.shouldAddSearchResultsString() )
+				if ( this.searchResultChildren() )
 				{
-					labelSVG = this.addSearchResultString(labelSVG);
+					labelSVG = labelSVG + searchResultString(this.searchResultChildren());
 				}
 				
 				drawBubbleSVG
 				(
-					boxLeft - keyBuffer - dim.width - fontSize / 2,
+					boxLeft - keyBuffer - keyNameWidth - fontSize / 2,
 					textY - fontSize,
-					dim.width + fontSize,
+					keyNameWidth + fontSize,
 					fontSize * 2,
 					fontSize,
 					0
 				);
 				
-				if ( this.searchResult )
+				if ( this.isSearchResult )
 				{
-					this.drawSearchHighlights
+					drawSearchHighlights
 					(
 						label,
 						labelLength,
-						boxLeft - keyBuffer - dim.width,
+						boxLeft - keyBuffer - keyNameWidth,
 						textY,
 						0
 					)
 				}
 			}
 			
-			svg +=
-				'<text x="' + (boxLeft - keyBuffer) + '" ' +
-				'y="' + textY + '" style=\'text-anchor:end;font:' + context.font + '\'>' +
-				labelSVG + '</text>';
+			svg += svgText(labelSVG, boxLeft - keyBuffer, textY, 'end', bold);
 		}
 		else
 		{
@@ -1493,7 +1434,7 @@ function Node()
 				context.restore(); // remove clipping region
 			}
 			
-			if ( this == highlightedNode || this == focusNode )
+			if ( highlight )
 			{
 				this.setHighlightStyle();
 				context.fillRect(boxLeft, offset, keySize, keySize);
@@ -1519,6 +1460,7 @@ function Node()
 				}
 				
 				context.globalAlpha = this.alphaWedge.current();
+				context.lineWidth = highlight ? highlightLineWidth : thinLineWidth;
 				context.stroke();
 				context.globalAlpha = 1;
 			}
@@ -1527,47 +1469,38 @@ function Node()
 			{
 				drawBubbleCanvas
 				(
-					boxLeft - keyBuffer - dim.width - fontSize / 2,
+					boxLeft - keyBuffer - keyNameWidth - fontSize / 2,
 					textY - fontSize,
-					dim.width + fontSize,
+					keyNameWidth + fontSize,
 					fontSize * 2,
 					fontSize,
 					0
 				);
 				
-				if ( this.searchResult )
+				if ( this.isSearchResult )
 				{
-					this.drawSearchHighlights
+					drawSearchHighlights
 					(
 						label,
 						labelLength,
-						boxLeft - keyBuffer - dim.width,
+						boxLeft - keyBuffer - keyNameWidth,
 						textY,
 						0
 					)
 				}
 			}
 			
-			context.textAlign = 'end';
-//			context.lineWidth *= .75;
-			context.fillStyle = 'black';
-			context.fillText(label, boxLeft - keyBuffer, offset + keySize / 2);
-			
+			drawText(label, boxLeft - keyBuffer, offset + keySize / 2, 0, 'end', bold);
 			
 			context.translate(centerX, centerY);
-		}
-		
-		if ( highlight )
-		{
-			context.font = fontNormal;
 		}
 		
 		currentKey++;
 	}
 	
-	this.drawLabel = function(angle, highlight, selected, radial)
+	this.drawLabel = function(angle, bubble, bold, selected, radial)
 	{
-		if ( ! highlight && this.alphaLabel.current() == 0 )
+		if ( context.globalAlpha == 0 )
 		{
 			return;
 		}
@@ -1585,7 +1518,7 @@ function Node()
 			radius = this.labelRadius.current() * gRadius;
 		}
 		
-		if ( radial && (selected || highlight ) )
+		if ( radial && (selected || bubble ) )
 		{
 			var percentage = this.getPercentage();
 			innerText = percentage + '%';
@@ -1595,7 +1528,7 @@ function Node()
 		(
 			! radial &&
 			this != selectedNode &&
-			! highlight &&
+			! bubble &&
 			( !zoomOut || this != selectedNodeLast)
 		)
 		{
@@ -1606,16 +1539,18 @@ function Node()
 			label = this.name;
 		}
 		
-		var flipped = this.drawTextFlipped
+		var flipped = drawTextPolar
 		(
 			label,
 			innerText,
 			angle,
 			radius,
 			radial,
-			highlight,
-			this.shouldAddSearchResultsString() && (!selected || this == selectedNode || highlight),
-			true
+			bubble,
+			bold,
+//			this.isSearchResult && this.shouldAddSearchResultsString() && (!selected || this == selectedNode || highlight),
+			this.isSearchResult && (!selected || this == selectedNode || bubble),
+			(this.hideAlone || !selected || this == selectedNode ) ? this.searchResultChildren() : 0
 		);
 		
 		var depth = this.getDepth() - selectedNode.getDepth() + 1;
@@ -1623,7 +1558,7 @@ function Node()
 		if
 		(
 			! radial &&
-			! highlight &&
+			! bubble &&
 			this != selectedNode &&
 			this.angleEnd.end != this.angleStart.end &&
 			nLabelOffsets[depth - 2] > 2 &&
@@ -1872,7 +1807,7 @@ function Node()
 		{
 			svg +=
 				'<circle cx="' + centerX + '" cy="' + centerY +
-				'" r="' + nodeRadius * gRadius + '"/>';
+				'" r="' + childRadiusInner + '"/>';
 			svg +=
 				'<circle cx="' + centerX + '" cy="' + centerY +
 				'" r="' + gRadius + '"/>';
@@ -1887,192 +1822,6 @@ function Node()
 			context.arc(0, 0, gRadius, 0, Math.PI * 2, false);
 			context.stroke();
 		}
-	}
-	
-	this.drawSearchHighlights = function(label, labelLength, bubbleX, bubbleY, rotation, center)
-	{
-		var index = -1;
-		
-		bubbleX -= fontSize / 4;
-		
-		do
-		{
-			index = label.toLowerCase().indexOf(search.value.toLowerCase(), index + 1);
-			
-			if ( index != -1 && index < labelLength )
-			{
-				var dim = context.measureText(label.substr(0, index));
-				var x = bubbleX + dim.width;
-				
-				dim = context.measureText(label.substr(index, search.value.length));
-				
-				var y = bubbleY - fontSize * 3 / 4;
-				var width = dim.width + fontSize / 2;
-				var height = fontSize * 3 / 2;
-				var radius = fontSize / 2;
-				
-				if ( snapshotMode )
-				{
-					if ( center )
-					{
-						x += centerX;
-						y += centerY;
-					}
-					
-					svg +=
-						'<rect x="' + x + '" y="' + y +
-						'" width="' + width +
-						'" height="' + height +
-						'" rx="' + radius +
-						'" ry="' + radius +
-						'" fill="rgb(255, 255, 100)' +
-						'" transform="rotate(' +
-						degrees(rotation) + ',' + centerX + ',' + centerY +
-						')"/>';
-				}
-				else
-				{
-					context.fillStyle = 'rgb(255, 255, 100)';
-					context.rotate(rotation);
-					roundedRectangle(x, y, width, height, radius);
-					context.fill();
-					context.rotate(-rotation);
-				}
-			}
-		}
-		while ( index != -1 && index < labelLength );
-	}
-	
-	this.drawTextFlipped = function(text, innerText, angle, radius, radial, highlightAlpha, addResults, highlightSearch)
-	{
-		var anchor;
-		var textX;
-		var textY;
-		var spacer;
-		var totalText = text;
-		var flip;
-		
-		if ( snapshotMode )
-		{
-			spacer = '&#160;&#160;&#160;';
-		}
-		else
-		{
-			spacer = '   ';
-		}
-		
-		if ( radial )
-		{
-			flip = angle < 3 * Math.PI / 2;
-			
-			if ( flip )
-			{
-				angle -= Math.PI;
-				radius = -radius;
-				anchor = 'end';
-				
-				if ( innerText )
-				{
-					totalText = text + spacer + innerText;
-				}
-			}
-			else
-			{
-				anchor = 'start';
-				
-				if ( innerText )
-				{
-					totalText = innerText + spacer + text;
-				}
-			}
-			
-			textX = radius;
-			textY = 0;
-		}
-		else
-		{
-			flip = angle < Math.PI || angle > 2 * Math.PI;
-			var label;
-			
-			anchor = snapshotMode ? 'middle' : 'center';
-			
-			if ( flip )
-			{
-				angle -= Math.PI;
-				radius = -radius;
-			}
-			
-			angle += Math.PI / 2;
-			textX = 0;
-			textY = -radius;
-		}
-		
-		//if ( highlight )
-		{
-		//	text += ' ' + angle;
-		}
-		
-		if ( highlightAlpha )
-		{
-			var textActual = totalText;
-			
-			if ( innerText && snapshotMode )
-			{
-				if ( flip )
-				{
-					textActual = text + '   ' + innerText;
-				}
-				else
-				{
-					textActual = innerText + '   ' + text;
-				}
-			}
-			
-			var labelLength = textActual.length;
-			
-			if ( addResults )
-			{
-				textActual = this.addSearchResultString(textActual);
-			}
-			
-			dim = context.measureText(textActual);
-			
-			var x = textX;
-			
-			if ( anchor == 'end' )
-			{
-				x -= dim.width;
-			}
-			else if ( anchor != 'start' )
-			{
-				// centered
-				x -= dim.width / 2;
-			}
-			
-			drawBubble(angle, radius, dim.width, radial, flip);
-			
-			if ( this.searchResult && highlightSearch )
-			{
-				this.drawSearchHighlights
-				(
-					textActual,
-					labelLength,
-					x,
-					textY,
-					angle,
-					true
-				)
-			}
-		}
-		
-		if ( addResults )
-		{
-			totalText = this.addSearchResultString(totalText);
-		}
-		
-		drawText(totalText, textX, textY, angle, anchor);
-		
-		return flip;
 	}
 	
 	this.getCollapse = function()
@@ -2280,8 +2029,8 @@ function Node()
 	
 	this.search = function()
 	{
-		this.searchResult = false;
-		this.containsSearchResult = 0;
+		this.isSearchResult = false;
+		this.searchResults = 0;
 		
 		if
 		(
@@ -2290,17 +2039,29 @@ function Node()
 			this.name.toLowerCase().indexOf(search.value.toLowerCase()) != -1
 		)
 		{
-			this.searchResult = true;
-			this.containsSearchResult = 1;
+			this.isSearchResult = true;
+			this.searchResults = 1;
 			nSearchResults++;
 		}
 		
 		for ( var i = 0; i < this.children.length; i++ )
 		{
-			this.containsSearchResult += this.children[i].search();
+			this.searchResults += this.children[i].search();
 		}
 		
-		return this.containsSearchResult;
+		return this.searchResults;
+	}
+	
+	this.searchResultChildren = function()
+	{
+		if ( this.isSearchResult )
+		{
+			return this.searchResults - 1;
+		}
+		else
+		{
+			return this.searchResults;
+		}
 	}
 	
 	this.setDepth = function(depth, depthCollapsed)
@@ -3428,18 +3189,18 @@ function Node()
 		}
 	}
 	
-	this.shouldAddSearchResultsString = function()
+/*	this.shouldAddSearchResultsString = function()
 	{
-		if ( this.searchResult )
+		if ( this.isSearchResult )
 		{
-			return this.containsSearchResult > 1;
+			return this.searchResults > 1;
 		}
 		else
 		{
-			return this.containsSearchResult > 0;
+			return this.searchResults > 0;
 		}
 	}
-	
+*/	
 	this.sort = function()
 	{
 		this.children.sort(function(a, b){return b.getMagnitude() - a.getMagnitude()});
@@ -3611,6 +3372,9 @@ function arrow(angleStart, angleEnd, radiusInner)
 	var radiusArrowOuter = gRadius * 1.1;//(1 + nodeRadius);
 	var radiusArrowCenter = (radiusArrowInner + radiusArrowOuter) / 2;
 	var pointLength = (radiusArrowOuter - radiusArrowInner) / 5;
+	
+	context.fillStyle = highlightFill;
+	context.lineWidth = highlightLineWidth;
 	
 	// First, mask out the first half of the arrow.  This will prevent the tips
 	// from superimposing if the arrow goes most of the way around the circle.
@@ -3839,7 +3603,7 @@ function draw()
 	if ( focusNode != 0 && focusNode != selectedNode )
 	{
 		context.globalAlpha = 1;
-		focusNode.drawHighlight();
+		focusNode.drawHighlight(true);
 		pathRoot = focusNode;
 	}
 	
@@ -3861,7 +3625,7 @@ function draw()
 		)
 		{
 			context.globalAlpha = 1;
-			highlightedNode.drawHighlight();
+			highlightedNode.drawHighlight(true);
 		}
 		
 		//pathRoot = highlightedNode;
@@ -3879,19 +3643,19 @@ function draw()
 	if ( quickLook && false) // TEMP
 	{
 		context.globalAlpha = 1 - progress / 2;
-		selectedNode.drawHighlight();
+		selectedNode.drawHighlight(true);
 	}
 	else if ( progress < 1 )//&& zoomOut() )
 	{
 		if ( !zoomOut)//() )
 		{
 			context.globalAlpha = selectedNode.alphaLine.current();
-			selectedNode.drawHighlight();
+			selectedNode.drawHighlight(true);
 		}
 		else if ( selectedNodeLast )
 		{
 			context.globalAlpha = 1 - 4 * Math.pow(progress - .5, 2);
-			selectedNodeLast.drawHighlight();
+			selectedNodeLast.drawHighlight(false);
 		}
 	}
 	
@@ -4000,18 +3764,9 @@ function drawDatasetName()
 		}
 		
 		context.globalAlpha = alpha;
-		context.textAlign = 'center';
 		
 		drawBubble(0, -radius, datasetWidths[currentDataset], false, false);
-		
-		context.fillStyle = 'black';
-		context.font = fontBold;
-		context.fillText
-		(
-			datasetNames[currentDataset],
-			0,
-			radius
-		)
+		drawText(datasetNames[currentDataset], 0, radius, 0, 'center', true);
 	}
 }
 
@@ -4123,13 +3878,67 @@ function drawLegendSVG()
 	svg += text;
 }
 
-function drawText(text, x, y, angle, anchor)
+function drawSearchHighlights(label, labelLength, bubbleX, bubbleY, rotation, center)
+{
+	var index = -1;
+	
+	bubbleX -= fontSize / 4;
+	
+	do
+	{
+		index = label.toLowerCase().indexOf(search.value.toLowerCase(), index + 1);
+		
+		if ( index != -1 && index < labelLength )
+		{
+			var dim = context.measureText(label.substr(0, index));
+			var x = bubbleX + dim.width;
+			
+			dim = context.measureText(label.substr(index, search.value.length));
+			
+			var y = bubbleY - fontSize * 3 / 4;
+			var width = dim.width + fontSize / 2;
+			var height = fontSize * 3 / 2;
+			var radius = fontSize / 2;
+			
+			if ( snapshotMode )
+			{
+				if ( center )
+				{
+					x += centerX;
+					y += centerY;
+				}
+				
+				svg +=
+					'<rect x="' + x + '" y="' + y +
+					'" width="' + width +
+					'" height="' + height +
+					'" rx="' + radius +
+					'" ry="' + radius +
+					'" class="searchHighlight' +
+					'" transform="rotate(' +
+					degrees(rotation) + ',' + centerX + ',' + centerY +
+					')"/>';
+			}
+			else
+			{
+				context.fillStyle = 'rgb(255, 255, 100)';
+				context.rotate(rotation);
+				roundedRectangle(x, y, width, height, radius);
+				context.fill();
+				context.rotate(-rotation);
+			}
+		}
+	}
+	while ( index != -1 && index < labelLength );
+}
+
+function drawText(text, x, y, angle, anchor, bold)
 {
 	if ( snapshotMode )
 	{
 		svg +=
 			'<text x="' + (centerX + x) + '" y="' + (centerY + y) +
-			'" style="text-anchor:' + anchor + ';font:' + context.font +
+			'" text-anchor="' + anchor + '" style="font-weight:' + (bold ? 'bold' : 'normal') +
 			'" transform="rotate(' + degrees(angle) + ',' + centerX + ',' + centerY + ')">' +
 			text + '</text>';
 	}
@@ -4137,10 +3946,149 @@ function drawText(text, x, y, angle, anchor)
 	{
 		context.fillStyle = 'black';
 		context.textAlign = anchor;
+		context.font = bold ? fontBold : fontNormal;
 		context.rotate(angle);
 		context.fillText(text, x, y);
 		context.rotate(-angle);
 	}
+}
+
+function drawTextPolar
+(
+	text,
+	innerText,
+	angle,
+	radius,
+	radial,
+	bubble,
+	bold, 
+	searchResult,
+	searchResults
+)
+{
+	var anchor;
+	var textX;
+	var textY;
+	var spacer;
+	var totalText = text;
+	var flip;
+	
+	if ( snapshotMode )
+	{
+		spacer = '&#160;&#160;&#160;';
+	}
+	else
+	{
+		spacer = '   ';
+	}
+	
+	if ( radial )
+	{
+		flip = angle < 3 * Math.PI / 2;
+		
+		if ( flip )
+		{
+			angle -= Math.PI;
+			radius = -radius;
+			anchor = 'end';
+			
+			if ( innerText )
+			{
+				totalText = text + spacer + innerText;
+			}
+		}
+		else
+		{
+			anchor = 'start';
+			
+			if ( innerText )
+			{
+				totalText = innerText + spacer + text;
+			}
+		}
+		
+		textX = radius;
+		textY = 0;
+	}
+	else
+	{
+		flip = angle < Math.PI || angle > 2 * Math.PI;
+		var label;
+		
+		anchor = snapshotMode ? 'middle' : 'center';
+		
+		if ( flip )
+		{
+			angle -= Math.PI;
+			radius = -radius;
+		}
+		
+		angle += Math.PI / 2;
+		textX = 0;
+		textY = -radius;
+	}
+	
+	if ( bubble )
+	{
+		var textActual = totalText;
+		
+		if ( innerText && snapshotMode )
+		{
+			if ( flip )
+			{
+				textActual = text + '   ' + innerText;
+			}
+			else
+			{
+				textActual = innerText + '   ' + text;
+			}
+		}
+		
+		var labelLength = textActual.length;
+		
+		if ( searchResults )
+		{
+			textActual = textActual + searchResultString(searchResults);
+		}
+		
+		var textWidth = measureText(textActual, bold);
+		
+		var x = textX;
+		
+		if ( anchor == 'end' )
+		{
+			x -= textWidth;
+		}
+		else if ( anchor != 'start' )
+		{
+			// centered
+			x -= textWidth / 2;
+		}
+		
+		drawBubble(angle, radius, textWidth, radial, flip);
+		
+		if ( searchResult )
+		{
+			drawSearchHighlights
+			(
+				textActual,
+				labelLength,
+				x,
+				textY,
+				angle,
+				true
+			)
+		}
+	}
+	
+	if ( searchResults )
+	{
+		totalText = totalText + searchResultString(searchResults);
+	}
+	
+	drawText(totalText, textX, textY, angle, anchor, bold);
+	
+	return flip;
 }
 
 function drawTick(start, length, angle)
@@ -4240,6 +4188,13 @@ function drawWedge
 			context.fillStyle = hiddenPattern;
 			context.fill();
 			context.restore();
+		}
+		
+		if ( highlight )
+		{
+			context.lineWidth = highlight ? highlightLineWidth : thinLineWidth;
+			context.strokeStyle = 'black';
+			context.stroke();
 		}
 	}
 }
@@ -4735,6 +4690,13 @@ function maxAbsoluteDepthIncrease()
 	}
 }
 
+function measureText(text, bold)
+{
+	context.font = bold ? fontBold : fontNormal;
+	var dim = context.measureText(text);
+	return dim.width;
+}
+
 function min(a, b)
 {
 	return a < b ? a : b;
@@ -5028,6 +4990,19 @@ function passClick(e)
 	mouseClick(e);
 }
 
+function searchResultString(results)
+{
+	var searchResults = this.searchResults;
+	
+	if ( this.isSearchResult )
+	{
+		// don't count ourselves
+		searchResults--;
+	}
+	
+	return ' - ' + results + (results > 1 ? ' results' : ' result');
+}
+
 function setCallBacks()
 {
 	canvas.onselectstart = function(){return false;} // prevent unwanted highlighting
@@ -5202,7 +5177,7 @@ function snapshot()
 	
 	if ( focusNode != 0 && focusNode != selectedNode )
 	{
-		focusNode.drawHighlightSVG();
+		focusNode.drawHighlight(true);
 	}
 	
 	if ( hueDisplayName && useHue() )
@@ -5241,10 +5216,7 @@ function svgHeader()
 '</title>\
 <defs>\
 	<style type="text/css">\
-	text {font: ' + fontSize + 'px Times new roman; dominant-baseline:middle;baseline-shift:-10%}\
-	text.left {text-align:left}\
-	text.center {text-align:center}\
-	text.right {text-align:right}\
+	text {font-size: ' + fontSize + 'px; font-family: ' + fontFamily + '; dominant-baseline:central}\
 	path.wedge {stroke:none}\
 	path.line {fill:none;stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	line {stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
@@ -5253,6 +5225,7 @@ function svgHeader()
 	circle {fill:none;stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	rect {stroke:black;stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
 	.highlight {stroke:black;stroke-width:'+ highlightLineWidth + ';}\
+	.searchHighlight {fill:rgb(255, 255, 100);stroke:none;}\
 	</style>\
 <pattern id="hiddenPattern" patternUnits="userSpaceOnUse" \
 x="0" y="0" width="' + patternWidth + '" height="' + patternWidth + '">\
@@ -5264,11 +5237,16 @@ x="0" y="0" width="' + patternWidth + '" height="' + patternWidth + '">\
 ';
 }
 
-function svgText(text, x, y)
+function svgText(text, x, y, anchor, bold)
 {
+	if ( typeof(anchor) == 'undefined' )
+	{
+		anchor = 'start';
+	}
+	
 	return '<text x="' + x + '" y="' + y +
-		'" style="text-anchor:start;font:' + fontNormal +
-		'">' + text + '</text>';
+		'" style="font-weight:' + (bold ? 'bold' : 'normal') +
+		'" text-anchor="' + anchor + '">' + text + '</text>';
 }
 
 function toggleKeys()
@@ -5630,9 +5608,9 @@ function updateView()
 	}
 	
 	fontSizeText.innerHTML = fontSize;
-	fontNormal = fontSize + 'px ' + fontFaceNormal;
+	fontNormal = fontSize + 'px ' + fontFamily;
 	context.font = fontNormal;
-	fontBold = 'bold ' + fontSize + 'px ' + fontFaceNormal;
+	fontBold = 'bold ' + fontSize + 'px ' + fontFamily;
 	tickLength = fontSize * .7;
 	
 	head.setTargets(0);
