@@ -93,7 +93,19 @@ foreach my $input ( @ARGV )
 	
 	open INFILE, "<$fileName" or die $!;
 	
-	while ( <INFILE> !~ /^Details:/ ) {}
+	my $line;
+	
+	do
+	{
+		$line = <INFILE>;
+		
+		if ( ! $line )
+		{
+			print "Error: $fileName is not RDP classification file.\n";
+			exit;
+		}
+	}
+	while ( $line !~ /^Details:/ );
 	
 	while ( my $line = <INFILE> )
 	{
@@ -118,7 +130,7 @@ foreach my $input ( @ARGV )
 #		print "@lineage\n";
 #		print "@scores\n";
 		
-		addByLineage($set, \%all, 1, \@lineage, \@ranks, \@scores);
+		addByLineage(\%all, $set, 1, \@lineage, \@ranks, \@scores);
 	}
 	
 	close INFILE;

@@ -51,6 +51,8 @@ my ($xmlFile) = @ARGV;
 
 my $outFile = getOption('out');
 
+print "Writing $outFile...\n";
+
 open OUT, ">$outFile";
 print OUT header();
 

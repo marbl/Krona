@@ -125,7 +125,7 @@ foreach my $input ( @ARGV )
 			$score = $data[$offset + 1 + @ranks];
 		}
 		
-		addByLineage($set, \%all, $magnitude, \@lineage, \@ranks, $score);
+		addByLineage(\%all, $set, $magnitude, \@lineage, \@ranks, $score);
 	}
 	
 	close INFILE;

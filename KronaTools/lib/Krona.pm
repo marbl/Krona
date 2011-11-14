@@ -16,8 +16,9 @@ use Cwd 'abs_path';
 
 our @EXPORT = qw
 (
-	add
+	addByEC
 	addByLineage
+	addByTaxID
 	classifyBlast
 	contains
 	footer
@@ -29,6 +30,7 @@ our @EXPORT = qw
 	getRank
 	getTaxID
 	header
+	loadEC
 	loadTaxonomy
 	lowestCommonAncestor
 	newTree
@@ -52,6 +54,7 @@ my %options =
 	# global defaults
 	
 	'collapse' => 1,
+	'color' => 0,
 	'hueBad' => 0,
 	'hueGood' => 120,
 	'magCol' => 2,
@@ -66,6 +69,7 @@ my %optionFormats =
 (
 	'combine' => 'c',
 	'confidence' => 'm=f',
+	'ecCol' => 'e=i',
 	'hueBad' => 'x=i',
 	'hueGood' => 'y=i',
 	'include' => 'i',
@@ -96,6 +100,7 @@ my %optionDescriptions =
 (
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
 	'confidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
+	'ecCol' => 'Column of input files to use as EC number.',
 	'hueBad' => 'Hue (0-360) for "bad" scores.',
 	'hueGood' => 'Hue (0-360) for "good" scores.',
 	'identity' => 'Use percent identity to compute the average scores of taxa instead of e-value.',
@@ -110,7 +115,7 @@ my %optionDescriptions =
 	'random' => 'Pick from the best hits randomly instead of finding the lowest common ancestor.',
 	'score' => 'Use bit scores to compute the average scores of taxa instead of e-values.',
 	'scoreCol' => 'Column of input files to use as score.',
-	'taxCol' => 'Column of input files to use as taxonomy IDs.',
+	'taxCol' => 'Column of input files to use as taxonomy ID.',
 	'url' => 'URL of Krona resources.',
 	'verbose' => 'Verbose.'
 );
@@ -118,6 +123,7 @@ my %optionDescriptions =
 abs_path($0) =~ /(.*)\//;
 my $scriptPath = $1;
 my $taxonomyDir = "$scriptPath/../taxonomy";
+my $ecFile = "$scriptPath/../data/ec.tsv";
 
 my $version = '1.1';
 my $javascript = "krona-$version.js";
@@ -130,22 +136,20 @@ my @depths;
 my @parents;
 my @ranks;
 my @names;
+my %ecNames;
 
-sub add
+sub addByEC
 {
-	# recursive function to add magnitude to specified node and all
-	# ancestors (and create them if they doesn't exist)
-	
 	my
 	(
-		$set, # integer
 		$node, # hash ref
-		$taxID, # integer
+		$set, # integer
+		$ec, # string
 		$magnitude, # number
 		$score # number (optional)
 	) = @_;
 	
-	if ( $taxID == 0 )
+	if ( ! $ec )
 	{
 		$node->{'magnitude'}[$set] += $magnitude;
 		$node->{'children'}{'No hits'}{'magnitude'}[$set] += $magnitude;
@@ -158,21 +162,19 @@ sub add
 		return;
 	}
 	
-	while ( $taxID > 1 && $ranks[$taxID] eq 'no rank' )
+	if ( ! %ecNames )
 	{
-		$taxID = $parents[$taxID];
-	}
-	
-	if ( ! @parents )
-	{
-		die 'Taxonomy not loaded. "loadTaxonomy()" must be called first.';
+		die 'EC data not loaded. "loadEC()" must be called first.';
 	}
 	
 	my $parent;
+	my $parentEC = $ec;
 	
-	if ( $parents[$taxID] != 1 )#$taxID )
+	$parentEC =~ s/\.?[^\.]+$//; # pop off a number
+	
+	if ( $parentEC )
 	{
-		$parent = add($set, $node, $parents[$taxID], $magnitude, $score);
+		$parent = addByEC($node, $set, $parentEC, $magnitude, $score);
 	}
 	else
 	{
@@ -180,37 +182,33 @@ sub add
 		$parent->{'magnitude'}[$set] += $magnitude;
 	}
 	
-	if ( $taxID != 1 )
+	my $name = $ecNames{$ec};
+	
+	my $child;
+	
+	if ( defined $parent->{'children'}{$name} )
 	{
-		my $name = $names[$taxID];
-		
-		my $child;
-		
-		if ( defined $parent->{'children'}{$name} )
-		{
-			$child = $parent->{'children'}{$name};
-		}
-		else
-		{
-			my %newChild = ();
-			
-			$parent->{'children'}{$name} = \%newChild;
-			$child = $parent->{'children'}{$name};
-			
-			$child->{'rank'}[0] = $ranks[$taxID];
-			$child->{'taxon'}[0] = taxonLink($taxID);
-		}
-		
-		${$child->{'magnitude'}}[$set] += $magnitude;
-		
-		if ( defined $score )
-		{
-			${$child->{'scoreTotal'}}[$set] += $score * $magnitude;
-			${$child->{'scoreCount'}}[$set] += $magnitude;
-		}
-		
-		return $child;
+		$child = $parent->{'children'}{$name};
 	}
+	else
+	{
+		my %newChild = ();
+		
+		$parent->{'children'}{$name} = \%newChild;
+		$child = $parent->{'children'}{$name};
+		
+		$child->{'ec'}[0] = ecLink($ec);
+	}
+	
+	${$child->{'magnitude'}}[$set] += $magnitude;
+	
+	if ( defined $score )
+	{
+		${$child->{'scoreTotal'}}[$set] += $score * $magnitude;
+		${$child->{'scoreCount'}}[$set] += $magnitude;
+	}
+	
+	return $child;
 }
 
 sub addByLineage
@@ -219,8 +217,8 @@ sub addByLineage
 	
 	my
 	(
-		$dataset, # integer
 		$node, # hash ref
+		$dataset, # integer
 		$magnitude, # number
 		$lineage, # array ref
 		$ranks, # array ref (optional)
@@ -323,8 +321,8 @@ sub addByLineage
 			
 			addByLineage
 			(
-				$dataset,
 				$child,
+				$dataset,
 				$magnitude,
 				$lineage,
 				$ranks,
@@ -333,6 +331,88 @@ sub addByLineage
 				$depth + 1
 			);
 		}
+	}
+}
+
+sub addByTaxID
+{
+	# recursive function to add magnitude to specified node and all
+	# ancestors (and create them if they doesn't exist)
+	
+	my
+	(
+		$node, # hash ref
+		$set, # integer
+		$taxID, # integer
+		$magnitude, # number
+		$score # number (optional)
+	) = @_;
+	
+	if ( $taxID == 0 )
+	{
+		$node->{'magnitude'}[$set] += $magnitude;
+		$node->{'children'}{'No hits'}{'magnitude'}[$set] += $magnitude;
+		
+		if ( ! defined $node->{'children'}{'No hits'}{'scoreCount'} )
+		{
+			$node->{'children'}{'No hits'}{'scoreCount'}[0] = 0;
+		}
+		
+		return;
+	}
+	
+	while ( $taxID > 1 && $ranks[$taxID] eq 'no rank' )
+	{
+		$taxID = $parents[$taxID];
+	}
+	
+	if ( ! @parents )
+	{
+		die 'Taxonomy not loaded. "loadTaxonomy()" must be called first.';
+	}
+	
+	my $parent;
+	
+	if ( $parents[$taxID] != 1 )#$taxID )
+	{
+		$parent = addByTaxID($node, $set, $parents[$taxID], $magnitude, $score);
+	}
+	else
+	{
+		$parent = $node;
+		$parent->{'magnitude'}[$set] += $magnitude;
+	}
+	
+	if ( $taxID != 1 )
+	{
+		my $name = $names[$taxID];
+		
+		my $child;
+		
+		if ( defined $parent->{'children'}{$name} )
+		{
+			$child = $parent->{'children'}{$name};
+		}
+		else
+		{
+			my %newChild = ();
+			
+			$parent->{'children'}{$name} = \%newChild;
+			$child = $parent->{'children'}{$name};
+			
+			$child->{'rank'}[0] = $ranks[$taxID];
+			$child->{'taxon'}[0] = taxonLink($taxID);
+		}
+		
+		${$child->{'magnitude'}}[$set] += $magnitude;
+		
+		if ( defined $score )
+		{
+			${$child->{'scoreTotal'}}[$set] += $score * $magnitude;
+			${$child->{'scoreCount'}}[$set] += $magnitude;
+		}
+		
+		return $child;
 	}
 }
 
@@ -575,10 +655,14 @@ sub dataHeader
 	
 	if ( defined $hueName )
 	{
+		my $colorDefault = $options{'color'} ? 'true' : 'false';
+		
 		$colorString =
 			"<color attribute=\"$hueName\" " .
 			"hueStart=\"$hueStart\" hueEnd=\"$hueEnd\" " .
-			"valueStart=\"$valueStart\" valueEnd=\"$valueEnd\"></color>";
+			"valueStart=\"$valueStart\" valueEnd=\"$valueEnd\" " .
+			"default=\"$colorDefault\" " .
+			"></color>";
 	}
 	
 	return '
@@ -588,6 +672,22 @@ sub dataHeader
 	<attributes' . $attributeString . '></attributes>
 	<datasets names="' . (join ',', @$datasetNames) . '"></datasets>
 	' . "$colorString\n";
+}
+
+sub ecLink
+{
+	my ($ec) = @_;
+	
+	my @numbers = split /\./, $ec;
+	
+	my $path = join '/', @numbers;
+	
+	if ( @numbers == 4 )
+	{
+		$path .= ".html";
+	}
+	
+	return "<a target='_blank' href='http://www.chem.qmul.ac.uk/iubmb/enzyme/EC$path'>EC$ec</a>";
 }
 
 sub getDepth
@@ -688,7 +788,7 @@ sub header
 		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
 		</div>
 		
-		<canvas id="canvas" width="100%" height="100%">
+		<canvas id="canvas" width="100" height="100">
 			This browser does not support HTML5 (see
 			<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">
 				Krona browser support</a>).
@@ -700,6 +800,22 @@ sub header
 	
 	<data>
 ';
+}
+
+sub loadEC
+{
+	open EC, "<$ecFile" or die "$ecFile not found.";
+	
+	<EC>; # eat header
+	
+	while ( <EC> )
+	{
+		chomp;
+		my ($ec, $name) = split /\t/;
+		$ecNames{$ec} = $name;
+	}
+	
+	close EC;
 }
 
 sub loadTaxonomy

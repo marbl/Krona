@@ -60,8 +60,8 @@ Description:
 Usage:
 
 ktImportBLAST [options] \
-   blast_output_1[:magnitude_file_1] \
-   blast_output_2[:magnitude_file_2] \
+   blast_output_1[:magnitude_file_1][,name_1] \
+   [blast_output_2[:magnitude_file_2][,name_2]] \
    ...
 
 Input:
@@ -119,10 +119,10 @@ foreach my $input (@ARGV)
 	
 	foreach my $taxID ( keys %magnitudes )
 	{
-		add
+		addByTaxID
 		(
-			$set,
 			\%tree,
+			$set,
 			$taxID,
 			$magnitudes{$taxID},
 			$totalScores{$taxID} / $counts{$taxID}

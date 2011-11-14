@@ -44,7 +44,7 @@ if
 {
 	print '
 
-ktImportText [options] file1.txt [file2.txt] ...
+ktImportText [options] file1.txt[,name1] [file2.txt[,name2]] ...
 
 Creates a Krona chart based on a text file that lists quantities and lineages.
 Each line should be a number followed by a list of wedges to contribute to
@@ -87,7 +87,7 @@ foreach my $input ( @ARGV )
 			$magnitude = shift @lineage;
 		}
 		
-		addByLineage($set, \%all, $magnitude, \@lineage);
+		addByLineage(\%all, $set, $magnitude, \@lineage);
 	}
 	
 	if ( ! getOption('combine') )

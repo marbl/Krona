@@ -160,7 +160,7 @@ foreach my $input (@ARGV)
 			$eVal = 1;
 		}
 		
-		add($set, $tree, $taxID, $magnitude, $score);
+		addByTaxID($tree, $set, $taxID, $magnitude, $score);
 	}
 	
 	if ( ! getOption('combine') )

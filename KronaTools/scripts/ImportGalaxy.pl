@@ -116,7 +116,7 @@ foreach my $input ( @ARGV )
 		
 		map { if ( $_ eq 'n' ) { $_ = '' } } @lineage;
 		
-		addByLineage($set, \%all, 1, \@lineage, \@ranks, undef, $taxID);
+		addByLineage(\%all, $set, 1, \@lineage, \@ranks, undef, $taxID);
 #		print "$taxID : @lineage\n";
 	}
 	

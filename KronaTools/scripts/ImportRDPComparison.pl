@@ -91,7 +91,19 @@ print "Importing $fileName...\n";
 
 open INFILE, "<$fileName" or die $!;
 
-while ( <INFILE> !~ /^Rank/ ) {}
+my $line;
+
+do
+{
+	$line = <INFILE>;
+	
+	if ( ! $line )
+	{
+		print "Error: $fileName is not RDP comparison file.\n";
+		exit;
+	}
+}
+while ( <INFILE> !~ /^Rank/ );
 
 while ( my $line = <INFILE> )
 {
@@ -132,8 +144,8 @@ while ( my $line = <INFILE> )
 				$minScores++;
 			}
 			
-			addByLineage(0, \%all, $mag1, \@lineage, undef, $score);
-			addByLineage(1, \%all, $mag2, \@lineage, undef, $score);
+			addByLineage(\%all, 0, $mag1, \@lineage, undef, $score);
+			addByLineage(\%all, 1, $mag2, \@lineage, undef, $score);
 		}
 		
 #		print "$lineageString\n@lineage\n\n";

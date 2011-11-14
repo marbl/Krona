@@ -95,13 +95,6 @@ my @ranks =
 );
 
 my %all = ();
-
-#my %children = ();
-my @magnitudes = ();
-
-#$all{'children'} = \%children;
-#$all{'magnitude'} = \@magnitudes;
-
 my $set = 0;
 my @datasetNames;
 
@@ -117,9 +110,11 @@ foreach my $input ( @ARGV )
 	my %magnitudes;
 	my $totalMagnitude;
 	
+	print "Importing $fileName...\n";
+	
 	if ( defined $magFile )
 	{
-		print "Loading magnitudes for $fileName...\n";
+		print "   Loading magnitudes from $magFile...\n";
 		
 		open MAG, "<$magFile" or die $!;
 		
@@ -134,7 +129,7 @@ foreach my $input ( @ARGV )
 		close MAG;
 	}
 	
-	print "Importing $fileName...\n";
+	print "   Reading classifications from $fileName...\n";
 	
 	open INFILE, "<$fileName" or die $!;
 	
@@ -186,11 +181,13 @@ foreach my $input ( @ARGV )
 		
 		if ( defined %magnitudes )
 		{
-			$magnitude = $magnitudes{$readID};
-			
-			if ( ! defined $magnitude )
+			if ( defined $magnitudes{$readID} )
 			{
-				print STDERR "Warning: $readID doesn't exist in magnitude file\n";
+				$magnitude = $magnitudes{$readID};
+			}
+			else
+			{
+				print STDERR "Warning: $readID doesn't exist in magnitude file; using 1.\n";
 			}
 		}
 		
@@ -202,7 +199,7 @@ foreach my $input ( @ARGV )
 		map { if ( $_ eq '' ) { $_ = 'unknown' } } @lineage;
 		
 #		print "@lineage\n";
-		addByLineage($set, \%all, $magnitude, \@lineage, \@ranks, $scores); # TODO: translate score to conf
+		addByLineage(\%all, $set, $magnitude, \@lineage, \@ranks, $scores); # TODO: translate score to conf
 	}
 	
 	close INFILE;
