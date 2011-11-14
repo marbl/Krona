@@ -22,7 +22,7 @@ use lib "$scriptPath/../lib";
 
 use Krona;
 
-setOption('out', 'metarep.krona.html');
+setOption('out', 'metarep-blast.krona.html');
 setOption('name', 'root');
 
 my @options =
@@ -51,8 +51,7 @@ if
 Description:
    Infers taxonomic abundance from the best BLAST hits listed in the blast.tab
    files of METAREP data folders.  By default, separate datasets for each folder
-   will be created and named after the folder (see -c).  The blast.tab files
-   within the specified folders must be unzipped.
+   will be created and named after the folder (see -c).
 
 Usage:
 
@@ -90,8 +89,15 @@ foreach my $folder (@ARGV)
 	
 	print "Importing $folder...\n";
 	
-	open IN, "<$folder/blast.tab" or die
-		"Couldn't open $folder/blast.tab.  Was it unzipped?";
+	if ( -e "$folder/blast.tab" )
+	{
+		open IN, "<$folder/blast.tab" or die $!;
+	}
+	else
+	{
+		open IN, "gunzip -c $folder/blast.tab.gz |" or die
+			"Couldn't open gzipped blast file in $folder.";
+	}
 	
 	while ( my $line = <IN> )
 	{
@@ -163,7 +169,7 @@ foreach my $folder (@ARGV)
 				}
 			}
 			
-			add($set, $tree, $taxID, 1, $score);
+			addByTaxID($tree, $set, $taxID, 1, $score);
 		}
 		
 		$lastReadID = $readID;
