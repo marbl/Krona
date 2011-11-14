@@ -40,8 +40,11 @@ foreach my $script qw
 	ClassifyBLAST
 	GetContigMagnitudes
 	ImportBLAST
+	ImportDiskUsage
+	ImportFCP
 	ImportGalaxy
-	ImportMETAREP
+	ImportMETAREP-blast
+	ImportMETAREP-EC
 	ImportMGRAST
 	ImportPhymmBL
 	ImportRDP
