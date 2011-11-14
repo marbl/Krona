@@ -4597,6 +4597,7 @@ function load()
 	// get GET options
 	//
 	var urlHalves = String(document.location).split('?');
+	var maxDepthDefault;
 	//
 	if ( urlHalves[1] )
 	{
@@ -4619,6 +4620,14 @@ function load()
 				case 'color':
 					hueDefault = pair[1] == 'true';
 					break;
+				
+				case 'depth':
+					maxDepthDefault = Number(pair[1]) + 1;
+					break;
+				
+				case 'font':
+					fontSize = Number(pair[1]);
+					break;
 			}
 		}
 	}
@@ -4640,7 +4649,16 @@ function load()
 	head.sort();
 	maxAbsoluteDepth = 0;
 	selectDataset(0);
-	maxAbsoluteDepth = head.maxDepth;
+	
+	if ( maxDepthDefault && maxDepthDefault < head.maxDepth )
+	{
+		maxAbsoluteDepth = maxDepthDefault;
+	}
+	else
+	{
+		maxAbsoluteDepth = head.maxDepth;
+	}
+	
 	selectNode(head);
 	
 	setInterval(update, 20);
@@ -4670,6 +4688,10 @@ function loadTreeDOM
 		if ( attributeCurrent.nodeName == 'name' )
 		{
 			newNode.name = attributeCurrent.nodeValue;
+		}
+		else if ( attributeCurrent.nodeName == 'href' )
+		{
+			newNode.href = attributeCurrent.nodeValue;
 		}
 		else
 		{
@@ -5083,7 +5105,6 @@ function setCallBacks()
 {
 	canvas.onselectstart = function(){return false;} // prevent unwanted highlighting
 	document.onmousemove = mouseMove;
-	//document.getElementById('options').onclick = passClick;
 	window.onblur = focusLost;
 	window.onmouseout = focusLost;
 	document.onkeyup = onKeyUp;
@@ -5094,11 +5115,6 @@ function setCallBacks()
 	collapseCheckBox = document.getElementById('collapse');
 	collapseCheckBox.checked = collapse;
 	collapseCheckBox.onclick = handleResize;
-//	compressCheckBox = document.getElementById('compress');
-//	compress = compressCheckBox.checked;
-//	compressCheckBox.onclick = handleResize;
-	relativeColorCheckBox = document.getElementById('relativeColor');
-	//relativeColorCheckBox.onchange = handleResize;
 	maxAbsoluteDepthText = document.getElementById('maxAbsoluteDepth');
 	maxAbsoluteDepthButtonDecrease = document.getElementById('maxAbsoluteDepthDecrease');
 	maxAbsoluteDepthButtonIncrease = document.getElementById('maxAbsoluteDepthIncrease');
@@ -5109,14 +5125,10 @@ function setCallBacks()
 	fontSizeButtonIncrease = document.getElementById('fontSizeIncrease');
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
-//	shortenCheckBox = document.getElementById('shorten');
-//	shortenCheckBox.onclick = handleResize;
 	maxAbsoluteDepth = 0;
 	backButton = document.getElementById('back');
 	backButton.onclick = navigateBack;
-//	upButton = document.getElementById('up');
 	forwardButton = document.getElementById('forward');
-//	upButton.onclick = navigateUp;
 	forwardButton.onclick = navigateForward;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
@@ -5192,7 +5204,15 @@ function setFocus(node)
 {
 	focusNode = node;
 	
-	detailsName.innerHTML = node.name;
+	if ( node.href )
+	{
+		detailsName.innerHTML =
+			'<a target="_blank" href="' + node.href + '">' + node.name + '</a>';
+	}
+	else
+	{
+		detailsName.innerHTML = node.name;
+	}
 	
 	var table = '<table>';
 	
