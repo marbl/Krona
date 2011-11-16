@@ -69,6 +69,7 @@ my %optionFormats =
 (
 	'combine' => 'c',
 	'confidence' => 'm=f',
+	'depth' => 'd=i',
 	'ecCol' => 'e=i',
 	'hueBad' => 'x=i',
 	'hueGood' => 'y=i',
@@ -100,6 +101,7 @@ my %optionDescriptions =
 (
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
 	'confidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
+	'depth' => 'Maximum depth of wedges to include in the chart',
 	'ecCol' => 'Column of input files to use as EC number.',
 	'hueBad' => 'Hue (0-360) for "bad" scores.',
 	'hueGood' => 'Hue (0-360) for "good" scores.',
@@ -128,8 +130,11 @@ my $ecFile = "$scriptPath/../data/ec.tsv";
 my $version = '1.1';
 my $javascript = "krona-$version.js";
 my $image = "hidden.png";
+my $favicon = "favicon.ico";
 my $javascriptLocal = "$scriptPath/../src/$javascript";
 my $imageLocal = "$scriptPath/../img/$image";
+my $faviconLocal = "$scriptPath/../img/$favicon";
+
 my $minEVal = -413;
 
 my @depths;
@@ -756,16 +761,19 @@ sub header
 {
 	my $javascriptPath;
 	my $imagePath;
+	my $faviconPath;
 	
 	if ( $options{'local'} )
 	{
 		$javascriptPath = $javascriptLocal;
 		$imagePath = $imageLocal;
+		$faviconPath = $faviconLocal;
 	}
 	else
 	{
 		$javascriptPath = "$options{'url'}/$javascript";
 		$imagePath = "$options{'url'}/img/$image";
+		$faviconPath = "$options{'url'}/img/$favicon";
 	}
 	
 	return '
@@ -779,6 +787,7 @@ sub header
 				margin:0;
 			}
 		</style>
+		<link rel="shortcut icon" href="' . $faviconPath . '"/>
 	</head>
 	
 	<body style="padding:0;position:relative">
