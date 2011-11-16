@@ -120,9 +120,15 @@ var selectedNode = 0; // the root of the current view
 var focusNode = 0; // a node chosen for more info (single-click)
 var highlightedNode = 0; // mouse hover node
 var highlightingHidden = false;
+var nodes = new Array();
+var currentNodeID = 0; // to iterate while loading
 
 var nodeHistory = new Array();
 var nodeHistoryPosition = 0;
+
+// store non-Krona GET variables so they can be passed on to links
+//
+var getVariables = new Array();
 
 // selectedNodeLast is separate from the history, since we need to check
 // properties of the last node viewed when browsing through the history
@@ -333,6 +339,10 @@ function Tween(start, end)
 
 function Node()
 {
+	this.id = currentNodeID;
+	currentNodeID++;
+	nodes[this.id] = this;
+	
 	this.angleStart = new Tween(Math.PI, 0);
 	this.angleEnd = new Tween(Math.PI, 0);
 	this.radiusInner = new Tween(1, 1);
@@ -2796,7 +2806,7 @@ function Node()
 			{
 				this.angleOther = Math.PI * 2 - otherArc / 2;
 			}
-			else if ( otherArc )
+			else if ( otherArc > 0.0000000001 )
 			{
 				this.keyUnclassified = true;
 				keys++;
@@ -3416,9 +3426,16 @@ and including collapsed wedges.'
 	position = addOptionElement
 	(
 		position + 5,
-		'&nbsp;<input type="button" id="snapshot" value="snapshot"/>',
+		'&nbsp;<input type="button" id="snapshot" value="Snapshot"/>',
 'Render the current view as SVG (Scalable Vector Graphics), a publication-\
 quality format that can be printed and saved (see Help for browser compatibility)'
+	);
+	
+	position = addOptionElement
+	(
+		position + 5,
+		'&nbsp;<input type="button" id="link" value="Link"/>',
+'Capture the current view and settings in the URL for bookmarking or sharing'
 	);
 	
 	position = addOptionElement
@@ -4304,6 +4321,28 @@ function fontSizeIncrease()
 	updateViewNeeded = true;
 }
 
+function getGetString(name, value, bool)
+{
+	return name + '=' + (bool ? value ? 'true' : 'false' : value);
+}
+
+function getLink()
+{
+	var urlHalves = String(document.location).split('?');
+	getVariables.push
+	(
+		getGetString('dataset', currentDataset, false),
+		getGetString('node', selectedNode.id, false),
+		getGetString('collapse', collapse, true),
+		getGetString('color', useHue(), true),
+		getGetString('depth', maxAbsoluteDepth - 1, false),
+		getGetString('font', fontSize, false),
+		getGetString('key', showKeys, true)
+	);
+	
+	document.location = urlHalves[0] + '?' + getVariables.join('&');
+}
+
 function getPercentage(fraction)
 {
 	return round(fraction * 100);
@@ -4597,7 +4636,9 @@ function load()
 	// get GET options
 	//
 	var urlHalves = String(document.location).split('?');
+	var datasetDefault = 0;
 	var maxDepthDefault;
+	var nodeDefault = 0;
 	//
 	if ( urlHalves[1] )
 	{
@@ -4613,20 +4654,32 @@ function load()
 					collapse = pair[1] == 'true';
 					break;
 				
-				case 'key':
-					showKeys = pair[1] == 'true';
-					break;
-				
 				case 'color':
 					hueDefault = pair[1] == 'true';
 					break;
 				
+				case 'dataset':
+					datasetDefault = Number(pair[1]);
+					break;
+					
 				case 'depth':
 					maxDepthDefault = Number(pair[1]) + 1;
 					break;
 				
+				case 'key':
+					showKeys = pair[1] == 'true';
+					break;
+				
 				case 'font':
 					fontSize = Number(pair[1]);
+					break;
+				
+				case 'node':
+					nodeDefault = Number(pair[1]);
+					break;
+				
+				default:
+					getVariables.push(pair[0] + '=' + pair[1]);
 					break;
 			}
 		}
@@ -4648,7 +4701,7 @@ function load()
 	
 	head.sort();
 	maxAbsoluteDepth = 0;
-	selectDataset(0);
+	selectDataset(datasetDefault);
 	
 	if ( maxDepthDefault && maxDepthDefault < head.maxDepth )
 	{
@@ -4659,7 +4712,7 @@ function load()
 		maxAbsoluteDepth = head.maxDepth;
 	}
 	
-	selectNode(head);
+	selectNode(nodes[nodeDefault]);
 	
 	setInterval(update, 20);
 	
@@ -5140,6 +5193,7 @@ function setCallBacks()
 	search.onkeyup = onSearchChange;
 	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
+	document.getElementById('link').onclick = getLink;
 
 	image = document.getElementById('hiddenImage');
 
