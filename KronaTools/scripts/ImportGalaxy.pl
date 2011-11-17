@@ -27,6 +27,7 @@ qw(
 	out
 	name
 	combine
+	depth
 	local
 	url
 );

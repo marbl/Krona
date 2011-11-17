@@ -51,7 +51,8 @@ setOption('name', basename(abs_path($path)) . '/');
 setOption('collapse', 0);
 setOption('color', 0);
 
-my $total = `du -sk $path 2> /dev/null` * 1024;
+split /\t/, `du -skH "$path" 2> /dev/null`;
+my $total = $_[0] * 1024;
 
 my @units =
 qw(
@@ -171,13 +172,14 @@ sub add
 				${$node}{'children'}{$otherName}{'magnitude'}[0] += $childMag;
 				my $otherChild = ${$node}{'children'}{$otherName};
 				
+				${$otherChild}{'files'}[0]++;
+				
 				if
 				(
 					! defined ${$otherChild}{'age'} ||
 					${$otherChild}{'age'}[0] > ${$child}{'age'}[0]
 				)
 				{
-					${$otherChild}{'files'}[0]++;
 					${$otherChild}{'age'}[0] = ${$child}{'age'}[0];
 					${$otherChild}{'scoreTotal'}[0] = ${$child}{'scoreTotal'}[0];
 					${$otherChild}{'scoreCount'}[0] = 1;

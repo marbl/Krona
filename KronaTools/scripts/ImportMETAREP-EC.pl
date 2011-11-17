@@ -30,6 +30,7 @@ qw(
 	out
 	combine
 	include
+	depth
 	local
 	url
 	verbose

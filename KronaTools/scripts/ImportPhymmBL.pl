@@ -30,6 +30,7 @@ qw(
 	name
 	confidence
 	combine
+	depth
 	hueBad
 	hueGood
 	phymm

@@ -33,6 +33,7 @@ qw(
 	taxCol
 	magCol
 	scoreCol
+	depth
 	hueBad
 	hueGood
 	local

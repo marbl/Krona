@@ -32,6 +32,7 @@ qw(
 	out
 	combine
 	confidence
+	depth
 	hueBad
 	hueGood
 	local

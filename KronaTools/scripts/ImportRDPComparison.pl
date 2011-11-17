@@ -34,6 +34,7 @@ my @options =
 qw(
 	name1,
 	out
+	depth
 	hueBad
 	hueGood
 	local

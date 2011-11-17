@@ -36,6 +36,7 @@ qw(
 	identity
 	score
 	combine
+	depth
 	hueBad
 	hueGood
 	local

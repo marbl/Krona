@@ -30,6 +30,7 @@ qw(
 	out
 	name
 	combine
+	depth
 	hueBad
 	hueGood
 	identity

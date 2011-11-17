@@ -101,7 +101,7 @@ my %optionDescriptions =
 (
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
 	'confidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
-	'depth' => 'Maximum depth of wedges to include in the chart',
+	'depth' => 'Maximum depth of wedges to include in the chart.',
 	'ecCol' => 'Column of input files to use as EC number.',
 	'hueBad' => 'Hue (0-360) for "bad" scores.',
 	'hueGood' => 'Hue (0-360) for "good" scores.',
@@ -151,7 +151,11 @@ sub addByEC
 		$set, # integer
 		$ec, # string
 		$magnitude, # number
-		$score # number (optional)
+		$score, # number (optional)
+		
+		# for recursion only
+		#
+		$depth
 	) = @_;
 	
 	if ( ! $ec )
@@ -172,6 +176,14 @@ sub addByEC
 		die 'EC data not loaded. "loadEC()" must be called first.';
 	}
 	
+	if ( ! defined $depth )
+	{
+		$depth = () = $ec =~ /\./g;
+		$depth++;
+	}
+	
+	# get parent recursively
+	
 	my $parent;
 	my $parentEC = $ec;
 	
@@ -179,7 +191,7 @@ sub addByEC
 	
 	if ( $parentEC )
 	{
-		$parent = addByEC($node, $set, $parentEC, $magnitude, $score);
+		$parent = addByEC($node, $set, $parentEC, $magnitude, $score, $depth - 1);
 	}
 	else
 	{
@@ -187,8 +199,16 @@ sub addByEC
 		$parent->{'magnitude'}[$set] += $magnitude;
 	}
 	
-	my $name = $ecNames{$ec};
+	# depth early-out
+	#
+	if ( $options{'depth'} && $depth > $options{'depth'} )
+	{
+		return;
+	}
 	
+	# add to parent
+	
+	my $name = $ecNames{$ec};
 	my $child;
 	
 	if ( defined $parent->{'children'}{$name} )
@@ -229,7 +249,11 @@ sub addByLineage
 		$ranks, # array ref (optional)
 		$scores, # number or array ref (optional)
 		$taxID, # integer (optional)
-		$depth
+		
+		# for recursion only
+		#
+		$index, # current index of input arrays
+		$depth # our node depth (since input array elements can be skipped)
 	) = @_;
 	
 	#print "${$node}{'magnitude'}\t$magnitude\t@lineage\n";
@@ -237,7 +261,12 @@ sub addByLineage
 	
 	if ( $options{'leafAdd'} )
 	{
-		if ( ! defined $node->{'magnitude'}[$dataset] || $depth == @$lineage )
+		# magnitudes are already summarized; instead of adding magnitude to
+		# ancestors, directly set it for the lowest level of the lineage and
+		# for any ancestors whose magnitude is undefined (in case they are
+		# never specified)
+		
+		if ( ! defined $node->{'magnitude'}[$dataset] || $index == @$lineage )
 		{
 			$node->{'magnitude'}[$dataset] = $magnitude;
 		}
@@ -247,15 +276,21 @@ sub addByLineage
 		$node->{'magnitude'}[$dataset] += $magnitude;
 	}
 	
-	if ( $depth < @$lineage )
+	if
+	(
+		$index < @$lineage &&
+		( ! $options{'depth'} || $depth < $options{'depth'} )
+	)
 	{
 		my $score;
 		
-		while ( $$lineage[$depth] eq '' )
+		# skip nameless nodes
+		#
+		while ( $$lineage[$index] eq '' )
 		{
-			$depth++;
+			$index++;
 			
-			if ( $depth == @$lineage )
+			if ( $index == @$lineage )
 			{
 				if ( $taxID )
 				{
@@ -266,11 +301,11 @@ sub addByLineage
 			}
 		}
 		
-		my $name = $$lineage[$depth];
+		my $name = $$lineage[$index];
 		
 		if ( ref($scores) eq 'ARRAY' )
 		{
-			$score = $$scores[$depth];
+			$score = $$scores[$index];
 		}
 		else
 		{
@@ -298,7 +333,7 @@ sub addByLineage
 				
 				if ( $ranks )
 				{
-					$child->{'rank'}[0] = $$ranks[$depth];
+					$child->{'rank'}[0] = $$ranks[$index];
 				}
 			}
 			
@@ -306,10 +341,15 @@ sub addByLineage
 			{
 				if ( $options{'leafAdd'} )
 				{
+					# instead of averaging score for ancestors, directly set it
+					# for the lowest level of the lineage and for any ancestors
+					# whose score is undefined (in case they are never
+					# specified)
+					
 					if
 					(
 						! defined $child->{'scoreTotal'}[$dataset] ||
-						$depth == @$lineage - 1
+						$index == @$lineage - 1
 					)
 					{
 						$child->{'scoreTotal'}[$dataset] = $score;
@@ -333,6 +373,7 @@ sub addByLineage
 				$ranks,
 				$scores,
 				$taxID,
+				$index + 1,
 				$depth + 1
 			);
 		}
@@ -366,6 +407,8 @@ sub addByTaxID
 		return;
 	}
 	
+	# skip unranked taxonomy nodes
+	#
 	while ( $taxID > 1 && $ranks[$taxID] eq 'no rank' )
 	{
 		$taxID = $parents[$taxID];
@@ -376,8 +419,10 @@ sub addByTaxID
 		die 'Taxonomy not loaded. "loadTaxonomy()" must be called first.';
 	}
 	
+	# get parent recursively
+	#
 	my $parent;
-	
+	#
 	if ( $parents[$taxID] != 1 )#$taxID )
 	{
 		$parent = addByTaxID($node, $set, $parents[$taxID], $magnitude, $score);
@@ -388,6 +433,19 @@ sub addByTaxID
 		$parent->{'magnitude'}[$set] += $magnitude;
 	}
 	
+	# depth early-out
+	#
+	if
+	(
+		$options{'depth'} &&
+		$depths[$taxID] > $options{'depth'}
+	)
+	{
+		return;
+	}
+	
+	# add this node to parent
+	#
 	if ( $taxID != 1 )
 	{
 		my $name = $names[$taxID];
@@ -563,6 +621,11 @@ sub classifyBlast
 		)
 		{
 			$taxID = getTaxID($gi);
+			
+			if ( ! $taxID )
+			{
+				$taxID = 1;
+			}
 			
 			if ( $options{'identity'} )
 			{
@@ -747,7 +810,7 @@ sub getTaxID
 	
 	close GI;
 	
-	if ( $taxID == 0 )
+	if ( 0 && $taxID == 0 )
 	{
 		return 1;
 	}
