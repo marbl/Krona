@@ -27,11 +27,9 @@ if ( defined $taxonomyDir )
 }
 
 my $scriptPath = abs_path('scripts');
-my $libPath = abs_path('lib');
 
 createDir($path);
 createDir("$path/bin");
-createDir("$path/lib");
 
 print "Creating links...\n";
 
@@ -39,6 +37,8 @@ foreach my $script qw
 (
 	ClassifyBLAST
 	GetContigMagnitudes
+	GetLibPath
+	GetTaxIDFromGI
 	ImportBLAST
 	ImportDiskUsage
 	ImportFCP
@@ -60,17 +60,12 @@ foreach my $script qw
 	}
 }
 
-if ( system('ln', '-sf', "$libPath/Krona.pm", "$path/lib") )
-{
-	linkFail("$path/lib");
-}
-
-print "Creating taxonomy directory...\n";
-
 if ( defined $taxonomyDir )
 {
 	if ( ! -e $taxonomyDir )
 	{
+		print "Creating taxonomy directory...\n";
+		
 		mkdir $taxonomyDir or
 			die "$taxonomyDir does not exist and couldn't create";
 	}
@@ -80,11 +75,13 @@ if ( defined $taxonomyDir )
 		system('rm -r taxonomy');
 	}
 	
+	print "Linking taxonomy to $taxonomyDir...\n";
 	system('ln -s -f -F ' . $taxonomyDir . ' taxonomy');
 }
-else
+elsif ( ! -d 'taxonomy' )
 {
-	mkdir 'taxonomy';
+	print "Creating taxonomy directory...\n";
+	mkdir 'taxonomy' or die "Couldn't create taxonomy directory";
 }
 
 print '
