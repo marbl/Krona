@@ -2,18 +2,10 @@
 
 use strict;
 
-# get the path of this script; dependencies should be in the same directory
-#
-my $scriptPath;
-BEGIN
-{
-	use Cwd 'abs_path';
-	abs_path($0) =~ /(.*)\//;
-	$scriptPath = $1;
-}
-use lib "$scriptPath/../lib";
+use lib (`ktGetLibPath`);
+use KronaTools;
 
-use Krona;
+use Cwd 'abs_path';
 use File::Basename;
 
 my $otherName = '[Other small files or folders]';

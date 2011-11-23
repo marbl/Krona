@@ -11,6 +11,8 @@ tar -cf $release.tar \
 	$release/scripts/extractTaxonomy.pl \
 	$release/scripts/formatEC.pl \
 	$release/scripts/GetContigMagnitudes.pl \
+	$release/scripts/GetLibPath.pl \
+	$release/scripts/GetTaxIDFromGI.pl \
 	$release/scripts/ImportBLAST.pl \
 	$release/scripts/ImportDiskUsage.pl \
 	$release/scripts/ImportFCP.pl \
@@ -27,7 +29,7 @@ tar -cf $release.tar \
 	$release/scripts/indexGIs.pl \
 	$release/data/ec.tsv \
 	$release/data/README \
-	$release/lib/Krona.pm \
+	$release/lib/KronaTools.pm \
 	$release/src/krona-$2.js \
 	$release/img/hidden.png \
 	$release/install.pl \

@@ -6,7 +6,7 @@
 
 use strict;
 
-package Krona;
+package KronaTools;
 
 use Getopt::Long;
 
@@ -22,12 +22,12 @@ our @EXPORT = qw
 	classifyBlast
 	contains
 	footer
-	getDepth
 	getKronaOptions
-	getName
 	getOption
-	getParent
-	getRank
+	getTaxDepth
+	getTaxName
+	getTaxParent
+	getTaxRank
 	getTaxID
 	header
 	loadEC
@@ -42,12 +42,6 @@ our @EXPORT = qw
 	writeTree
 );
 
-
-our $footer =
-'
-	</data>
-</html>
-';
 
 my %options =
 (
@@ -67,6 +61,8 @@ my %options =
 
 my %optionFormats =
 (
+	# format codes to pass to GetOptions (and to be parsed for display)
+	
 	'combine' => 'c',
 	'confidence' => 'm=f',
 	'depth' => 'd=i',
@@ -92,6 +88,8 @@ my %optionFormats =
 
 my %optionTypes =
 (
+	# how arguments should be displayed based on format codes in %optionFormats
+	
 	's' => 'string',
 	'f' => 'number',
 	'i' => 'integer'
@@ -99,6 +97,8 @@ my %optionTypes =
 
 my %optionDescriptions =
 (
+	# descriptions to show in printOptions()
+	
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
 	'confidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'depth' => 'Maximum depth of wedges to include in the chart.',
@@ -122,18 +122,17 @@ my %optionDescriptions =
 	'verbose' => 'Verbose.'
 );
 
-abs_path($0) =~ /(.*)\//;
-my $scriptPath = $1;
-my $taxonomyDir = "$scriptPath/../taxonomy";
-my $ecFile = "$scriptPath/../data/ec.tsv";
+my $libPath = `ktGetLibPath`;
+my $taxonomyDir = "$libPath/../taxonomy";
+my $ecFile = "$libPath/../data/ec.tsv";
 
 my $version = '1.1';
 my $javascript = "krona-$version.js";
 my $image = "hidden.png";
 my $favicon = "favicon.ico";
-my $javascriptLocal = "$scriptPath/../src/$javascript";
-my $imageLocal = "$scriptPath/../img/$image";
-my $faviconLocal = "$scriptPath/../img/$favicon";
+my $javascriptLocal = "$libPath/../src/$javascript";
+my $imageLocal = "$libPath/../img/$image";
+my $faviconLocal = "$libPath/../img/$favicon";
 
 my $minEVal = -413;
 
@@ -143,13 +142,19 @@ my @ranks;
 my @names;
 my %ecNames;
 
+
+############
+# Exported #
+############
+
+
 sub addByEC
 {
 	my
 	(
 		$node, # hash ref
 		$set, # integer
-		$ec, # string
+		$ec, # string, EC number with dots (but without "EC")
 		$magnitude, # number
 		$score, # number (optional)
 		
@@ -414,11 +419,6 @@ sub addByTaxID
 		$taxID = $parents[$taxID];
 	}
 	
-	if ( ! @parents )
-	{
-		die 'Taxonomy not loaded. "loadTaxonomy()" must be called first.';
-	}
-	
 	# get parent recursively
 	#
 	my $parent;
@@ -481,10 +481,18 @@ sub addByTaxID
 
 sub classifyBlast
 {
-	my
+	# taxonomically classifies BLAST results based on LCA (or random selection)
+	# of 'best' hits.
+	#
+	# Options used: identity, include, radius, random, score
+	
+	my # parameters
 	(
-		$fileName,
-		$magFile,
+		$fileName, # file with tabular BLAST results
+		$magFile, # (optional) file with magnitudes for query IDs
+		
+		# hash refs to be populated (keyed by taxID)
+		#
 		$totalMagnitudes,
 		$totalScores,
 		$totalCounts
@@ -643,7 +651,7 @@ sub classifyBlast
 				}
 				else
 				{
-					$score = $minEVal;#"1e-500";
+					$score = $minEVal;
 					$zeroEVal = 1;
 				}
 			}
@@ -654,12 +662,14 @@ sub classifyBlast
 			$eVal <= $options{'radius'} * $topEVal
 		)
 		{
-			#if ( $eVal <= $topEVal )
-			#{
-				#print "$queryID\t$eVal\t$topEVal\n";
-			#}
-			$taxID = lowestCommonAncestor($taxID, getTaxID($gi));
-#			$hitIdentity += $identity;
+			my $newTaxID = getTaxID($gi);
+			
+			if ( ! $newTaxID )
+			{
+				$newTaxID = 1;
+			}
+			
+			$taxID = lowestCommonAncestor($taxID, $newTaxID);
 		}
 		
 		if ( $queryID ne $lastQueryID )
@@ -686,6 +696,8 @@ sub classifyBlast
 
 sub contains
 {
+	# determines if $parent is an ancestor of (or equal to) $child
+	
 	my ($parent, $child) = @_;
 	
 	my $depthParent = $depths[$parent];
@@ -698,84 +710,25 @@ sub contains
 	return $parent == $child;
 }
 
-sub dataHeader
-{
-	my
-	(
-		$magName,
-		$attributes,
-		$attributeDisplayNames,
-		$datasetNames,
-		$hueName,
-		$hueStart,
-		$hueEnd,
-		$valueStart,
-		$valueEnd
-	) = @_;
-	
-	my $attributeString;
-	my $colorString;
-	
-	for ( my $i = 0; $i < @$attributes; $i++ )
-	{
-		$attributeString .= " $$attributes[$i]=\"$$attributeDisplayNames[$i]\"";
-	}
-	
-	if ( defined $hueName )
-	{
-		my $colorDefault = $options{'color'} ? 'true' : 'false';
-		
-		$colorString =
-			"<color attribute=\"$hueName\" " .
-			"hueStart=\"$hueStart\" hueEnd=\"$hueEnd\" " .
-			"valueStart=\"$valueStart\" valueEnd=\"$valueEnd\" " .
-			"default=\"$colorDefault\" " .
-			"></color>";
-	}
-	
-	return '
-	<options collapse="' . ($options{'collapse'} ? 'true' : 'false') .
-	'" key="' . ($options{'showKey'} ? 'true' : 'false') . '"></options>
-	<magnitude attribute="'. $magName . '"></magnitude>
-	<attributes' . $attributeString . '></attributes>
-	<datasets names="' . (join ',', @$datasetNames) . '"></datasets>
-	' . "$colorString\n";
-}
-
-sub ecLink
-{
-	my ($ec) = @_;
-	
-	my @numbers = split /\./, $ec;
-	
-	my $path = join '/', @numbers;
-	
-	if ( @numbers == 4 )
-	{
-		$path .= ".html";
-	}
-	
-	return "<a target='_blank' href='http://www.chem.qmul.ac.uk/iubmb/enzyme/EC$path'>EC$ec</a>";
-}
-
-sub getDepth
-{
-	return depths[$_[0]];
-}
+our $footer =
+'
+	</data>
+</html>
+';
 
 sub getKronaOptions
 {
+	my @options = @_;
+	
 	my %params;
 	
-	foreach my $option ( @_ )
+	foreach my $option ( @options )
 	{
 		$params{$optionFormats{$option}} = \$options{$option};
 	}
 	
 	GetOptions(%params);
 }
-
-sub getName {return $names[$_[0]]}
 
 sub getOption
 {
@@ -784,14 +737,32 @@ sub getOption
 	return $options{$option};
 }
 
-sub getParent
+sub getTaxDepth
 {
-	return $parents[$_[0]];
+	my ($taxID) = @_;
+	checkTaxonomy();
+	return depths[$taxID];
 }
 
-sub getRank
+sub getTaxName
 {
-	return $ranks[$_[0]];
+	my ($taxID) = @_;
+	checkTaxonomy();
+	return $names[$taxID]
+}
+
+sub getTaxParent
+{
+	my ($taxID) = @_;
+	checkTaxonomy();
+	return $parents[$taxID];
+}
+
+sub getTaxRank
+{
+	my ($taxID) = @_;
+	checkTaxonomy();
+	return $ranks[$taxID];
 }
 
 sub getTaxID
@@ -925,6 +896,8 @@ sub lowestCommonAncestor
 		return 1;
 	}
 	
+	checkTaxonomy();
+	
 	# walk the nodes up to an equal depth
 	#
 	my $depthA = $depths[$a];
@@ -992,41 +965,14 @@ sub parseDataset
 	return ($file, $mag, $name);
 }
 
-sub printHangingIndent
-{
-	my ($header, $text, $tab) = @_;
-	
-	my @words = split /\s+/, $text;
-	
-	my $col = $tab;
-	
-	print $header, ' ' x ($tab - (length $header) - 1);
-	
-	foreach my $word ( @words )
-	{
-		my $wordLength = length $word;
-		
-		if ( $col + $wordLength + 1 >= 80 )
-		{
-			print "\n", ' ' x $tab, $word;
-			$col = $tab + $wordLength;
-		}
-		else
-		{
-			print " $word";
-			$col += $wordLength + 1;
-		}
-	}
-	
-	print "\n\n";
-}
-
 sub printOptions
 {
+	my @options = @_;
+	
 	my %headers;
 	my $maxHeaderLength;
 	
-	foreach my $option ( @_ )
+	foreach my $option ( @options )
 	{
 		my ($short, $type) = split /=/, $optionFormats{$option};
 		
@@ -1078,6 +1024,162 @@ sub setOption
 	my ($option, $value) = @_;
 	
 	$options{$option} = $value;
+}
+
+sub taxIDExists
+{
+	my ($taxID) = @_;
+	checkTaxonomy();
+	return defined $depths[$taxID];
+}
+
+sub writeTree
+{
+	# Writes a Krona chart from a tree created with "addBy..." functions.
+	#
+	# Uses options: collapse, color, local, name, out, showKey, url
+	
+	my
+	(
+		$tree, # hash ref to head node of tree
+		$magName, # name of attribute to use as magnitude
+		$attributes, # array ref with names of attributes
+		$attributeDisplayNames, # array ref with display names for $attributes
+		$datasetNames, # array ref with names of datasets
+		$hueName, # (optional) name of attribute to use for hue
+		$hueStart, # (optional) hue at the start of the gradient
+		$hueEnd # (optional) hue at the end of the gradient
+	) = @_;
+	
+	my ($valueStart, $valueEnd);
+	
+	if ( defined $hueName )
+	{
+		($valueStart, $valueEnd) = setScores($tree);
+	}
+	
+	print "Writing $options{'out'}...\n";
+	
+	open OUT, ">$options{'out'}";
+	print OUT header();
+	print OUT dataHeader
+	(
+		$magName,
+		$attributes,
+		$attributeDisplayNames,
+		$datasetNames,
+		$hueName,
+		$hueStart,
+		$hueEnd,
+		$valueStart,
+		$valueEnd
+	);
+	print OUT toStringXML($tree, $options{'name'}, 1);
+	print OUT $footer;
+	close OUT;
+}
+
+
+################
+# Not exported #
+################
+
+
+sub checkTaxonomy
+{
+	if ( ! @parents )
+	{
+		die 'Taxonomy not loaded. "loadTaxonomy()" must be called first.';
+	}
+}
+
+sub dataHeader
+{
+	my
+	(
+		$magName,
+		$attributes,
+		$attributeDisplayNames,
+		$datasetNames,
+		$hueName,
+		$hueStart,
+		$hueEnd,
+		$valueStart,
+		$valueEnd
+	) = @_;
+	
+	my $attributeString;
+	my $colorString;
+	
+	for ( my $i = 0; $i < @$attributes; $i++ )
+	{
+		$attributeString .= " $$attributes[$i]=\"$$attributeDisplayNames[$i]\"";
+	}
+	
+	if ( defined $hueName )
+	{
+		my $colorDefault = $options{'color'} ? 'true' : 'false';
+		
+		$colorString =
+			"<color attribute=\"$hueName\" " .
+			"hueStart=\"$hueStart\" hueEnd=\"$hueEnd\" " .
+			"valueStart=\"$valueStart\" valueEnd=\"$valueEnd\" " .
+			"default=\"$colorDefault\" " .
+			"></color>";
+	}
+	
+	return '
+	<options collapse="' . ($options{'collapse'} ? 'true' : 'false') .
+	'" key="' . ($options{'showKey'} ? 'true' : 'false') . '"></options>
+	<magnitude attribute="'. $magName . '"></magnitude>
+	<attributes' . $attributeString . '></attributes>
+	<datasets names="' . (join ',', @$datasetNames) . '"></datasets>
+	' . "$colorString\n";
+}
+
+sub ecLink
+{
+	my ($ec) = @_;
+	
+	my @numbers = split /\./, $ec;
+	
+	my $path = join '/', @numbers;
+	
+	if ( @numbers == 4 )
+	{
+		$path .= ".html";
+	}
+	
+	return "<a target='_blank' href='http://www.chem.qmul.ac.uk/iubmb/enzyme/EC$path'>EC$ec</a>";
+}
+
+sub printHangingIndent
+{
+	my ($header, $text, $tab) = @_;
+	
+	my @words = split /\s+/, $text;
+	
+	my $col = $tab;
+	
+	print $header, ' ' x ($tab - (length $header) - 1);
+	
+	foreach my $word ( @words )
+	{
+		my $wordLength = length $word;
+		
+		if ( $col + $wordLength + 1 >= 80 )
+		{
+			print "\n", ' ' x $tab, $word;
+			$col = $tab + $wordLength;
+		}
+		else
+		{
+			print " $word";
+			$col += $wordLength + 1;
+		}
+	}
+	
+	print "\n\n";
 }
 
 sub setScores
@@ -1167,11 +1269,6 @@ sub setScores
 	return ($min, $max);
 }
 
-sub taxIDExists
-{
-	return defined $depths[$_[0]];
-}
-
 sub taxonLink
 {
 	my ($taxID) = @_;
@@ -1210,46 +1307,5 @@ sub toStringXML
 	return $string . "\t" x $depth . "</node>\n";
 }
 
-sub writeTree
-{
-	my
-	(
-		$tree,
-		$magName,
-		$attributes,
-		$attributeDisplayNames,
-		$datasetNames,
-		$hueName,
-		$hueStart,
-		$hueEnd
-	) = @_;
-	
-	my ($valueStart, $valueEnd);
-	
-	if ( defined $hueName )
-	{
-		($valueStart, $valueEnd) = setScores($tree);
-	}
-	
-	print "Writing $options{'out'}...\n";
-	
-	open OUT, ">$options{'out'}";
-	print OUT header();
-	print OUT dataHeader
-	(
-		$magName,
-		$attributes,
-		$attributeDisplayNames,
-		$datasetNames,
-		$hueName,
-		$hueStart,
-		$hueEnd,
-		$valueStart,
-		$valueEnd
-	);
-	print OUT toStringXML($tree, $options{'name'}, 1);
-	print OUT $footer;
-	close OUT;
-}
 
 1;

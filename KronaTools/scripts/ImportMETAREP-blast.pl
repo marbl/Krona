@@ -9,18 +9,8 @@
 
 use strict;
 
-# get the path of this script; dependencies are relative
-#
-my $scriptPath;
-BEGIN
-{
-	use Cwd 'abs_path';
-	abs_path($0) =~ /(.*)\//;
-	$scriptPath = $1;
-}
-use lib "$scriptPath/../lib";
-
-use Krona;
+use lib (`ktGetLibPath`);
+use KronaTools;
 
 setOption('out', 'metarep-blast.krona.html');
 setOption('name', 'root');
