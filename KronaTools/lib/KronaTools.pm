@@ -28,7 +28,7 @@ our @EXPORT = qw
 	getTaxName
 	getTaxParent
 	getTaxRank
-	getTaxID
+	getTaxIDFromGI
 	header
 	loadEC
 	loadTaxonomy
@@ -628,7 +628,7 @@ sub classifyBlast
 			)
 		)
 		{
-			$taxID = getTaxID($gi);
+			$taxID = getTaxIDFromGI($gi);
 			
 			if ( ! $taxID )
 			{
@@ -662,7 +662,7 @@ sub classifyBlast
 			$eVal <= $options{'radius'} * $topEVal
 		)
 		{
-			my $newTaxID = getTaxID($gi);
+			my $newTaxID = getTaxIDFromGI($gi);
 			
 			if ( ! $newTaxID )
 			{
@@ -765,7 +765,7 @@ sub getTaxRank
 	return $ranks[$taxID];
 }
 
-sub getTaxID
+sub getTaxIDFromGI
 {
 	my ($gi) = @_;
 	

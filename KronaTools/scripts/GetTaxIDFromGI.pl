@@ -41,6 +41,6 @@ Usage:
 	
 	if ( /^(\d+)$/ || /gi\|(\d+)/ )
 	{
-		print int(getTaxID($1)), "\n";
+		print int(getTaxIDFromGI($1)), "\n";
 	}
 }
