@@ -111,6 +111,8 @@ var datasetButtonPrev;
 var datasetButtonNext;
 var keyControl;
 var showKeys = true;
+var linkButton;
+var linkText;
 
 // Node references. Note that the meanings of 'selected' and 'focused' are
 // swapped in the docs.
@@ -3434,15 +3436,17 @@ quality format that can be printed and saved (see Help for browser compatibility
 	position = addOptionElement
 	(
 		position + 5,
-		'&nbsp;<input type="button" id="link" value="Link"/>',
-'Capture the current view and settings in the URL for bookmarking or sharing'
+'&nbsp;<input type="button" id="linkButton" value="Link"/>\
+<input type="text" size="30" id="linkText"/>',
+'Show a link to this view that can be copied for bookmarking or sharing'
 	);
 	
 	position = addOptionElement
 	(
 		position + 5,
 '&nbsp;<input type="button" id="help" value="?"\
-onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>'
+onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>',
+'Help'
 	);
 }
 
@@ -4326,10 +4330,28 @@ function getGetString(name, value, bool)
 	return name + '=' + (bool ? value ? 'true' : 'false' : value);
 }
 
-function getLink()
+function hideLink()
+{
+	hide(linkText);
+	show(linkButton);
+}
+
+function show(object)
+{
+	object.style.display = 'inline';
+}
+
+function hide(object)
+{
+	object.style.display = 'none';
+}
+
+function showLink()
 {
 	var urlHalves = String(document.location).split('?');
-	getVariables.push
+	var newGetVariables = new Array();
+	
+	newGetVariables.push
 	(
 		getGetString('dataset', currentDataset, false),
 		getGetString('node', selectedNode.id, false),
@@ -4340,7 +4362,14 @@ function getLink()
 		getGetString('key', showKeys, true)
 	);
 	
-	document.location = urlHalves[0] + '?' + getVariables.join('&');
+	hide(linkButton);
+	show(linkText);
+	linkText.value = urlHalves[0] + '?' + getVariables.concat(newGetVariables).join('&');
+	//linkText.disabled = false;
+	linkText.focus();
+	linkText.select();
+	//linkText.disabled = true;
+//	document.location = urlHalves[0] + '?' + getVariables.join('&');
 }
 
 function getPercentage(fraction)
@@ -4984,12 +5013,22 @@ function onDatasetChange()
 
 function onKeyDown(event)
 {
-	if ( event.keyCode == 37 && document.activeElement.id != 'search' )
+	if
+	(
+		event.keyCode == 37 &&
+		document.activeElement.id != 'search' &&
+		document.activeElement.id != 'linkText'
+	)
 	{
 		navigateBack();
 		event.preventDefault();
 	}
-	else if ( event.keyCode == 39 && document.activeElement.id != 'search' )
+	else if
+	(
+		event.keyCode == 39 &&
+		document.activeElement.id != 'search' &&
+		document.activeElement.id != 'linkText'
+	)
 	{
 		navigateForward();
 		event.preventDefault();
@@ -5193,10 +5232,14 @@ function setCallBacks()
 	search.onkeyup = onSearchChange;
 	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
-	document.getElementById('link').onclick = getLink;
-
+	linkButton = document.getElementById('linkButton');
+	linkButton.onclick = showLink;
+	linkText = document.getElementById('linkText');
+	linkText.onblur = hideLink;
+	hide(linkText);
+	
 	image = document.getElementById('hiddenImage');
-
+	
 	if ( image.complete )
 	{
 		hiddenPattern = context.createPattern(image, 'repeat');
