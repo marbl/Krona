@@ -19,8 +19,8 @@ my @options =
 qw(
 	out
 	random
-	identity
-	score
+	percentIdentity
+	bitScore
 	combine
 	depth
 	hueBad
@@ -37,32 +37,24 @@ if
 	@ARGV < 1
 )
 {
-	print '
 
-Description:
-   Infers taxonomic abundance from the best BLAST hits listed in the blast.tab
-   files of METAREP data folders.  By default, separate datasets for each folder
-   will be created and named after the folder (see -c).
-
-Usage:
-
-ktImportMETAREP [options] <folder_1> <folder_2> ...
-
-Input:
-
-<folders>          METAREP data folders containing an unzipped blast.tab file.
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+'Creates a Krona chart by classifying reads based on BLAST results in METAREP
+data folders.',
+		$KronaTools::argumentNames{'metarep'},
+		$KronaTools::argumentDescriptions{'metarep'},
+		0,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
 my $tree = newTree();
 
-# taxonomy must be loaded for LCA
-
 print "Loading taxonomy...\n";
-
 loadTaxonomy();
 
 my $lastReadID;
@@ -70,24 +62,26 @@ my $set = 0;
 my @datasetNames;
 my $zeroEVal;
 
-foreach my $folder (@ARGV)
+foreach my $input (@ARGV)
 {
+	my ($folder, $magFile, $name) = parseDataset($input);
+	
 	if ( ! getOption('combine') )
 	{
-		$folder =~ /([^\/]+)\/*$/;
-		push @datasetNames, $1;
+		push @datasetNames, $name;
 	}
 	
 	print "Importing $folder...\n";
 	
 	if ( -e "$folder/blast.tab" )
 	{
-		open IN, "<$folder/blast.tab" or die $!;
+		open IN, "<$folder/blast.tab" or
+			ktDie("Couldn't open blast file in $folder");
 	}
 	else
 	{
-		open IN, "gunzip -c $folder/blast.tab.gz |" or die
-			"Couldn't open gzipped blast file in $folder.";
+		open IN, "gunzip -c $folder/blast.tab.gz |" or
+			ktDie("Couldn't open gzipped blast file in $folder.");
 	}
 	
 	while ( my $line = <IN> )
@@ -109,9 +103,7 @@ foreach my $folder (@ARGV)
 				
 				if ( ! taxIDExists($newTaxID) )
 				{
-					print STDERR
-						"   Warning ($readID):\n" .
-						"	   Taxon $newTaxID does not exist; using root.\n";
+					ktWarn("$readID: Taxon $newTaxID does not exist; using root.\n");
 					$newTaxID = 1;
 				}
 				
@@ -123,7 +115,7 @@ foreach my $folder (@ARGV)
 				{
 					if ( $taxID )
 					{
-						$taxID = lowestCommonAncestor($taxID, $newTaxID);
+						$taxID = taxLowestCommonAncestor($taxID, $newTaxID);
 					}
 					else
 					{
@@ -139,11 +131,11 @@ foreach my $folder (@ARGV)
 			
 			my $score;
 			
-			if ( getOption('identity') )
+			if ( getOption('percentIdentity') )
 			{
 				$score = $values[11];
 			}
-			elsif ( getOption('score') )
+			elsif ( getOption('bitScore') )
 			{
 				$score = $values[12];
 			}
@@ -155,12 +147,12 @@ foreach my $folder (@ARGV)
 				}
 				else
 				{
-					$score = -413;
+					$score = $KronaTools::minEVal;
 					$zeroEVal = 1;
 				}
 			}
 			
-			addByTaxID($tree, $set, $taxID, 1, $score);
+			addByTaxID($tree, $set, $taxID, $readID, undef, $score);
 		}
 		
 		$lastReadID = $readID;
@@ -176,27 +168,13 @@ foreach my $folder (@ARGV)
 
 if ( $zeroEVal )
 {
-	print "\nWARNING: Couldn't take log for e-values of 0.  Used 1e-413.\n\n";
-}
-
-my $scoreName;
-
-if ( getOption('identity') )
-{
-	$scoreName = 'Avg. % Identity';
-}
-elsif ( getOption('score') )
-{
-	$scoreName = 'Avg. bit score';
-}
-else
-{
-	$scoreName = 'Avg. log e-value';
+	ktWarn("Couldn't take base-10 log for e-values of 0.  Approximated as $KronaTools::minEval.");
 }
 
 my @attributeNames =
 (
-	'magnitude',
+	'count',
+	'unassigned',
 	'taxon',
 	'rank',
 	'score',
@@ -204,21 +182,24 @@ my @attributeNames =
 
 my @attributeDisplayNames =
 (
-	'Total',
-	'Taxon',
+	'Peptides',
+	'Unassigned',
+	'Tax ID',
 	'Rank',
-	$scoreName
+	getScoreName()
 );
 
 writeTree
 (
 	$tree,
-	'magnitude',
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
-	getOption('score') || getOption('identity') ? getOption('hueBad') : getOption('hueGood'),
-	getOption('score') || getOption('identity') ? getOption('hueGood') : getOption('hueBad')
+	getOption('bitScore') || getOption('percentIdentity') ?
+		getOption('hueBad') : 
+		getOption('hueGood'),
+	getOption('bitScore') || getOption('percentIdentity') ?
+		getOption('hueGood') :
+		getOption('hueBad')
 );
 

@@ -34,21 +34,19 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-ktImportGalaxy \
-   [options] \
-   file1.txt[,name1] \
-   [file2.txt[,name2]] ...
-
-Creates a Krona chart based the results of "Fetch taxonomic representation".
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+		'Creates a Krona chart based Galaxy taxonomic representations.',
+		'tax_rep',
+		'Results from the "Fetch taxonomic representation" or "Find lowest
+diagnostic rank" tools in Galaxy.',
+		0,
+		1,
+		\@options
+	);
+	exit 0;
 }
 
-my %all;
 my @ranks =
 qw(
 	superkingdom
@@ -74,6 +72,7 @@ qw(
 	subspecies
 );
 
+my $tree = newTree();
 my @datasetNames;
 my $set = 0;
 
@@ -85,6 +84,8 @@ foreach my $input ( @ARGV )
 	{
 		push @datasetNames, $name;
 	}
+	
+	print "Importing $fileName...\n";
 	
 	open INFILE, "<$fileName" or die $!;
 	
@@ -101,13 +102,13 @@ foreach my $input ( @ARGV )
 			@lineage = @lineage[0..23];
 		}
 		
-		shift @lineage; # eat query ID
+		my $queryID = shift @lineage;
 		my $taxID = shift @lineage;
 		shift @lineage; # eat root
 		
 		map { if ( $_ eq 'n' ) { $_ = '' } } @lineage;
 		
-		addByLineage(\%all, $set, 1, \@lineage, \@ranks, undef, $taxID);
+		addByLineage($tree, $set, \@lineage, $queryID, undef, undef, \@ranks);
 #		print "$taxID : @lineage\n";
 	}
 	
@@ -121,22 +122,21 @@ foreach my $input ( @ARGV )
 
 my @attributeNames =
 (
-	'magnitude',
+	'count',
+	'unassigned',
 	'rank',
-	'taxon',
 );
 
 my @attributeDisplayNames =
 (
 	'Reads',
+	'Unassigned',
 	'Rank',
-	'Taxon'
 );
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames

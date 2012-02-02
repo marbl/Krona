@@ -28,11 +28,25 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-ktImportXML [options] <XML_file>
-
+	my $scriptName = getScriptName();
+	
+	printHeader($scriptName);
+	print
+'Creates a Krona chart from xml data describing each node and how the chart
+should look.
 ';
+	printHeader('Usage');
+	print
+"$scriptName [options] <XML_file>
+
+";
+	printColumns
+	(
+		'   XML_file',
+'A file containing XML tags that specify chart attributes and describe the node
+hierarchy. An XML header is not necessary. For a complete description of XML
+tags, see: https://sourceforge.net/p/krona/wiki/KronaTools/'
+	);
 	printOptions(@options);
 	exit;
 }
@@ -44,7 +58,7 @@ my $outFile = getOption('out');
 print "Writing $outFile...\n";
 
 open OUT, ">$outFile";
-print OUT header();
+print OUT htmlHeader();
 
 open IN, "<$xmlFile" or die $!;
 
@@ -55,5 +69,5 @@ while ( <IN> )
 
 close IN;
 
-print OUT $Krona::footer;
+print OUT htmlFooter();
 close OUT;

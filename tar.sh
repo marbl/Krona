@@ -5,19 +5,20 @@ then
 fi
 
 release="KronaTools-$1"
+rm -r $release
 mv KronaTools $release
-tar -cf $release.tar \
+tar -cnf $release.tar \
 	$release/scripts/ClassifyBLAST.pl \
 	$release/scripts/extractTaxonomy.pl \
 	$release/scripts/formatEC.pl \
 	$release/scripts/GetContigMagnitudes.pl \
 	$release/scripts/GetLibPath.pl \
-	$release/scripts/GetTaxIDFromGI.pl \
 	$release/scripts/ImportBLAST.pl \
 	$release/scripts/ImportDiskUsage.pl \
+	$release/scripts/ImportEC.pl \
 	$release/scripts/ImportFCP.pl \
 	$release/scripts/ImportGalaxy.pl \
-	$release/scripts/ImportMETAREP-blast.pl \
+	$release/scripts/ImportMETAREP-BLAST.pl \
 	$release/scripts/ImportMETAREP-EC.pl \
 	$release/scripts/ImportMGRAST.pl \
 	$release/scripts/ImportPhymmBL.pl \
@@ -32,6 +33,7 @@ tar -cf $release.tar \
 	$release/lib/KronaTools.pm \
 	$release/src/krona-$2.js \
 	$release/img/hidden.png \
+	$release/taxonomy \
 	$release/install.pl \
 	$release/updateTaxonomy.sh \
 	$release/deployResources.sh \

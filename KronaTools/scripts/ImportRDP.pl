@@ -12,16 +12,14 @@ use strict;
 use lib (`ktGetLibPath`);
 use KronaTools;
 
-my $script = scriptName();
-
 setOption('name', 'root');
-setOption('out', 'RDP.krona.html');
+setOption('out', 'rdp.krona.html');
 
 my @options =
 qw(
 	out
 	combine
-	confidence
+	minConfidence
 	depth
 	hueBad
 	hueGood
@@ -36,24 +34,17 @@ if
 	@ARGV < 1
 )
 {
-	print "
-
-$script \\
-   [options] \\
-   details1.txt[,name1] \\
-   [details2.txt[,name2]] ...
-
-Examples:
-
-   $script -c details1.txt details2.txt
-   $script details1.txt,'sample 1' details2.txt,'sample 2'
-
-Creates a Krona chart from RDP classifications. By default, separate datasets
-will be created for each file (see -c).
-
-";
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+		'Creates a Krona chart from RDP classifications.',
+		'rdp_details',
+		'RDP assignment details downloaded as text.',
+		0,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
 my @ranks =
@@ -66,7 +57,7 @@ my @ranks =
 	'Genus'
 );
 
-my %all;
+my $tree = newTree();
 
 my @datasetNames;
 my $set = 0;
@@ -92,8 +83,7 @@ foreach my $input ( @ARGV )
 		
 		if ( ! $line )
 		{
-			print "Error: $fileName is not RDP classification file.\n";
-			exit;
+			ktDie("\"$fileName\" is not RDP classification file.");
 		}
 	}
 	while ( $line !~ /^Details:/ );
@@ -113,15 +103,11 @@ foreach my $input ( @ARGV )
 		
 		for ( my $i = 4; $i < @fields; $i += 2 )
 		{
-#			print "$fields[$i]\t$fields[$i+1]\n";
 			push @lineage, $fields[$i];
 			push @scores, $fields[$i + 1];
 		}
 		
-#		print "@lineage\n";
-#		print "@scores\n";
-		
-		addByLineage(\%all, $set, 1, \@lineage, \@ranks, \@scores);
+		addByLineage($tree, $set, \@lineage, $fields[0], undef, \@scores, \@ranks);
 	}
 	
 	close INFILE;
@@ -134,26 +120,26 @@ foreach my $input ( @ARGV )
 
 my @attributeNames =
 (
-	'magnitude',
+	'count',
+	'unassigned',
 	'score',
 	'rank'
 );
 
 my @attributeDisplayNames =
 (
-	'Abundance',
+	'Count',
+	'Unassigned',
 	'Avg. % Confidence',
 	'Rank'
 );
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
 	getOption('hueBad'),
 	getOption('hueGood')
 );

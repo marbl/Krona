@@ -38,14 +38,16 @@ foreach my $script qw
 	ClassifyBLAST
 	GetContigMagnitudes
 	GetLibPath
-	GetTaxIDFromGI
+	ImportAmphora
 	ImportBLAST
 	ImportDiskUsage
+	ImportEC
 	ImportFCP
 	ImportGalaxy
-	ImportMETAREP-blast
+	ImportMETAREP-BLAST
 	ImportMETAREP-EC
 	ImportMGRAST
+	ImportPHMMER
 	ImportPhymmBL
 	ImportRDP
 	ImportRDPComparison
@@ -64,10 +66,7 @@ if ( defined $taxonomyDir )
 {
 	if ( ! -e $taxonomyDir )
 	{
-		print "Creating taxonomy directory...\n";
-		
-		mkdir $taxonomyDir or
-			die "$taxonomyDir does not exist and couldn't create";
+		ktDie("$taxonomyDir does not exist.");
 	}
 	
 	if ( -e 'taxonomy')
@@ -78,17 +77,12 @@ if ( defined $taxonomyDir )
 	print "Linking taxonomy to $taxonomyDir...\n";
 	system('ln -s -f -F ' . $taxonomyDir . ' taxonomy');
 }
-elsif ( ! -d 'taxonomy' )
-{
-	print "Creating taxonomy directory...\n";
-	mkdir 'taxonomy' or die "Couldn't create taxonomy directory";
-}
 
 print '
 Installation complete.
 
-To import from BLAST or METAREP, run updateTaxonomy.sh to build the local
-taxonomy database.
+To use scripts that rely on NCBI taxonomy, run updateTaxonomy.sh to build the
+local taxonomy database.
 ';
 
 sub createDir
@@ -97,15 +91,22 @@ sub createDir
 	
 	if ( ! -e $dir )
 	{
-		mkdir $dir or die "$dir does not exist and couldn't create";
+		mkdir $dir or ktDie("$dir does not exist and couldn't create");
 	}
+}
+
+sub ktDie
+{
+	my ($error) = @_;
+	
+	print "\nERROR: $error\n\n";
+	exit 1;
 }
 
 sub linkFail
 {
 	my ($path) = @_;
 	
-	print "\nCouldn't link files to $path.  Do you have permission?\n";
-	print "(Use \"--prefix <path>\" to change install location)\n\n";
+	ktDie("Couldn't link files to $path.  Do you have permission?\n(Use \"--prefix <path>\" to change install location)");
 	exit 1;
 }

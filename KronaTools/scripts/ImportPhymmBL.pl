@@ -13,12 +13,13 @@ use lib (`ktGetLibPath`);
 use KronaTools;
 
 setOption('name', 'all');
+setOption('key', 0);
 
 my @options =
 qw(
 	out
 	name
-	confidence
+	minConfidence
 	combine
 	depth
 	hueBad
@@ -32,35 +33,23 @@ getKronaOptions(@options);
 
 if ( @ARGV < 1 )
 {
-	print '
-ktImportPhymmBL [options] \
-   <results_1>[:magnitude_file_1][,name_1] \
-   [<results_2>[:magnitude_file_2][,name_2]]
-   ...
-
-Input:
-
-   results           PhymmBL results files (results.03.*).  Results can also be
-                     from Phymm alone (results.01.*), but -p must be specified.
-                     By default, separate datasets will be created for each file
-                     (see -c).
-
-   [magnitude_file]  Optional file listing query IDs with magnitudes, separated
-                     by tabs.  The can be used to account for read length or
-                     contig depth to obtain a more accurate representation of
-                     abundance.  By default, query sequences without specified
-                     magnitudes will be assigned a magnitude of 1.  Magnitude
-                     files for Newbler or Celera Assembler assemblies can be
-                     created with getContigMagnitudesNewbler.pl or
-                     getContigMagnitudesCA.pl
+	setOption('out', 'phymm(bl).krona.html');
+	
+	printUsage
+	(
+		'Creates a Krona chart of Phymm or PhymmBL results.
 
 Note: Since confidence scores are not given for species/subspecies
-classifications, they inheret confidence scores from genus classifications.
-
-';
-	setOption('out', 'phymm(bl).krona.html');
-	printOptions(@options);
-	exit;
+classifications, they inheret confidence scores from genus classifications.',
+		'phymmbl_results',
+		'PhymmBL results files (results.03.*). Results can also be from Phymm
+alone (results.01.*), but ' . getOptionString('phymm') . ' must be specified.',
+		1,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
 if ( ! defined getOption('out') )
@@ -85,9 +74,10 @@ my @ranks =
 	'Species/Subspecies'
 );
 
-my %all = ();
+my $tree = newTree();
 my $set = 0;
 my @datasetNames;
+my $useMag;
 
 foreach my $input ( @ARGV )
 {
@@ -99,25 +89,14 @@ foreach my $input ( @ARGV )
 	}
 	
 	my %magnitudes;
-	my $totalMagnitude;
 	
 	print "Importing $fileName...\n";
 	
 	if ( defined $magFile )
 	{
 		print "   Loading magnitudes from $magFile...\n";
-		
-		open MAG, "<$magFile" or die $!;
-		
-		while ( my $line = <MAG> )
-		{
-			chomp $line;
-			my ( $id, $magnitude ) = split /\t/, $line;
-			$magnitudes{$id} = $magnitude;
-			$totalMagnitude += $magnitude;
-		}
-		
-		close MAG;
+		loadMagnitudes($magFile, \%magnitudes);
+		$useMag = 1;
 	}
 	
 	print "   Reading classifications from $fileName...\n";
@@ -129,8 +108,6 @@ foreach my $input ( @ARGV )
 	while ( my $line = <INFILE> )
 	{
 		chomp $line;
-		
-		my $magnitude = 1;
 		
 		my @values = split /\t/, $line;
 		my @lineage;
@@ -154,9 +131,8 @@ foreach my $input ( @ARGV )
 		{
 			if ( @values < 12 )
 			{
-				print STDERR
-					"\nNot enough fields in $fileName.  Is it a PhymmBL result file (see -p)?\n";
-				exit;
+				my $phymm = getOptionString('phymm');
+				ktDie("Not enough fields in $fileName.  Is it a PhymmBL result file (see $phymm)?");
 			}
 			
 			$scores = ();
@@ -170,18 +146,6 @@ foreach my $input ( @ARGV )
 			}
 		}
 		
-		if ( defined %magnitudes )
-		{
-			if ( defined $magnitudes{$readID} )
-			{
-				$magnitude = $magnitudes{$readID};
-			}
-			else
-			{
-				print STDERR "Warning: $readID doesn't exist in magnitude file; using 1.\n";
-			}
-		}
-		
 		for ( my $i = 0; $i < @lineage; $i++ )
 		{
 			$lineage[$i] = decode($lineage[$i]);
@@ -189,16 +153,10 @@ foreach my $input ( @ARGV )
 		
 		map { if ( $_ eq '' ) { $_ = 'unknown' } } @lineage;
 		
-#		print "@lineage\n";
-		addByLineage(\%all, $set, $magnitude, \@lineage, \@ranks, $scores); # TODO: translate score to conf
+		addByLineage($tree, $set, \@lineage, $readID, $magnitudes{$readID}, $scores, \@ranks);
 	}
 	
 	close INFILE;
-	
-	if ( getOption('include') && $totalMagnitude )
-	{
-		$all{'magnitude'}[$set] == $totalMagnitude;
-	}
 	
 	if ( ! getOption('combine') )
 	{
@@ -211,28 +169,31 @@ foreach my $input ( @ARGV )
 my @attributeNames =
 (
 	'magnitude',
+	'count',
+	'unassigned',
 	'rank',
 	'score'
 );
 
 my @attributeDisplayNames =
 (
-	'Total',
+	$useMag ? 'Magnitude' : undef,
+	'Count',
+	'Unassigned',
 	'Rank',
 	getOption('phymm') ? 'Avg. score' : 'Avg. confidence'
 );
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
 	getOption('hueBad'),
 	getOption('hueGood')
 );
+
 
 # subroutines
 

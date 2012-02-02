@@ -8,7 +8,7 @@ use KronaTools;
 use Cwd 'abs_path';
 use File::Basename;
 
-my $otherName = '[Other small files or folders]';
+my $otherName = '[Small files or folders]';
 
 setOption('out', 'du.krona.html');
 
@@ -26,11 +26,20 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-ktImportDiskUsage.pl [options] <dir>
-
+	my $scriptName = getScriptName();
+	
+	printHeader($scriptName);
+	print
+'Creates a Krona chart of disk usage of files and folders in the specified
+directory. Symbolic links and mount points within the directory are not
+followed. Small files or folders (that are less than 0.1% of the total size)
+will be grouped. The chart can be colored by log[10] of the number of days
+since each file or folder was modified.
 ';
+	printHeader('Usage');
+	print
+"$scriptName [options] <dir>
+";
 	printOptions(@options);
 	exit;
 }
@@ -39,52 +48,68 @@ my %all;
 my ($path) = @ARGV;
 my $time = time;
 
-setOption('name', basename(abs_path($path)) . '/');
+$path = abs_path($path);
+
+my $name = basename($path);
+
+if ( $name ne '/' )
+{
+	$name .= '/';
+}
+
+setOption('name', $name);
 setOption('collapse', 0);
 setOption('color', 0);
 
-split /\t/, `du -skH "$path" 2> /dev/null`;
-my $total = $_[0] * 1024;
+if ( ! -e $path )
+{
+	ktDie("\"$path\" does not exist.");
+}
+
+# First, get recursive sizes quickly with 'du'.  Then small directories don't
+# have to be scanned later when building the tree and getting file stats.
+#
+my %sizes;
+
+open DU, "du -aHkx '$path' 2> /dev/null |";
+#
+while ( <DU> )
+{
+	chomp;
+	my ($size, $file) = split /\t/;
+	$sizes{$file} = $size;
+}
+close DU;
+
+my $total = $sizes{$path};
+my $minSize = $total / 1000;
 
 my @units =
 qw(
-	bytes
 	Kb
 	Mb
 	Gb
 	Tb
+	Eb
 );
 
-my @unitSizes =
-(
-	2**0,
-	2**10,
-	2**20,
-	2**30,
-	2**40
-);
+my $unit = int((log $total / 10) / (log 2) / 10);
+my $unitSize = 2 ** ($unit * 10);
 
-my $unit = int((log $total) / (log 2) / 10 - 1);
-my $unitSize = $unitSizes[$unit];
-
-$total /= $unitSize;
-
-add(\%all, abs_path($path));
+add(\%all, abs_path($path), 1);
 
 my @attributeNames =
 (
 	'magnitude',
-	'files',
-	'score',
-	'age'
+	'age',
+	'score'
 );
 
 my @attributeDisplayNames =
 (
 	"Size ($units[$unit])",
-	'Files',
-	'Log age (log of days since modified)',
-	'Age (days since modified)'
+	'Age (days since modified)',
+	'Log(Age+1)'
 );
 
 my @datasetNames;
@@ -92,11 +117,9 @@ my @datasetNames;
 writeTree
 (
 	\%all,
-	'magnitude',
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
 	300,
 	240
 );
@@ -107,30 +130,47 @@ my $outFile = getOption('out');
 sub add
 {
 	my $child;
-	my ($node, $dir) = @_;
+	my ($node, $path, $big) = @_;
 	
-	if ( ! defined ${$node}{'children'} )
+	if ( $big && ! defined ${$node}{'children'} )
 	{
 		${$node}{'children'} = ();
-		${$node}{'href'}[0] = 'file://localhost' . $dir;
+		${$node}{'href'} = 'file://localhost' . $path;
 	}
 	
-	my @stats = stat $dir;
-	my $age = ($time - $stats[9]) / 86400;
+	my @stats = stat $path;
+	my $age = int(($time - $stats[9]) / 86400);
 	
 	if ( $age < 0 )
 	{
 		$age = 0;
 	}
 	
-	${$node}{'scoreTotal'}[0] = log ($age + 1) / log 10;
-	${$node}{'scoreCount'}[0] = 1;
-	${$node}{'age'}[0] = int($age);
+	my $logAge = log ($age + 1) / log 10;
 	
-	if ( -d $dir && (! -l $dir) && opendir DIR, $dir )
+	${$node}{'magnitude'}[0] += $sizes{$path} / $unitSize;
+	
+	if
+	(
+		$big ||
+		! defined ${$node}{'scoreTotal'} ||
+		$logAge < ${$node}{'scoreTotal'}[0]
+	)
+	{
+		${$node}{'scoreTotal'}[0] = $logAge;
+		${$node}{'scoreCount'}[0] = 1;
+		${$node}{'age'}[0] = int($age);
+	}
+	
+	if ( $big && -d $path && (! -l $path) && opendir DIR, $path )
 	{
 		my @files = readdir DIR;
 		closedir DIR;
+		
+		if ( $path ne '/' )
+		{
+			$path .= '/';
+		}
 		
 		foreach my $file ( @files )
 		{
@@ -139,53 +179,35 @@ sub add
 				next;
 			}
 			
-			my $childPath = "$dir/$file";
+			my $childName;
 			
-			if ( -d $childPath )
+			my $childPath = $path . $file;
+			my $big;
+			
+			if ( $sizes{$childPath} > $minSize )
 			{
-				$file .= '/';
-			}
-			
-			if ( ! defined ${$node}{'children'}{$file} )
-			{
-				my %newHash = ();
-				${$node}{'children'}{$file} = \%newHash;
-			}
-			
-			$child = ${$node}{'children'}{$file};
-			
-			my $childMag = add($child, $childPath);
-			
-			${$node}{'magnitude'}[0] += $childMag;
-			${$node}{'files'}[0] += ${$child}{'files'}[0];
-			
-			if ( $childMag < $total / 1000 )
-			{
-				${$node}{'children'}{$otherName}{'magnitude'}[0] += $childMag;
-				my $otherChild = ${$node}{'children'}{$otherName};
-				
-				${$otherChild}{'files'}[0]++;
-				
-				if
-				(
-					! defined ${$otherChild}{'age'} ||
-					${$otherChild}{'age'}[0] > ${$child}{'age'}[0]
-				)
+				if ( -d $childPath )
 				{
-					${$otherChild}{'age'}[0] = ${$child}{'age'}[0];
-					${$otherChild}{'scoreTotal'}[0] = ${$child}{'scoreTotal'}[0];
-					${$otherChild}{'scoreCount'}[0] = 1;
+					$file .= '/';
 				}
 				
-				delete ${$node}{'children'}{$file};
+				$childName = $file;
+				$big = 1; # tell add() that this child is big enough to show
 			}
+			else
+			{
+				$childName = $otherName; # group this child with others
+			}
+			
+			if ( ! defined ${$node}{'children'}{$childName} )
+			{
+				my %newHash = ();
+				${$node}{'children'}{$childName} = \%newHash;
+			}
+			
+			$child = ${$node}{'children'}{$childName};
+			
+			add($child, $childPath, $big);
 		}
 	}
-	else
-	{
-		${$node}{'magnitude'}[0] = int($stats[7] / $unitSize);
-		${$node}{'files'}[0] += 1;
-	}
-	
-	return ${$node}{'magnitude'}[0];
 }

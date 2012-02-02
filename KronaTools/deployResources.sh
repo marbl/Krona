@@ -27,12 +27,17 @@ then
 	fi
 fi
 
+if [ ! -e $target/src ]
+then
+	mkdir $target/src
+fi
+
 if [ ! -e $target/img ]
 then
 	mkdir $target/img
 fi
 
-ln -sf $PWD/src/krona-*.js $target
-ln -sf $PWD/img/hidden.png $target/img
+ln -sf $PWD/src/krona-*.js $target/src
+ln -sf $PWD/img/hidden.png $PWD/img/favicon.ico $target/img
 
 echo "Finished."

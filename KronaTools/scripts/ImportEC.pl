@@ -12,18 +12,18 @@ use strict;
 use lib (`ktGetLibPath`);
 use KronaTools;
 
-setOption('out', 'taxonomy.krona.html');
-setOption('name', 'Root');
+setOption('out', 'ec.krona.html');
+setOption('name', 'root');
 
 my @options =
 qw(
 	out
-	include
 	combine
 	queryCol
-	taxCol
+	ecCol
 	scoreCol
 	magCol
+	include
 	depth
 	hueBad
 	hueGood
@@ -40,15 +40,12 @@ if
 {
 	printUsage
 	(
-		'Creates a Krona chart based on taxonomy IDs and, optionally, magnitudes
-and scores. Taxonomy IDs corresponding to a rank of "no rank" in the database
-will be assigned to their parents to make the hierarchy less cluttered (e.g.
-"Cellular organisms" will be assigned to "root").',
-		'taxonomy',
-		'Tab-delimited file with taxonomy IDs and (optionally) query IDs,
-magnitudes and scores. By default, query IDs, taxonomy IDs and scores will be
-taken from columns 1, 2 and 3, respectively (see -q, -t, -s, and -m). Lines
-beginning with "#" will be ignored.',
+		'Creates a Krona chart of abundances of EC (Enzyme Commission) numbers
+in tab-delimited files.',
+		'ec_numbers',
+		'Tab-delimited files with EC numbers and (optionally) query IDs,
+magnitudes and scores. By default, query IDs, EC numbers and scores will be
+taken from columns 1, 2 and 3, respectively (see -q, -e, -s, and -m).',
 		1,
 		1,
 		\@options
@@ -57,19 +54,19 @@ beginning with "#" will be ignored.',
 	exit 0;
 }
 
-if ( optionsConflict('queryCol', 'taxCol', 'magCol', 'scoreCol') )
+if ( optionsConflict('queryCol', 'ecCol', 'magCol', 'scoreCol') )
 {
 	ktWarn('Query column already in use; not reading query IDs.');
 	setOption('queryCol', undef);
 }
 
-if ( optionsConflict('scoreCol', 'taxCol', 'magCol') )
+if ( optionsConflict('scoreCol', 'ecCol', 'magCol') )
 {
 	ktWarn('Score column already in use; not reading scores.');
 	setOption('scoreCol', undef);
 }
 
-if ( optionsConflict('magCol', 'taxCol') )
+if ( optionsConflict('magCol', 'ecCol') )
 {
 	ktWarn('Magnitude column already in use; not reading magnitudes.');
 	setOption('magCol', undef);
@@ -77,8 +74,8 @@ if ( optionsConflict('magCol', 'taxCol') )
 
 my $tree = newTree();
 
-print "Loading taxonomy...\n";
-loadTaxonomy();
+print "Loading EC names...\n";
+loadEC();
 
 my $set = 0;
 my @datasetNames;
@@ -111,25 +108,18 @@ foreach my $input (@ARGV)
 		}
 		else
 		{
-			ktWarn("Query column not defined; not reading magnitudes from \"$magFile\".");
+			ktWarn("Query column not defined; not reading magnitudes from \"$magFile.\"");
 		}
 	}
 	
-	open IN, "<$file" or ktDie("Couldn't open \"$file\".");
+	open IN, "<$file" or die "Couldn't open $file.";
 	
-	while ( <IN> )
+	while ( my $line = <IN> )
 	{
-		if ( /^#/ )
-		{
-			next;
-		}
-		
-		chomp;
-		
-		my @fields = split /\t/;
+		my @fields = split /\t/, $line;
 		
 		my $queryID;
-		my $taxID = $fields[getOption('taxCol') - 1];
+		my $ec = $fields[getOption('ecCol') - 1];
 		my $magnitude;
 		my $score;
 		
@@ -151,38 +141,42 @@ foreach my $input (@ARGV)
 		{
 			$magnitude = $fields[getOption('magCol') - 1];
 		}
-		
-		if ( $taxID == -2 )
+		else
 		{
-			$taxID = 1;
-		}
-		elsif ( $taxID == -1 )
-		{
-			if ( getOption('include') )
-			{
-				$taxID = 0;
-			}
-			else
-			{
-				next;
-			}
+			$magnitude = 1;
 		}
 		
-		if ( ! defined $score )
+		$ec =~ s/^EC//; # remove 'EC' if present
+		
+		while ( $ec =~ s/\.-$// ) {}; # repeatedly remove trailing '.-'
+		
+		if ( $ec ne '' && $ec !~ /^[\d\.]+$/ )
 		{
-			# all lines must have score to be used
+			ktWarn("$queryID: Bad EC ('$ec'); ignoring.");
+			$ec = '';
+		}
+		
+		if ( $ec || getOption('include') )
+		{
+			my @ecs;
 			
+			if ( $ec )
+			{
+				@ecs = split /\./, $ec;
+			}
+			
+			addByEC($tree, $set, \@ecs, $queryID, $magnitude, $score);
+		}
+		
+		if ( ! defined $score ) # all lines must have score to be used
+		{
 			$useScore = 0;
 		}
 		
-		if ( $score < 0 )
+		if ( $score < 0 ) # score is probably e-value; flip colors
 		{
-			# score is probably e-value; flip colors
-			
 			$eVal = 1;
 		}
-		
-		addByTaxID($tree, $set, $taxID, $queryID, $magnitude, $score);
 	}
 	
 	if ( ! getOption('combine') )
@@ -198,17 +192,15 @@ my @attributeNames =
 	'magnitude',
 	'count',
 	'unassigned',
-	'taxon',
-	'rank',
+	'ec',
 );
 
 my @attributeDisplayNames =
 (
 	$useMag ? 'Magnitude' : undef,
-	getOption('queryCol') ? 'Count' : undef,
-	getOption('queryCol') ? 'Unassigned' : undef,
-	'Taxon',
-	'Rank',
+	'Count',
+	'Unassigned',
+	'EC'
 );
 
 my @scoreArgs;

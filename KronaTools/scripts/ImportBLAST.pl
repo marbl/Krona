@@ -12,26 +12,25 @@ use strict;
 use lib (`ktGetLibPath`);
 use KronaTools;
 
-my $totalMag;
-
+# defaults
+#
 setOption('out', 'blast.krona.html');
 setOption('name', 'Root');
 
 my @options =
 qw(
 	out
-	radius
+	factor
 	include
 	random
-	identity
-	score
+	percentIdentity
+	bitScore
 	combine
 	depth
 	hueBad
 	hueGood
 	local
 	url
-	verbose
 );
 
 getKronaOptions(@options);
@@ -41,43 +40,21 @@ if
 	@ARGV < 1
 )
 {
- 	print '
-
-Description:
-   Infers taxonomic abundance from BLAST results.  By default, each
-   BLAST result file will create a separate dataset named after the file
-   (see -c).
-
-Usage:
-
-ktImportBLAST [options] \
-   blast_output_1[:magnitude_file_1][,name_1] \
-   [blast_output_2[:magnitude_file_2][,name_2]] \
-   ...
-
-Input:
-
-   blast_output      File containing BLAST results in tabular format ("Hit table
-	                 (text)" when downloading from NCBI).  If running BLAST
-                     locally, subject IDs in the local database must contain GI
-                     numbers in "gi|12345" format.
-   
-   [magnitude_file]  Optional file listing query IDs with magnitudes, separated
-                     by tabs.  The can be used to account for read length or
-                     contig depth to obtain a more accurate representation of
-                     abundance.  By default, query sequences without specified
-                     magnitudes will be assigned a magnitude of 1.  Magnitude
-                     files for Newbler or Celera Assembler assemblies can be
-                     created with getContigMagnitudesNewbler.pl or
-                     getContigMagnitudesCA.pl
-Options:
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+"Creates a Krona chart of taxonomic classifications computed from tabular BLAST
+results.",
+		$KronaTools::argumentNames{'blast'},
+		$KronaTools::argumentDescriptions{'blast'},
+		1,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
-my %tree;
+my $tree = newTree();
 
 # load taxonomy
 
@@ -88,10 +65,15 @@ loadTaxonomy();
 
 my $set = 0;
 my @datasetNames;
+my $useMag;
 
 foreach my $input (@ARGV)
 {
 	my ($fileName, $magFile, $name) = parseDataset($input);
+	
+	my %magnitudes;
+	my %taxIDs;
+	my %scores;
 	
 	if ( ! getOption('combine') )
 	{
@@ -100,23 +82,44 @@ foreach my $input (@ARGV)
 	
 	print "Importing $fileName...\n";
 	
-	my %magnitudes;
-	my %totalScores;
-	my %counts;
+	# load magnitudes
 	
-	classifyBlast($fileName, $magFile, \%magnitudes, \%totalScores, \%counts);
+	if ( defined $magFile )
+	{
+		print "   Loading magnitudes from $magFile...\n";
+		loadMagnitudes($magFile, \%magnitudes);
+		$useMag = 1;
+	}
+	
+	print "   Classifying BLAST results...\n";
+	classifyBlast($fileName, \%taxIDs, \%scores);
 	
 	print "   Computing tree...\n";
 	
-	foreach my $taxID ( keys %magnitudes )
+	foreach my $queryID ( keys %taxIDs )
 	{
+		my $taxID = $taxIDs{$queryID};
+		
+		if ( $taxID == -1 )
+		{
+			if ( getOption('include') )
+			{
+				$taxID = 0;
+			}
+			else
+			{
+				next;
+			}
+		}
+		
 		addByTaxID
 		(
-			\%tree,
+			$tree,
 			$set,
 			$taxID,
-			$magnitudes{$taxID},
-			$totalScores{$taxID} / $counts{$taxID}
+			$queryID,
+			$magnitudes{$queryID},
+			$scores{$queryID}
 		);
 	}
 	
@@ -128,43 +131,34 @@ foreach my $input (@ARGV)
 
 my @attributeNames =
 (
+	'magnitude',
+	'count',
+	'unassigned',
 	'taxon',
 	'rank',
-	'score',
-	'magnitude'
+	'score'
 );
-
-my $scoreName;
-
-if ( getOption('identity') )
-{
-	$scoreName = 'Avg. % identity';
-}
-elsif ( getOption('score') )
-{
-	$scoreName = 'Avg. bit score';
-}
-else
-{
-	$scoreName = 'Avg. log e-value';
-}
 
 my @attributeDisplayNames =
 (
-	'Taxon',
+	$useMag ? 'Magnitude' : undef,
+	'Count',
+	'Unassigned',
+	'Tax ID',
 	'Rank',
-	$scoreName,
-	'Total'
+	getScoreName(),
 );
 
 writeTree
 (
-	\%tree,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
-	getOption('score') || getOption('identity') ? getOption('hueBad') : getOption('hueGood'),
-	getOption('score') || getOption('identity') ? getOption('hueGood') : getOption('hueBad')
+	getOption('bitScore') || getOption('percentIdentity') ?
+		getOption('hueBad') : 
+		getOption('hueGood'),
+	getOption('bitScore') || getOption('percentIdentity') ?
+		getOption('hueGood') :
+		getOption('hueBad')
 );

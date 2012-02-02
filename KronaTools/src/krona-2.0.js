@@ -252,8 +252,7 @@ var fpsDisplay = document.getElementById('frameRate');
 
 // Arrays to translate xml attribute names into displayable attribute names
 //
-var attributeNames = new Array();
-var attributeDisplayNames = new Array();
+var attributes = new Array();
 //
 var magnitudeIndex; // the index of attribute arrays used for magnitude
 var membersAssignedIndex;
@@ -278,14 +277,10 @@ var datasetWidths = new Array();
 var datasetChanged;
 var datasetSelectWidth = 120;
 
-document.body.style.overflow = "hidden";
 window.onload = load;
 
 var image;
 var hiddenPattern;
-
-canvas = document.getElementById('canvas');
-context = canvas.getContext('2d');
 
 function resize()
 {
@@ -315,6 +310,10 @@ function resize()
 function handleResize()
 {
 	updateViewNeeded = true;
+}
+
+function Attribute()
+{
 }
 
 function Tween(start, end)
@@ -369,7 +368,7 @@ function Node()
 	this.children = Array();
 	this.parent = 0;
 	
-	this.attributes = new Array();
+	this.attributes = new Array(attributes.length);
 	
 	this.addChild = function(child)
 	{
@@ -1937,20 +1936,20 @@ function Node()
 		}
 	}
 	
-	this.getMembers = function()
+	this.getMembers = function(index)
 	{
 		var totalMembers = new Array();
 		
-		if ( this.members )
+		if ( this.attributes[index] && this.attributes[index][currentDataset] )
 		{
-			totalMembers = totalMembers.concat(this.members);
+			totalMembers = totalMembers.concat(this.attributes[index][currentDataset]);
 		}
 		
 		for ( var i = 0; i < this.children.length; i++ )
 		{
-			totalMembers = totalMembers.concat(this.children[i].getMembers());
+			totalMembers = totalMembers.concat(this.children[i].getMembers(index));
 		}
-		
+//		alert(this.name + ' - ' + totalMembers.join(','));
 		return totalMembers;
 	}
 	
@@ -1990,7 +1989,7 @@ function Node()
 	
 	this.getUnclassifiedText = function()
 	{
-		return '[unclassified '+ this.name + ']';
+		return '[unassigned '+ this.name + ']';
 	}
 	
 	this.getUncollapsed = function()
@@ -3006,7 +3005,7 @@ function Node()
 			i++;
 		}
 		
-	 	if ( this.hues && this.magnitude )
+	 	if ( this.hue && this.magnitude )
 	 	{
 		 	this.hue.setTarget(this.hues[currentDataset]);
 			
@@ -3333,7 +3332,15 @@ function addOptionElements(hueName, hueDefault)
 	document.body.style.font = '11px sans-serif';
 	var position = 5;
 	
-	document.getElementById('details').innerHTML = '\
+	details = document.createElement('div');
+	details.style.position = 'absolute';
+	details.style.top = '1%';
+	details.style.right = '2%';
+	details.style.textAlign = 'right';
+	document.body.insertBefore(details, canvas);
+//		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
+
+	details.innerHTML = '\
 <span id="detailsName" style="font-weight:bold"></span>&nbsp;\
 <input type="button" id="detailsExpand" onclick="expand(focusNode);"\
 value="&harr;" title="Expand this wedge to become the new focus of the chart"/><br/>\
@@ -3407,7 +3414,7 @@ and including collapsed wedges.'
 	
 	if ( hueName )
 	{
-		hueDisplayName = attributeDisplayNames[attributeIndex(hueName)];
+		hueDisplayName = attributes[attributeIndex(hueName)].displayName;
 		
 		position = addOptionElement
 		(
@@ -3567,11 +3574,11 @@ function arrow(angleStart, angleEnd, radiusInner)
 	context.stroke();
 }
 
-function attributeIndex(name)
+function attributeIndex(aname)
 {
-	for ( var i = 0 ; i < attributeNames.length; i++ )
+	for ( var i = 0 ; i < attributes.length; i++ )
 	{
-		if ( name == attributeNames[i] )
+		if ( aname == attributes[i].name )
 		{
 			return i;
 		}
@@ -4391,6 +4398,29 @@ function showLink()
 //	document.location = urlHalves[0] + '?' + getVariables.join('&');
 }
 
+function getFirstChild(element)
+{
+	element = element.firstChild;
+	
+	if ( element && element.nodeType != 1 )
+	{
+		element = getNextSibling(element);
+	}
+	
+	return element;
+}
+
+function getNextSibling(element)
+{
+	do
+	{
+		element = element.nextSibling;
+	}
+	while ( element && element.nodeType != 1 );
+	
+	return element;
+}
+
 function getPercentage(fraction)
 {
 	return round(fraction * 100);
@@ -4576,8 +4606,20 @@ function lerp(value, fromStart, fromEnd, toStart, toEnd)
 		toStart;
 }
 
+function createCanvas()
+{
+	canvas = document.createElement('canvas');
+	document.body.appendChild(canvas);
+	context = canvas.getContext('2d');
+}
+
 function load()
 {
+	document.body.style.overflow = "hidden";
+	document.body.style.margin = 0;
+	
+	createCanvas();
+	
 	if ( context == undefined )
 	{
 		document.body.innerHTML = '\
@@ -4598,11 +4640,9 @@ function load()
 	
 	resize();
 	
-	var xmlElements = document.getElementsByTagName('data');
-	var magnitudeName;
-	var membersAssignedName;
-	var membersSummaryName;
+	var kronaElement = document.getElementsByTagName('krona')[0];
 	
+	var magnitudeName;
 	var hueName;
 	var hueDefault;
 	var hueStart;
@@ -4610,49 +4650,95 @@ function load()
 	var valueStart;
 	var valueEnd;
 	
-	for ( var element = xmlElements[0].firstChild; element; element = element.nextSibling )
+	if ( kronaElement.getAttribute('collapse') != undefined )
 	{
-		if ( element.nodeType != 1 )
-		{
-			continue;
-		}
-		
+		collapse = kronaElement.getAttribute('collapse') == 'true';
+	}
+	
+	if ( kronaElement.getAttribute('key') != undefined )
+	{
+		showKeys = kronaElement.getAttribute('key') == 'true';
+	}
+	
+	for
+	(
+		var element = getFirstChild(kronaElement);
+		element;
+		element = getNextSibling(element)
+	)
+	{
 		switch ( element.tagName.toLowerCase() )
 		{
-			case 'options':
-				for ( var i = 0; i < element.attributes.length; i++ )
+			case 'attributes':
+				magnitudeName = element.getAttribute('magnitude');
+				//
+				for
+				(
+					var attributeElement = getFirstChild(element);
+					attributeElement;
+					attributeElement = getNextSibling(attributeElement)
+				)
 				{
-					switch ( element.attributes[i].nodeName )
+					if ( attributeElement.tagName.toLowerCase() == 'attribute' )
 					{
-						case 'collapse':
-							collapse =
-								element.attributes[i].nodeValue == 'true';
-							break;
-						case 'key':
-							showKeys =
-								element.attributes[i].nodeValue == 'true';
-							break;
+						var attribute = new Attribute();
+						attribute.name = attributeElement.firstChild.nodeValue;
+						attribute.displayName = attributeElement.getAttribute('display');
+						
+						if ( attributeElement.getAttribute('hrefBase') )
+						{
+							attribute.hrefBase = attributeElement.getAttribute('hrefBase');
+						}
+						
+						if ( attributeElement.getAttribute('target') )
+						{
+							attribute.target = attributeElement.getAttribute('target');
+						}
+						
+						if ( attribute.name == magnitudeName )
+						{
+							magnitudeIndex = attributes.length;
+						}
+						
+						if ( attributeElement.getAttribute('listAll') )
+						{
+							for ( var i = 0; i < attributes.length; i++ )
+							{
+								if ( attributes[i].name == attributeElement.getAttribute('listAll') )
+								{
+									attribute.listAllIndex = i;
+								}
+							}
+						}
+						else if ( attributeElement.getAttribute('listNode') )
+						{
+							for ( var i = 0; i < attributes.length; i++ )
+							{
+								if ( attributes[i].name == attributeElement.getAttribute('listNode') )
+								{
+									attribute.listNodeIndex = i;
+								}
+							}
+						}
+						
+						if ( attributeElement.getAttribute('mono') )
+						{
+							attribute.mono = true;
+						}
+						
+						attributes.push(attribute);
+					}
+					else if ( attributeElement.tagName.toLowerCase() == 'list' )
+					{
+						var attribute = new Attribute();
+						
+						attribute.name = attributeElement.firstChild.nodeValue;
+						attribute.list = true;
+						attributes.push(attribute);
 					}
 				}
 				break;
-				
-			case 'magnitude':
-				magnitudeName = element.getAttribute('attribute');
-				break;
 			
-			case 'attributes':
-				for ( var i = 0; i < element.attributes.length; i++ )
-				{
-					attributeNames.push(element.attributes[i].nodeName);
-					attributeDisplayNames.push(element.attributes[i].nodeValue);
-				}
-				break;
-			
-			case 'members':
-				membersAssignedName = element.getAttribute('attributeAssigned');
-				membersSummaryName = element.getAttribute('attributeSummary');
-				break;
-				
 			case 'color':
 				hueName = element.getAttribute('attribute');
 				hueStart = Number(element.getAttribute('hueStart')) / 360;
@@ -4669,7 +4755,12 @@ function load()
 				break;
 			
 			case 'datasets':
-				datasetNames = element.getAttribute('names').split(',');
+				datasetNames = new Array();
+				//
+				for ( j = getFirstChild(element); j; j = getNextSibling(j) )
+				{
+					datasetNames.push(j.firstChild.nodeValue);
+				}
 				datasets = datasetNames.length;
 				break;
 			
@@ -4740,25 +4831,6 @@ function load()
 		}
 	}
 	
-	// set indeces
-	//
-	for ( var i = 0; i < attributeNames.length; i++ )
-	{
-		if ( attributeNames[i] == magnitudeName )
-		{
-			magnitudeIndex = i;
-		}
-		
-		if ( attributeNames[i] == membersAssignedName )
-		{
-			membersAssignedIndex = i;
-		}
-		else if ( attributeNames[i] == membersSummaryName )
-		{
-			membersSummaryIndex = i;
-		}
-	}
-	
 	addOptionElements(hueName, hueDefault);
 	setCallBacks();
 	
@@ -4797,90 +4869,26 @@ function loadTreeDOM
 {
 	var newNode = new Node();
 	
-	for ( var i = 0; i < domNode.attributes.length; i++ )
+	newNode.name = domNode.getAttribute('name');
+	
+	if ( domNode.getAttribute('href') )
 	{
-		var attributeCurrent = domNode.attributes[i];
-		
-		if ( attributeCurrent.nodeName == 'name' )
-		{
-			newNode.name = attributeCurrent.nodeValue;
-		}
-		else if ( attributeCurrent.nodeName == 'href' )
-		{
-			newNode.href = attributeCurrent.nodeValue;
-		}
-		else if ( attributeCurrent.nodeName == 'members' )
-		{
-			var attributeValues = attributeCurrent.nodeValue.split(',');
-			
-			for ( var j = 0; j < attributeValues.length; j++ )
-			{
-				newNode.members = attributeValues[j].split(' ');
-			}
-			
-			useMembers = true;
-		}
-		else
-		{
-			var attributeValues = attributeCurrent.nodeValue.split(',');
-			
-			if
-			(
-				attributeCurrent.nodeName == magnitudeName ||
-				attributeCurrent.nodeName == hueName
-			)
-			{
-				for ( var j = 0; j < attributeValues.length; j++ )
-				{
-					attributeValues[j] = Number(attributeValues[j]);
-				}
-				
-				while ( attributeValues.length < datasets )
-				{
-					attributeValues.push(0);
-				}
-			}
-			
-			newNode.attributes[attributeIndex(attributeCurrent.nodeName)] =
-				attributeValues;
-			
-			if ( attributeCurrent.nodeName == hueName && newNode.hue == null )
-			{
-				newNode.hues = new Array();
-				
-				for ( var j = 0; j < attributeValues.length; j++ )
-				{
-					newNode.hues.push(lerp
-					(
-						attributeValues[j],
-						valueStart,
-						valueEnd,
-						hueStart,
-						hueEnd
-					));
-					
-					if ( newNode.hues[j] < hueStart == hueStart < hueEnd )
-					{
-						newNode.hues[j] = hueStart;
-					}
-					else if ( newNode.hues[j] > hueEnd == hueStart < hueEnd )
-					{
-						newNode.hues[j] = hueEnd;
-					}
-				}
-				
-				newNode.hue = new Tween(newNode.hues[0], newNode.hues[0]);
-			}
-		}
+		newNode.href = domNode.getAttribute('href');
 	}
 	
-	for ( var child = domNode.firstChild; child; child = child.nextSibling )
+	if ( hueName )
 	{
-		if ( child.nodeType == 1 )
+		newNode.hues = new Array();
+	}
+	
+	for ( var i = getFirstChild(domNode); i; i = getNextSibling(i) )
+	{
+		switch ( i.tagName.toLowerCase() )
 		{
+		case 'node': 
 			var newChild = loadTreeDOM
 			(
-				child,
+				i,
 				magnitudeName,
 				hueName,
 				hueStart,
@@ -4890,6 +4898,148 @@ function loadTreeDOM
 			);
 			newChild.parent = newNode;
 			newNode.children.push(newChild);
+			break;
+			
+		default:
+			var attributeName = i.tagName.toLowerCase();
+			var index = attributeIndex(attributeName);
+			//
+			newNode.attributes[index] = new Array();
+			//
+			/*
+			var values = i.firstChild.nodeValue.split('\n');
+			
+			newNode.attributes[index] = new Array();
+			
+			if ( attributes[index].list )
+			{
+				for (var j = 0; j < values.length; j++ )
+				{
+					newNode.attributes[index][j] = values[j].split('\t');
+				}
+			}
+			else
+			{
+				for (var j = 0; j < values.length; j++ )
+				{
+					var value = values[j];
+					
+					if ( attributeName == magnitudeName || attributeName == hueName )
+					{
+						value = Number(value);
+						
+						if ( attributeName == hueName )
+						{
+							var hue = value;
+							
+							if ( hue < hueStart == hueStart < hueEnd )
+							{
+								hue = hueStart;
+							}
+							else if ( hue > hueEnd == hueStart < hueEnd )
+							{
+								hue = hueEnd;
+							}
+							
+							newNode.hues.push(lerp
+							(
+								value,
+								valueStart,
+								valueEnd,
+								hueStart,
+								hueEnd
+							));
+						}
+					}
+					
+//					if ( j.getAttribute('href') )
+					{
+						var target;
+						
+						if ( attributes[index].target )
+						{
+							target = ' target="' + attributes[index].target + '"';
+						}
+						
+//						value = '<a href="' + attributes[index].hrefBase + j.getAttribute('href') + '"' + target + '>' + value + '</a>';
+					}
+					
+					newNode.attributes[index][j] = value;
+				}
+			}*/
+			for ( var j = getFirstChild(i); j; j = getNextSibling(j) )
+			{
+				if ( attributes[index] == undefined )
+				{
+					var x = 5;
+				}
+				if ( attributes[index].list )
+				{
+					newNode.attributes[index].push(new Array());
+					
+					for ( var k = getFirstChild(j); k; k = getNextSibling(k) )
+					{
+						newNode.attributes[index][newNode.attributes[index].length - 1].push(k.firstChild.nodeValue);
+					}
+				}
+				else
+				{
+					var value = j.firstChild ? j.firstChild.nodeValue : '';
+					
+					if ( j.getAttribute('href') )
+					{
+						var target;
+						
+						if ( attributes[index].target )
+						{
+							target = ' target="' + attributes[index].target + '"';
+						}
+						
+						value = '<a href="' + attributes[index].hrefBase + j.getAttribute('href') + '"' + target + '>' + value + '</a>';
+					}
+					
+					newNode.attributes[index].push(value);
+				}
+			}
+			//
+			if ( attributeName == magnitudeName || attributeName == hueName )
+			{
+				for ( j = 0; j < datasets; j++ )
+				{
+					var value = newNode.attributes[index][j] == undefined ? 0 : Number(newNode.attributes[index][j]);
+					
+					newNode.attributes[index][j] = value;
+					
+					if ( attributeName == hueName )
+					{
+						var hue = lerp
+						(
+							value,
+							valueStart,
+							valueEnd,
+							hueStart,
+							hueEnd
+						);
+						
+						if ( hue < hueStart == hueStart < hueEnd )
+						{
+							hue = hueStart;
+						}
+						else if ( hue > hueEnd == hueStart < hueEnd )
+						{
+							hue = hueEnd;
+						}
+						
+						newNode.hues[j] = hue;
+					}
+				}
+				
+				if ( attributeName == hueName )
+				{
+					newNode.hue = new Tween(newNode.hues[0], newNode.hues[0]);
+				}
+			}
+			break;
 		}
 	}
 	
@@ -5270,7 +5420,7 @@ function setCallBacks()
 	forwardButton.onclick = navigateForward;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
-	details = document.getElementById('details');
+//	details = document.getElementById('details');
 	detailsName = document.getElementById('detailsName');
 	detailsExpand = document.getElementById('detailsExpand');
 	detailsInfo = document.getElementById('detailsInfo');
@@ -5368,31 +5518,27 @@ function setFocus(node)
 	
 	for ( var i = 0; i < node.attributes.length; i++ )
 	{
-		if ( node.attributes[i] != undefined )
+		if ( attributes[i].displayName && node.attributes[i] != undefined )
 		{
-			var value;
+			var index = node.attributes[i].length == 1 && attributes[i].mono ? 0 : currentDataset;
 			
-			if ( node.attributes[i].length > 1 )
+			if ( node.attributes[i][index] != undefined && node.attributes[i][currentDataset] != '' )
 			{
-				value = node.attributes[i][currentDataset];
+				var value = node.attributes[i][index];
+				
+				if ( attributes[i].listNodeIndex != undefined )
+				{
+					value = '<a href="#" onclick="showAssignedMembers(' + attributes[i].listNodeIndex + ');return false;" title="Show members">' + value + '</a>';
+				}
+				else if ( attributes[i].listAllIndex != undefined )
+				{
+					value = '<a href="#" onclick="showSummaryMembers(' + attributes[i].listAllIndex + ');return false;" title="Show members">' + value + '</a>';
+				}
+				
+				table +=
+					'<tr><td><strong>' + attributes[i].displayName + ':</strong></td><td>' +
+					value + '</td></tr>';
 			}
-			else
-			{
-				value = node.attributes[i][0];
-			}
-			
-			if ( i == membersAssignedIndex )
-			{
-				value = '<a href="javascript:showAssignedMembers()" title="Show members">' + value + '</a>';
-			}
-			else if ( i == membersSummaryIndex )
-			{
-				value = '<a href="javascript:showSummaryMembers()" title="Show members">' + value + '</a>';
-			}
-			
-			table +=
-				'<tr><td><strong>' + attributeDisplayNames[i] + ':</strong></td><td>' +
-				value + '</td></tr>';
 		}
 	}
 	
@@ -5422,25 +5568,25 @@ function setSelectedNode(newNode)
 	}
 }
 
-function showAssignedMembers()
+function showAssignedMembers(index)
 {
-	if ( focusNode.members )
+	if ( focusNode.attributes[index] )
 	{
 		window.open
 		(
 			'data:text/plain;charset=utf-8,' +
-				encodeURIComponent(focusNode.members.join('\n')),
+				encodeURIComponent(focusNode.attributes[index][currentDataset].join('\n')),
 			'_blank'
 		);
 	}
 }
 
-function showSummaryMembers()
+function showSummaryMembers(index)
 {
 	window.open
 	(
 		'data:text/plain;charset=utf-8,' +
-			encodeURIComponent(focusNode.getMembers().join('\n')),
+			encodeURIComponent(focusNode.getMembers(index).join('\n')),
 		'_blank'
 	);
 }
@@ -5476,6 +5622,24 @@ function snapshot()
 		'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
 		'_blank'
 	);
+/*	var data = window.open('data:text/plain;charset=utf-8,hello', '_blank');
+	var data = window.open('', '_blank');
+	data.document.open('text/plain');
+	data.document.write('hello');
+	data.document.close();
+	var button = document.createElement('input');
+	button.type = 'button';
+	button.value = 'save';
+	button.onclick = save;
+	data.document.body.appendChild(button);
+//	snapshotWindow.document.write(svg);
+//	snapshotWindow.document.close();
+*/	
+}
+
+function save()
+{
+	alert(document.body.innerHTML);
 }
 
 function spacer()

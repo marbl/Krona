@@ -9,137 +9,229 @@ use strict;
 package KronaTools;
 
 use Getopt::Long;
+use File::Basename;
 
 
 use base 'Exporter';
 use Cwd 'abs_path';
 
+# public subroutines
+#
 our @EXPORT = qw
 (
 	addByEC
 	addByLineage
 	addByTaxID
 	classifyBlast
-	contains
-	footer
+	default
 	getKronaOptions
 	getOption
+	getOptionString
+	getScoreName
+	getScriptName
 	getTaxDepth
 	getTaxName
 	getTaxParent
 	getTaxRank
 	getTaxIDFromGI
-	header
+	htmlFooter
+	htmlHeader
+	ktDie
+	ktWarn
 	loadEC
+	loadMagnitudes
 	loadTaxonomy
-	lowestCommonAncestor
 	newTree
 	parseDataset
+	printColumns
+	printHeader
 	printOptions
-	scriptName
+	printUsage
 	setOption
+	taxContains
+	taxLowestCommonAncestor
 	taxIDExists
 	writeTree
 );
 
 
+###########
+# Options #
+###########
+
+# The container for option values, initialized with global defaults.
+#
 my %options =
 (
-	# global defaults
-	
 	'collapse' => 1,
 	'color' => 0,
+	'ecCol' => 2,
 	'hueBad' => 0,
 	'hueGood' => 120,
-	'magCol' => 2,
-	'radius' => 10,
+	'queryCol' => 1,
+	'factor' => 10,
 	'scoreCol' => 3,
-	'showKey' => 1,
-	'taxCol' => 1,
+	'key' => 1,
+	'taxCol' => 2,
 	'url' => 'http://krona.sourceforge.net'
 );
 
+# Option format codes to pass to GetOptions (and to be parsed for display).
+# Multiple options can use the same option letter, as long as they don't
+# conflict within any given script.
+#
 my %optionFormats =
 (
-	# format codes to pass to GetOptions (and to be parsed for display)
-	
-	'combine' => 'c',
-	'confidence' => 'm=f',
-	'depth' => 'd=i',
-	'ecCol' => 'e=i',
-	'hueBad' => 'x=i',
-	'hueGood' => 'y=i',
-	'include' => 'i',
-	'local' => 'l',
-	'magCol' => 'm=i',
-	'name' => 'n=s',
-	'noMag' => 'q',
-	'out' => 'o=s',
-	'phymm' => 'p',
-	'identity' => 'p',
-	'radius' => 'e=f',
-	'random' => 'r',
-	'score' => 'b',
-	'scoreCol' => 's=i',
-	'taxCol' => 't=i',
-	'url' => 'u=s',
-	'verbose' => 'v'
+	'bitScore' =>
+		'b',
+	'combine' =>
+		'c',
+	'depth' =>
+		'd=i',
+	'ecCol' =>
+		'e=i',
+	'factor' =>
+		'e=f',
+	'include' =>
+		'i',
+	'local' =>
+		'l',
+	'magCol' =>
+		'm=i',
+	'minConfidence' =>
+		'm=f',
+	'name' =>
+		'n=s',
+	'out' =>
+		'o=s',
+	'percentIdentity' =>
+		'p',
+	'phymm' =>
+		'p',
+	'noMag' =>
+		'q',
+	'queryCol' =>
+		'q=i',
+	'random' =>
+		'r',
+	'scoreCol' =>
+		's=i',
+	'summarize' =>
+		's',
+	'taxCol' =>
+		't=i',
+	'url' =>
+		'u=s',
+	'verbose' =>
+		'v',
+	'hueBad' =>
+		'x=i',
+	'hueGood' =>
+		'y=i'
 );
 
+# how option arguments should be displayed based on format codes in %optionFormats
+#
 my %optionTypes =
 (
-	# how arguments should be displayed based on format codes in %optionFormats
-	
 	's' => 'string',
 	'f' => 'number',
 	'i' => 'integer'
 );
 
+# option descriptions to show in printOptions()
+#
 my %optionDescriptions =
 (
-	# descriptions to show in printOptions()
-	
+	'bitScore' => 'Use bit score for average scores instead of log[10] e-value.',
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
-	'confidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'depth' => 'Maximum depth of wedges to include in the chart.',
 	'ecCol' => 'Column of input files to use as EC number.',
+	'factor' => 'E-value factor for determining "best" hits. Hits with e-values that are within this factor of the highest scoring hit will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
 	'hueBad' => 'Hue (0-360) for "bad" scores.',
 	'hueGood' => 'Hue (0-360) for "good" scores.',
-	'identity' => 'Use percent identity to compute the average scores of taxa instead of e-value.',
+	'percentIdentity' => 'Use percent identity for average scores instead of log[10] e-value.',
 	'include' => 'Include a wedge for queries with no hits.',
 	'local' => 'Create a local chart, which does not require an internet connection to view (but will only work on this computer).',
-	'magCol' => 'Column of input files to use as magnitude.',
+	'magCol' => 'Column of input files to use as magnitude. If magnitude files are specified, their magnitudes will override those in this column.',
+	'minConfidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'name' => 'Name of the highest level.',
 	'noMag' => 'Files do not have a field for quantity.',
 	'out' => 'Output file name.',
 	'phymm' => 'Input is phymm only (no confidence scores).',
-	'radius' => 'E-value factor for best hits. Hits with e-values that are within this factor of the highest scoring hit will also be considered best hits and will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
+	'queryCol' => 'Column of input files to use as query ID. Required if magnitude files are specified.',
 	'random' => 'Pick from the best hits randomly instead of finding the lowest common ancestor.',
-	'score' => 'Use bit scores to compute the average scores of taxa instead of e-values.',
 	'scoreCol' => 'Column of input files to use as score.',
+	'summarize' => 'Summarize counts and average scores by taxonomy ID.',
 	'taxCol' => 'Column of input files to use as taxonomy ID.',
 	'url' => 'URL of Krona resources.',
 	'verbose' => 'Verbose.'
 );
 
+
+#############
+# Arguments #
+#############
+
+# how common arguments should be displayed
+#
+our %argumentNames =
+(
+	'blast' => 'blast_output',
+	'magnitude' => 'magnitudes',
+	'metarep' => 'metarep_folder',
+	'name' => 'name',
+);
+
+# how common arguments should be described
+#
+our %argumentDescriptions =
+(
+	'blast' =>
+'File containing BLAST results in tabular format ("Hit table (text)" when
+downloading from NCBI).  If running BLAST locally, subject IDs in the local
+database must contain GI numbers in "gi|12345" format.',
+	'magnitude' =>
+'Optional file listing query IDs with magnitudes, separated by tabs.  This can
+be used to account for read length or contig depth to obtain a more accurate
+representation of abundance.  By default, query sequences without specified
+magnitudes will be assigned a magnitude of 1.  Magnitude files for assemblies in
+ACE format can be created with ktGetContigMagnitudes.',
+	'metarep' =>
+'Unpacked METAREP data folder.',
+	'name' =>
+'A name to show in the list of datasets in the Krona chart (if multiple input
+files are present and ' . getOptionString('combine') . ' is not specified). By
+default, the basename of the file will be used.',
+);
+
+
+####################
+# Global constants #
+####################
+
 my $libPath = `ktGetLibPath`;
 my $taxonomyDir = "$libPath/../taxonomy";
 my $ecFile = "$libPath/../data/ec.tsv";
 
-my $version = '1.1';
-my $javascript = "krona-$version.js";
-my $image = "hidden.png";
-my $favicon = "favicon.ico";
-my $javascriptLocal = "$libPath/../src/$javascript";
-my $imageLocal = "$libPath/../img/$image";
-my $faviconLocal = "$libPath/../img/$favicon";
+my $javascriptVersion = '2.0';
+my $javascript = "src/krona-$javascriptVersion.js";
+my $image = "img/hidden.png";
+my $favicon = "img/favicon.ico";
+my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=info&id=';
+my $ecHrefBase = 'http://www.chem.qmul.ac.uk/iubmb/enzyme/EC';
 
-my $minEVal = -413;
+our $minEVal = -450;
 
-my @depths;
-my @parents;
-my @ranks;
-my @names;
+
+#################
+# Lookup tables #
+#################
+
+my @taxDepths;
+my @taxParents;
+my @taxRanks;
+my @taxNames;
 my %ecNames;
 
 
@@ -150,110 +242,111 @@ my %ecNames;
 
 sub addByEC
 {
+	# add based on an EC number string
+	#
+	# Options used:
+	# depth
 	my
 	(
 		$node, # hash ref
 		$set, # integer
-		$ec, # string, EC number with dots (but without "EC")
-		$magnitude, # number
-		$score, # number (optional)
+		$ec, # array ref of ec number components (no dots)
+		$queryID, # (optional) string
+		$magnitude, # (optional) number
+		$score, # (optional) number
 		
 		# for recursion only
 		#
 		$depth
 	) = @_;
 	
-	if ( ! $ec )
+	if ( ! %ecNames )
 	{
-		$node->{'magnitude'}[$set] += $magnitude;
+		ktDie('EC data not loaded. "loadEC()" must be called first.');
+	}
+	
+	$magnitude = default($magnitude, 1);
+	
+	$node->{'magnitude'}[$set] += $magnitude;
+	$node->{'count'}[$set]++;
+	
+	if ( ! @$ec )
+	{
 		$node->{'children'}{'No hits'}{'magnitude'}[$set] += $magnitude;
+		$node->{'children'}{'No hits'}{'count'}[$set]++;
 		
 		if ( ! defined $node->{'children'}{'No hits'}{'scoreCount'} )
 		{
 			$node->{'children'}{'No hits'}{'scoreCount'}[0] = 0;
 		}
 		
+		if ( $queryID )
+		{
+			addMember($node->{'children'}{'No hits'}, $set, $queryID);
+		}
+		
 		return;
 	}
 	
-	if ( ! %ecNames )
+	if
+	(
+		$depth < @$ec &&
+		( ! $options{'depth'} || $depth < $options{'depth'} )
+	)
 	{
-		die 'EC data not loaded. "loadEC()" must be called first.';
-	}
-	
-	if ( ! defined $depth )
-	{
-		$depth = () = $ec =~ /\./g;
-		$depth++;
-	}
-	
-	# get parent recursively
-	
-	my $parent;
-	my $parentEC = $ec;
-	
-	$parentEC =~ s/\.?[^\.]+$//; # pop off a number
-	
-	if ( $parentEC )
-	{
-		$parent = addByEC($node, $set, $parentEC, $magnitude, $score, $depth - 1);
+		my $ecString = join '.', @$ec[0..$depth];
+		my $name = $ecNames{$ecString};
+		my $child;
+		
+		if ( defined $node->{'children'}{$name} )
+		{
+			$child = $node->{'children'}{$name};
+		}
+		else
+		{
+			my %newChild = ();
+			
+			$node->{'children'}{$name} = \%newChild;
+			$child = $node->{'children'}{$name};
+			
+			$child->{'ec'}[0] = $ecString;
+		}
+		
+		if ( defined $score )
+		{
+			${$child->{'scoreTotal'}}[$set] += $score * $magnitude;
+			${$child->{'scoreCount'}}[$set] += $magnitude;
+		}
+		
+		addByEC($child, $set, $ec, $queryID, $magnitude, $score, $depth + 1);
 	}
 	else
 	{
-		$parent = $node;
-		$parent->{'magnitude'}[$set] += $magnitude;
-	}
-	
-	# depth early-out
-	#
-	if ( $options{'depth'} && $depth > $options{'depth'} )
-	{
-		return;
-	}
-	
-	# add to parent
-	
-	my $name = $ecNames{$ec};
-	my $child;
-	
-	if ( defined $parent->{'children'}{$name} )
-	{
-		$child = $parent->{'children'}{$name};
-	}
-	else
-	{
-		my %newChild = ();
+		if ( $queryID )
+		{
+			addMember($node, $set, $queryID);
+		}
 		
-		$parent->{'children'}{$name} = \%newChild;
-		$child = $parent->{'children'}{$name};
-		
-		$child->{'ec'}[0] = ecLink($ec);
+		$node->{'unassigned'}[$set]++;
 	}
-	
-	${$child->{'magnitude'}}[$set] += $magnitude;
-	
-	if ( defined $score )
-	{
-		${$child->{'scoreTotal'}}[$set] += $score * $magnitude;
-		${$child->{'scoreCount'}}[$set] += $magnitude;
-	}
-	
-	return $child;
 }
 
 sub addByLineage
 {
 	# add based on an explicit lineage
+	#
+	# Options used:
+	# depth, minConfidence, leafAdd
 	
 	my
 	(
 		$node, # hash ref
 		$dataset, # integer
-		$magnitude, # number
 		$lineage, # array ref
-		$ranks, # array ref (optional)
-		$scores, # number or array ref (optional)
-		$taxID, # integer (optional)
+		$queryID, # (optional) string
+		$magnitude, # (optional) number
+		$scores, # (optional) number or array ref
+		$ranks, # (optional) array ref
 		
 		# for recursion only
 		#
@@ -261,8 +354,7 @@ sub addByLineage
 		$depth # our node depth (since input array elements can be skipped)
 	) = @_;
 	
-	#print "${$node}{'magnitude'}\t$magnitude\t@lineage\n";
-	#print "@$lineage\n";
+	$magnitude = default($magnitude, 1);
 	
 	if ( $options{'leafAdd'} )
 	{
@@ -281,174 +373,192 @@ sub addByLineage
 		$node->{'magnitude'}[$dataset] += $magnitude;
 	}
 	
+	$node->{'count'}[$dataset]++;
+	
+	# skip nameless nodes
+	#
+	while ( $$lineage[$index] eq '' && $index < @$lineage )
+	{
+		$index++;
+	}
+	
+	my $score;
+	
+	if ( ref($scores) eq 'ARRAY' )
+	{
+		$score = $$scores[$index];
+	}
+	else
+	{
+		$score = $scores;
+	}
+	
 	if
 	(
 		$index < @$lineage &&
-		( ! $options{'depth'} || $depth < $options{'depth'} )
+		( ! $options{'depth'} || $depth < $options{'depth'} ) &&
+		(
+			! defined $options{'minConfidence'} ||
+			! defined $score ||
+			$score >= $options{'minConfidence'}
+		)
 	)
 	{
-		my $score;
-		
-		# skip nameless nodes
-		#
-		while ( $$lineage[$index] eq '' )
-		{
-			$index++;
-			
-			if ( $index == @$lineage )
-			{
-				if ( $taxID )
-				{
-					#$node->{'taxon'}[0] = taxonLink($taxID);
-				}
-				
-				return;
-			}
-		}
-		
 		my $name = $$lineage[$index];
+		my $child;
 		
-		if ( ref($scores) eq 'ARRAY' )
+		if ( defined ${$node}{'children'}{$name} )
 		{
-			$score = $$scores[$index];
+			$child = ${$node}{'children'}{$name};
 		}
 		else
 		{
-			$score = $scores;
+			my %newHash = ();
+			${$node}{'children'}{$name} = \%newHash;
+			$child = ${$node}{'children'}{$name};
+			
+			if ( $ranks )
+			{
+				$child->{'rank'}[0] = $$ranks[$index];
+			}
 		}
 		
-		if
-		(
-			! defined $options{'confidence'} ||
-			! defined $score ||
-			$score > $options{'confidence'}
-		)
+		if ( defined $score )
 		{
-			my $child;
-			
-			if ( defined ${$node}{'children'}{$name} )
+			if ( $options{'leafAdd'} )
 			{
-				$child = ${$node}{'children'}{$name};
+				# instead of averaging score for ancestors, directly set it
+				# for the lowest level of the lineage and for any ancestors
+				# whose score is undefined (in case they are never
+				# specified)
+				
+				if
+				(
+					! defined $child->{'scoreTotal'}[$dataset] ||
+					$index == @$lineage - 1
+				)
+				{
+					$child->{'scoreTotal'}[$dataset] = $score;
+					$child->{'scoreCount'}[$dataset] = 1;
+				}
 			}
 			else
 			{
-				my %newHash = ();
-				${$node}{'children'}{$name} = \%newHash;
-				$child = ${$node}{'children'}{$name};
-				
-				if ( $ranks )
-				{
-					$child->{'rank'}[0] = $$ranks[$index];
-				}
+				$child->{'scoreTotal'}[$dataset] += $score * $magnitude;
+				$child->{'scoreCount'}[$dataset] += $magnitude;
 			}
-			
-			if ( defined $score )
-			{
-				if ( $options{'leafAdd'} )
-				{
-					# instead of averaging score for ancestors, directly set it
-					# for the lowest level of the lineage and for any ancestors
-					# whose score is undefined (in case they are never
-					# specified)
-					
-					if
-					(
-						! defined $child->{'scoreTotal'}[$dataset] ||
-						$index == @$lineage - 1
-					)
-					{
-						$child->{'scoreTotal'}[$dataset] = $score;
-						$child->{'scoreCount'}[$dataset] = 1;
-					}
-				}
-				else
-				{
-					$child->{'scoreTotal'}[$dataset] += $score * $magnitude;
-					$child->{'scoreCount'}[$dataset] += $magnitude;
-				}
-#				print "$name\t$score\n";
-			}
-			
-			addByLineage
-			(
-				$child,
-				$dataset,
-				$magnitude,
-				$lineage,
-				$ranks,
-				$scores,
-				$taxID,
-				$index + 1,
-				$depth + 1
-			);
 		}
+		
+		addByLineage
+		(
+			$child,
+			$dataset,
+			$lineage,
+			$queryID,
+			$magnitude,
+			$scores,
+			$ranks,
+			$index + 1,
+			$depth + 1
+		);
+	}
+	else
+	{
+		if ( $queryID )
+		{
+			addMember($node, $dataset, $queryID);
+		}
+		
+		$node->{'unassigned'}[$dataset]++;
 	}
 }
 
 sub addByTaxID
 {
-	# recursive function to add magnitude to specified node and all
-	# ancestors (and create them if they doesn't exist)
+	# add based on NCBI taxonomy ID
+	#
+	# Options used:
+	# depth
 	
 	my
 	(
 		$node, # hash ref
 		$set, # integer
 		$taxID, # integer
-		$magnitude, # number
-		$score # number (optional)
+		$queryID, # string (optional)
+		$magnitude, # number (optional)
+		$score, # number (optional)
+		
+		# recusive only
+		#
+		$assigned
 	) = @_;
+	
+	$magnitude = default($magnitude, 1);
 	
 	if ( $taxID == 0 )
 	{
-		$node->{'magnitude'}[$set] += $magnitude;
-		$node->{'children'}{'No hits'}{'magnitude'}[$set] += $magnitude;
+		$node->{'count'}[$set]++;
+		$node->{'children'}{'No hits'}{'count'}[$set]++;
 		
-		if ( ! defined $node->{'children'}{'No hits'}{'scoreCount'} )
+		my $child = $node->{'children'}{'No hits'};
+		
+		$node->{'magnitude'}[$set] += $magnitude;
+		$child->{'magnitude'}[$set] += $magnitude;
+		
+		if ( ! defined $child->{'scoreCount'} )
 		{
-			$node->{'children'}{'No hits'}{'scoreCount'}[0] = 0;
+			$child->{'scoreCount'}[0] = 0;
+		}
+		
+		if ( $queryID )
+		{
+			addMember($child, $set, $queryID);
 		}
 		
 		return;
 	}
 	
-	# skip unranked taxonomy nodes
+	# move up to depth and skip unranked taxonomy nodes
 	#
-	while ( $taxID > 1 && $ranks[$taxID] eq 'no rank' )
+	while
+	(
+		$taxID > 1 && $taxRanks[$taxID] eq 'no rank' ||
+		$options{'depth'} && $taxDepths[$taxID] > $options{'depth'}
+	)
 	{
-		$taxID = $parents[$taxID];
+		$taxID = $taxParents[$taxID];
 	}
 	
 	# get parent recursively
 	#
 	my $parent;
 	#
-	if ( $parents[$taxID] != 1 )#$taxID )
+	if ( $taxParents[$taxID] != 1 )#$taxID )
 	{
-		$parent = addByTaxID($node, $set, $parents[$taxID], $magnitude, $score);
+		$parent = addByTaxID($node, $set, $taxParents[$taxID], undef, $magnitude, $score, 1);
 	}
 	else
 	{
 		$parent = $node;
+		$parent->{'count'}[$set]++;
 		$parent->{'magnitude'}[$set] += $magnitude;
-	}
-	
-	# depth early-out
-	#
-	if
-	(
-		$options{'depth'} &&
-		$depths[$taxID] > $options{'depth'}
-	)
-	{
-		return;
 	}
 	
 	# add this node to parent
 	#
-	if ( $taxID != 1 )
+	if ( $taxID == 1 )
 	{
-		my $name = $names[$taxID];
+		if ( $queryID )
+		{
+			addMember($parent, $set, $queryID);
+		}
+		
+		$parent->{'unassigned'}[$set]++;
+	}
+	else
+	{
+		my $name = $taxNames[$taxID];
 		
 		my $child;
 		
@@ -463,14 +573,27 @@ sub addByTaxID
 			$parent->{'children'}{$name} = \%newChild;
 			$child = $parent->{'children'}{$name};
 			
-			$child->{'rank'}[0] = $ranks[$taxID];
+			$child->{'rank'}[0] = $taxRanks[$taxID];
 			$child->{'taxon'}[0] = taxonLink($taxID);
+		}
+		
+		if ( $queryID )
+		{
+			addMember($child, $set, $queryID);
+		}
+		
+		${$child->{'count'}}[$set]++;
+		
+		if ( ! $assigned )
+		{
+			$child->{'unassigned'}[$set]++;
 		}
 		
 		${$child->{'magnitude'}}[$set] += $magnitude;
 		
 		if ( defined $score )
 		{
+			$magnitude = default($magnitude, 1);
 			${$child->{'scoreTotal'}}[$set] += $score * $magnitude;
 			${$child->{'scoreCount'}}[$set] += $magnitude;
 		}
@@ -484,57 +607,26 @@ sub classifyBlast
 	# taxonomically classifies BLAST results based on LCA (or random selection)
 	# of 'best' hits.
 	#
-	# Options used: identity, include, radius, random, score
+	# Options used: bitScore, factor, include, percentIdentity, random, score
 	
 	my # parameters
 	(
 		$fileName, # file with tabular BLAST results
-		$magFile, # (optional) file with magnitudes for query IDs
 		
-		# hash refs to be populated (keyed by taxID)
+		# hash refs to be populated with results (keyed by query ID)
 		#
-		$totalMagnitudes,
-		$totalScores,
-		$totalCounts
+		$taxIDs,
+		$scores
 	) = @_;
 	
-	if ( $options{'radius'} < 1 )
-	{
-		print "\nERROR: E-value factor must be at least 1.\n\n";
-		exit;
-	}
-	
-	my %magnitudes;
-	
-	# load magnitudes
-	
-	if ( defined $magFile )
-	{
-		print "   Loading magnitudes from $magFile...\n";
-		
-		open MAG, "<$magFile" or die $!;
-		
-		while ( my $line = <MAG> )
-		{
-			chomp $line;
-			my ( $id, $mag ) = split /\t/, $line;
-			$magnitudes{$id} = $mag;
-		}
-		
-		close MAG;
-	}
-	
-	print "   Classifying BLAST results...\n";
-	
-	open BLAST, "<$fileName";
+	open BLAST, "<$fileName" or ktDie("Could not open $fileName\n");
 	
 	my $lastQueryID;
 	my $topScore;
 	my $topEVal;
 	my $ties;
 	my $taxID;
-	my $score;
-	my $extraMagnitude;
+	my $totalScore;
 	my $zeroEVal;
 	
 	while ( 1 )
@@ -547,19 +639,10 @@ sub classifyBlast
 		{
 			if ( $line =~ /Query: ([\S]+)/ )
 			{
-				# Add the magnitude of the query to the total in case it doesn't
-				# have any hits.
+				# Initialize taxID and score in case this query has no hits
 				
-				my $queryID = $1;
-				
-				if ( defined $magnitudes{$queryID} )
-				{
-					$extraMagnitude += $magnitudes{$queryID};
-				}
-				else
-				{
-					$extraMagnitude++;
-				}
+				$taxIDs->{$1} = -1;
+				$scores->{$1} = 0;
 			}
 			
 			next;
@@ -581,32 +664,26 @@ sub classifyBlast
 			$bitScore
 		) = split /\t/, $line;
 		
-		if ( $queryID ne $lastQueryID && defined $taxID )
+		if ( $queryID ne $lastQueryID )
 		{
-			# add the chosen hit from the last queryID
-			
-			my $magnitude;
-			
-			if ( defined $magnitudes{$lastQueryID} )
+			if
+			(
+				! defined $lastQueryID &&
+				! defined $taxIDs->{$queryID} &&
+				$options{'include'}
+			)
 			{
-				$magnitude = $magnitudes{$lastQueryID};
+				ktWarn("-i specified but $fileName does not contain comment lines. Queries with no hits will not be included for this file."); 
 			}
-			else
+			if (  defined $taxID )
 			{
-				$magnitude = 1;
+				# add the chosen hit from the last queryID
+				
+				$taxIDs->{$lastQueryID} = $taxID;
+				$scores->{$lastQueryID} = $totalScore / $ties;
 			}
-			
-			if ( $options{'verbose'} )
-			{
-				print "$lastQueryID:\ttaxID=$taxID\n";
-			}
-			
-			$totalMagnitudes->{$taxID} += $magnitude;
-			$totalScores->{$taxID} += $score;
-			$totalCounts->{$taxID}++;
-			$extraMagnitude -= $magnitude;
-			
-			$ties = 1;
+			$ties = 0;
+			$totalScore = 0;
 		}
 		
 		if ( ! defined $hitID )
@@ -618,58 +695,60 @@ sub classifyBlast
 		
 		my $gi = $1;
 		
-		if
+		if # this is a 'best' hit if...
 		(
-			$queryID ne $lastQueryID ||
-			(
-				$options{'random'} &&
-				$eVal <= $options{'radius'} * $topEVal &&
-				int(rand(++$ties)) == 0
-			)
+			$queryID ne $lastQueryID || # new query ID (including null at EOF)
+			$eVal <= $options{'factor'} * $topEVal # within e-val factor
 		)
 		{
-			$taxID = getTaxIDFromGI($gi);
-			
-			if ( ! $taxID )
+			# add score for average
+			#
+			if ( $options{'percentIdentity'} )
 			{
-				$taxID = 1;
+				$totalScore += $identity;
 			}
-			
-			if ( $options{'identity'} )
+			elsif ( $options{'bitScore'} )
 			{
-				$score = $identity;
-			}
-			elsif ( $options{'score'} )
-			{
-				$score = $bitScore;
+				$totalScore += $bitScore;
 			}
 			else
 			{
 				if ( $eVal > 0 )
 				{
-					$score = log $eVal;
+					$totalScore += (log $eVal) / log 10;
 				}
 				else
 				{
-					$score = $minEVal;
+					$totalScore += $minEVal;
 					$zeroEVal = 1;
 				}
 			}
-		}
-		elsif
-		(
-			! $options{'random'} &&
-			$eVal <= $options{'radius'} * $topEVal
-		)
-		{
-			my $newTaxID = getTaxIDFromGI($gi);
+			#
+			$ties++;
 			
-			if ( ! $newTaxID )
+			if # use this hit if...
+			(
+				! $options{'random'} || # using LCA
+				$queryID ne $lastQueryID || # new query ID
+				int(rand($ties)) == 0 # randomly chosen to replace other hit
+			)
 			{
-				$newTaxID = 1;
+				my $newTaxID = getTaxIDFromGI($gi);
+				
+				if ( ! $newTaxID )
+				{
+					$newTaxID = 1;
+				}
+				
+				if ( $queryID ne $lastQueryID || $options{'random'} )
+				{
+					$taxID = $newTaxID;
+				}
+				else
+				{
+					$taxID = taxLowestCommonAncestor($taxID, $newTaxID);
+				}
 			}
-			
-			$taxID = lowestCommonAncestor($taxID, $newTaxID);
 		}
 		
 		if ( $queryID ne $lastQueryID )
@@ -681,43 +760,32 @@ sub classifyBlast
 		$lastQueryID = $queryID;
 	}
 	
-	if ( $options{'include'} && $extraMagnitude )
-	{
-		$totalMagnitudes->{0} += $extraMagnitude;
-		$totalScores->{0} = 0;
-		$totalCounts->{0} = 1;
-	}
-	
 	if ( $zeroEVal )
 	{
-		print "   WARNING: $fileName had e-values of 0. Used $minEVal for log.\n";
+		ktWarn("\"$fileName\" had e-values of 0. Approximated log[10] of 0 as $minEVal.");
 	}
 }	
 
-sub contains
+sub default
 {
-	# determines if $parent is an ancestor of (or equal to) $child
+	# Use a variable if it is defined or return a default value if it is not.
 	
-	my ($parent, $child) = @_;
+	my ($value, $default) = @_;
 	
-	my $depthParent = $depths[$parent];
-	
-	while ( $depths[$child] > $depths[$parent] )
+	if ( defined $value )
 	{
-		$child = $parents[$child];
+		return $value;
 	}
-	
-	return $parent == $child;
+	else
+	{
+		return $default;
+	}
 }
-
-our $footer =
-'
-	</data>
-</html>
-';
 
 sub getKronaOptions
 {
+	# Parse command line arguments and set options using Getopt::Long
+	
 	my @options = @_;
 	
 	my %params;
@@ -727,7 +795,12 @@ sub getKronaOptions
 		$params{$optionFormats{$option}} = \$options{$option};
 	}
 	
-	GetOptions(%params);
+	if ( ! GetOptions(%params) )
+	{
+		exit;
+	}
+	
+	validateOptions();
 }
 
 sub getOption
@@ -737,39 +810,83 @@ sub getOption
 	return $options{$option};
 }
 
+sub getOptionString
+{
+	# Make a string from the option format to show as the command line option
+	
+	my ($option) = @_;
+	
+	my ($short, $type) = split /=/, $optionFormats{$option};
+	my $string = "[-$short";
+	
+	if ( defined $type )
+	{
+		$string .= " <$optionTypes{$type}>";
+	}
+	
+	$string .= ']';
+	
+	return $string;
+}
+
+sub getScoreName
+{
+	if ( getOption('bitScore') )
+	{
+		return 'Avg. bit score';
+	}
+	elsif ( getOption('percentIdentity') )
+	{
+		return 'Avg. % identity';
+	}
+	else
+	{
+		return 'Avg. log e-value';
+	}
+}
+
+sub getScriptName
+{
+	return fileparse($0);
+}
+
 sub getTaxDepth
 {
 	my ($taxID) = @_;
 	checkTaxonomy();
-	return depths[$taxID];
+	return taxDepths[$taxID];
 }
 
 sub getTaxName
 {
 	my ($taxID) = @_;
 	checkTaxonomy();
-	return $names[$taxID]
+	return $taxNames[$taxID]
 }
 
 sub getTaxParent
 {
 	my ($taxID) = @_;
 	checkTaxonomy();
-	return $parents[$taxID];
+	return $taxParents[$taxID];
 }
 
 sub getTaxRank
 {
 	my ($taxID) = @_;
 	checkTaxonomy();
-	return $ranks[$taxID];
+	return $taxRanks[$taxID];
 }
 
 sub getTaxIDFromGI
 {
 	my ($gi) = @_;
 	
-	open GI, "<$taxonomyDir/gi_taxid.dat" or die $!;
+	if ( ! open GI, "<$taxonomyDir/gi_taxid.dat" )
+	{
+		print "ERROR: GI to TaxID data not found.  Was updateTaxonomy.sh run?\n";
+		exit 1;
+	}
 	
 	seek GI, $gi * 4, 0;
 	
@@ -791,58 +908,60 @@ sub getTaxIDFromGI
 	}
 }
 
-sub header
+sub htmlFooter
+{
+	return "</div></body></html>\n";
+}
+
+sub htmlHeader
 {
 	my $javascriptPath;
 	my $imagePath;
 	my $faviconPath;
+	my $path;
+	my $notFound;
 	
 	if ( $options{'local'} )
 	{
-		$javascriptPath = $javascriptLocal;
-		$imagePath = $imageLocal;
-		$faviconPath = $faviconLocal;
+		$path = "$libPath/../";
+		$notFound = "This is a local chart and must be viewed on the computer it was created with.";
 	}
 	else
 	{
-		$javascriptPath = "$options{'url'}/$javascript";
-		$imagePath = "$options{'url'}/img/$image";
-		$faviconPath = "$options{'url'}/img/$favicon";
+		$path = "$options{'url'}/";
+		$notFound = "Could not get resources from \\\"$options{'url'}\\\".";
 	}
 	
-	return '
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-	<head>
-		<meta charset="utf-8"/>
-		<style>
-			body
-			{
-				margin:0;
-			}
-		</style>
-		<link rel="shortcut icon" href="' . $faviconPath . '"/>
-	</head>
+	return
+		'<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">' . "\n" .
+		'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">' . "\n" .
+		indent(1) . "<head>\n" .
+			indent(2) . "<meta charset=\"utf-8\"/>\n" .
+#			indent(2) . "<base href=\"$path\" target=\"_blank\"/>\n" .
+			indent(2) . "<link rel=\"shortcut icon\" href=\"$path$favicon\"/>\n" .
+			indent(2) . "<script id=\"notfound\">window.onload=function(){document.body.innerHTML=\"$notFound\"}</script>\n" .
+			indent(2) . "<script src=\"$path$javascript\"></script>\n" .
+		indent(1) . "</head>\n" .
+		indent(1) . "<body>\n" .
+			indent(2) . "<img id=\"hiddenImage\" src=\"$path$image\" style=\"display:none\"/>\n" .
+			indent(2) . "<noscript>Javascript must be enabled to view this page.</noscript>\n" .
+			indent(2) . "<div style=\"display:none\">\n";
+}
+
+sub ktDie
+{
+	my ($error) = @_;
 	
-	<body style="padding:0;position:relative">
-		<div id="options" style="position:absolute;left:0;top:0">
- 		</div>
-		
-		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
-		</div>
-		
-		<canvas id="canvas" width="100" height="100">
-			This browser does not support HTML5 (see
-			<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">
-				Krona browser support</a>).
-		</canvas>
-		
-		<img id="hiddenImage" src="' . $imagePath . '" visibility="hide"/>
-		<script name="tree" src="' . $javascriptPath . '"></script>
-	</body>
+	*STDOUT = *STDERR;
+	printColumns('[ ERROR ]', $error);
+	exit 1;
+}
+
+sub ktWarn
+{
+	my ($warning) = @_;
 	
-	<data>
-';
+	printColumns('   [ WARNING ]', $warning);
 }
 
 sub loadEC
@@ -861,6 +980,28 @@ sub loadEC
 	close EC;
 }
 
+sub loadMagnitudes
+{
+	# load magnitudes from a tab-delimited file listing query IDs and magnitudes
+	
+	my
+	(
+		$magFile, # file name
+		$magnitudes # hash ref (to be populated)
+	) = @_;
+	
+	open MAG, "<$magFile" or die "Couldn't load $magFile";
+	
+	while ( my $line = <MAG> )
+	{
+		chomp $line;
+		my ( $id, $mag ) = split /\t/, $line;
+		$magnitudes->{$id} = $mag;
+	}
+	
+	close MAG;
+}
+
 sub loadTaxonomy
 {
 	open INFO, "<$taxonomyDir/taxonomy.tab" or die
@@ -871,16 +1012,203 @@ sub loadTaxonomy
 		chomp $line;
 		my ($id, $depth, $parent, $rank, $name) = split /\t/, $line;
 		
-		$parents[$id] = $parent;
-		$depths[$id] = $depth;
-		$ranks[$id] = $rank;
-		$names[$id] = $name;
+		$taxParents[$id] = $parent;
+		$taxDepths[$id] = $depth;
+		$taxRanks[$id] = $rank;
+		$taxNames[$id] = $name;
 	}
 	
 	close INFO;
 }
 
-sub lowestCommonAncestor
+sub newTree
+{
+	my %tree = ();
+	return \%tree;
+}
+
+sub parseDataset
+{
+	my ($input) = @_;
+	
+	$input =~ /([^:,]+)(:([^,]+))?(,"?([^"]+)"?)?/;
+	
+	my ($file, $mag, $name) = ($1, $3, $5);
+	
+	if ( ! defined $name )
+	{
+		$name = fileparse($file, qr/\.[^.]*/); # get dataset name from file
+	}
+	
+	$name =~ s/</&amp;lt;/g;
+	$name =~ s/>/&amp;gt;/g;
+	
+	return ($file, $mag, $name);
+}
+
+sub printColumns
+{
+	# Prints headers and descriptions in two columns. Even indeces of the
+	# parameters should be headers (left column); odd indeces should be
+	# descriptions (right column).
+	
+	my @columns = @_;
+	
+	my $maxHeaderLength;
+	
+	for ( my $i = 0; $i < @columns; $i += 2 )
+	{
+		if ( length $columns[$i] > $maxHeaderLength )
+		{
+			$maxHeaderLength = length $columns[$i];
+		}
+	}
+	
+	for ( my $i = 0; $i < @columns; $i += 2 )
+	{
+		if ( $i > 0 )
+		{
+			print "\n";
+		}
+		
+		printHangingIndent
+		(
+			$columns[$i],
+			$columns[$i + 1],
+			$maxHeaderLength + 2
+		);
+	}
+}
+
+sub printHeader
+{
+	# Prints a string with decoration
+	
+	my ($header) = @_;
+	
+	my $width = length($header) + 2;
+	
+	print ' ', '_' x $width, "\n";
+	print '/ ', $header, " \\\n";
+	print '\\', '_' x $width, "/\n\n";
+}
+
+sub printOptions
+{
+	# Takes a list of standard KronaTools options (defined in
+	# %optionDescriptions) and prints them with their descriptions in columns.
+	
+	my @options = @_;
+	
+	my @optionColumns;
+	
+	foreach my $option ( @options )
+	{
+		my $header = '   ' . getOptionString($option);
+		my $description = $optionDescriptions{$option};
+		
+		if ( defined $options{$option} )
+		{
+			$description .= " [Default: '$options{$option}']";
+		}
+		
+		push @optionColumns, $header, $description;
+	}
+	
+	printHeader('Options');
+	printColumns(@optionColumns);
+	print "\n";
+}
+
+sub printUsage
+{
+	my
+	(
+		$description, # script description
+		$argumentName,
+		$argumentDescription,
+		$useMagnitude, # show optional magnitude argument
+		$useName, # show optional name argument
+		$options # array ref of option names, defined in %option*
+	) = @_;
+	
+	my $scriptName = getScriptName();
+	
+	printHeader($scriptName);
+	printHangingIndent('', $description);
+	printHeader('Usage');
+	print "$scriptName \\\n";
+	print "   [options] \\\n";
+	print
+		'   ', 
+		argumentString($argumentName, $useMagnitude, $useName, 1),
+		" \\\n";
+	print
+		'   ',
+		argumentString($argumentName, $useMagnitude, $useName, 2),
+		" \\\n";
+	print "   ...\n\n";
+	
+	my $combineString;
+	
+	foreach my $option ( @$options )
+	{
+		if ( $option eq 'combine' )
+		{
+			$combineString =
+' By default, separate datasets will be created for each input (see ' .
+getOptionString('combine') . ').'
+		}
+	}
+	
+	my @columns =
+	(
+		"   $argumentName",
+		$argumentDescription . $combineString
+	);
+	
+	if ( $useMagnitude )
+	{
+		push @columns,
+			"   $argumentNames{'magnitude'}",
+			$argumentDescriptions{'magnitude'};
+	}
+	
+	if ( $useName )
+	{
+		push @columns,
+			"   $argumentNames{'name'}",
+			$argumentDescriptions{'name'};
+	}
+	
+	printColumns(@columns);
+	printOptions(@$options);
+}
+
+sub setOption
+{
+	my ($option, $value) = @_;
+	
+	$options{$option} = $value;
+}
+
+sub taxContains
+{
+	# determines if $parent is an ancestor of (or equal to) $child
+	
+	my ($parent, $child) = @_;
+	
+	my $depthParent = $taxDepths[$parent];
+	
+	while ( $taxDepths[$child] > $taxDepths[$parent] )
+	{
+		$child = $taxParents[$child];
+	}
+	
+	return $parent == $child;
+}
+
+sub taxLowestCommonAncestor
 {
 	my ($a, $b) = @_;
 	
@@ -900,18 +1228,18 @@ sub lowestCommonAncestor
 	
 	# walk the nodes up to an equal depth
 	#
-	my $depthA = $depths[$a];
-	my $depthB = $depths[$b];
+	my $depthA = $taxDepths[$a];
+	my $depthB = $taxDepths[$b];
 	#
 	while ( $depthA > $depthB )
 	{
-		$a = $parents[$a];
+		$a = $taxParents[$a];
 		$depthA--;
 	}
 	#
 	while ( $depthB > $depthA )
 	{
-		$b = $parents[$b];
+		$b = $taxParents[$b];
 		$depthB--;
 	}
 	
@@ -927,110 +1255,18 @@ sub lowestCommonAncestor
 			return 1;
 		}
 		
-		$a = $parents[$a];
-		$b = $parents[$b];
+		$a = $taxParents[$a];
+		$b = $taxParents[$b];
 	}
 	
 	return $a;
-}
-
-sub newTree
-{
-	my %tree = ();
-	return \%tree;
-}
-
-sub parseDataset
-{
-	my ($input) = @_;
-	
-	$input =~ /([^:,]+)(:([^,]+))?(,"?([^"]+)"?)?/;
-	
-	my ($file, $mag, $name) = ($1, $3, $5);
-	
-	if ( defined $name )
-	{
-		$name =~ s/</&amp;lt;/g;
-		$name =~ s/>/&amp;gt;/g;
-	}
-	else
-	{
-		# get dataset name from file
-		
-		$file =~ /([^\/]+)\./;
-		$name = $1;
-	}
-	
-	#print "$file\t$mag\t$name\n";
-	return ($file, $mag, $name);
-}
-
-sub printOptions
-{
-	my @options = @_;
-	
-	my %headers;
-	my $maxHeaderLength;
-	
-	foreach my $option ( @options )
-	{
-		my ($short, $type) = split /=/, $optionFormats{$option};
-		
-		my $header = "   [-$short";
-		
-		if ( defined $type )
-		{
-			$header .= " <$optionTypes{$type}>";
-		}
-		
-		$header .= ']';
-		
-		if ( length $header > $maxHeaderLength )
-		{
-			$maxHeaderLength = length $header;
-		}
-		
-		$headers{$option} = $header;
-	}
-	
-	print "Options:\n\n";
-	
-	foreach my $option ( @_ )
-	{
-		my $description = $optionDescriptions{$option};
-		
-		if ( defined $options{$option} )
-		{
-			$description .= " [Default: '$options{$option}']";
-		}
-		
-		printHangingIndent
-		(
-			$headers{$option},
-			$description,
-			$maxHeaderLength + 2
-		);
-	}
-}
-
-sub scriptName
-{
-	$0 =~ /([^\/]+)$/;
-	return $1;
-}
-
-sub setOption
-{
-	my ($option, $value) = @_;
-	
-	$options{$option} = $value;
 }
 
 sub taxIDExists
 {
 	my ($taxID) = @_;
 	checkTaxonomy();
-	return defined $depths[$taxID];
+	return defined $taxDepths[$taxID];
 }
 
 sub writeTree
@@ -1042,18 +1278,23 @@ sub writeTree
 	my
 	(
 		$tree, # hash ref to head node of tree
-		$magName, # name of attribute to use as magnitude
-		$attributes, # array ref with names of attributes
+		$attributes, # array ref with names of attributes to display
 		$attributeDisplayNames, # array ref with display names for $attributes
 		$datasetNames, # array ref with names of datasets
-		$hueName, # (optional) name of attribute to use for hue
-		$hueStart, # (optional) hue at the start of the gradient
-		$hueEnd # (optional) hue at the end of the gradient
+		$hueStart, # (optional) hue at the start of the gradient for score
+		$hueEnd # (optional) hue at the end of the gradient for score
 	) = @_;
+	
+	my %attributeHash;
+	
+	for ( my $i = 0; $i < @$attributes; $i++ )
+	{
+		$attributeHash{$$attributes[$i]} = $$attributeDisplayNames[$i];
+	}
 	
 	my ($valueStart, $valueEnd);
 	
-	if ( defined $hueName )
+	if ( defined $hueStart && defined $hueEnd )
 	{
 		($valueStart, $valueEnd) = setScores($tree);
 	}
@@ -1061,21 +1302,24 @@ sub writeTree
 	print "Writing $options{'out'}...\n";
 	
 	open OUT, ">$options{'out'}";
-	print OUT header();
+	print OUT htmlHeader();
 	print OUT dataHeader
 	(
-		$magName,
+		defined $attributeHash{'magnitude'} ? 'magnitude' : 'count',
 		$attributes,
 		$attributeDisplayNames,
 		$datasetNames,
-		$hueName,
+		'unassigned',
+		'count',
+		defined $hueStart ? 'score' : undef,
 		$hueStart,
 		$hueEnd,
 		$valueStart,
 		$valueEnd
 	);
-	print OUT toStringXML($tree, $options{'name'}, 1);
-	print OUT $footer;
+	print OUT toStringXML($tree, $options{'name'}, 0, \%attributeHash);
+	print OUT dataFooter();
+	print OUT htmlFooter();
 	close OUT;
 }
 
@@ -1085,12 +1329,72 @@ sub writeTree
 ################
 
 
+sub addMember
+{
+	my ($node, $set, $member) = @_;
+	
+#	$member =~ s/,/\\,/g;
+#	$member =~ s/ /&#32;/g;
+#	$member =~ s/"/&quot;/g;
+	
+	push @{$node->{'members'}[$set]}, $member;
+}
+
+sub argumentString
+{
+	my
+	(
+		$argumentName,
+		$useMagnitude,
+		$useName,
+		$number
+	) = @_;
+	
+	my $return;
+	
+	my $numberString;
+	
+	if ( $number > 0 )
+	{
+		$numberString = "_$number";
+	}
+	
+	if ( $number > 1 )
+	{
+		$return .= '[';
+	}
+	
+	$return .= "$argumentName$numberString";
+	
+	if ( $useMagnitude )
+	{
+		$return .= "[:$argumentNames{'magnitude'}$numberString]";
+	}
+	
+	if ( $useName )
+	{
+		$return .= "[,$argumentNames{'name'}$numberString]";
+	}
+	
+	if ( $number > 1 )
+	{
+		$return .= ']';
+	}
+	
+	return $return;
+}
+
 sub checkTaxonomy
 {
-	if ( ! @parents )
+	if ( ! @taxParents )
 	{
 		die 'Taxonomy not loaded. "loadTaxonomy()" must be called first.';
 	}
+}
+
+sub dataFooter
+{
+	return indent(2) . "</krona>\n";
 }
 
 sub dataHeader
@@ -1101,6 +1405,8 @@ sub dataHeader
 		$attributes,
 		$attributeDisplayNames,
 		$datasetNames,
+		$assignedName,
+		$summaryName,
 		$hueName,
 		$hueStart,
 		$hueEnd,
@@ -1108,49 +1414,131 @@ sub dataHeader
 		$valueEnd
 	) = @_;
 	
-	my $attributeString;
-	my $colorString;
+	my $header =
+	indent(2) . '<krona collapse="' . ($options{'collapse'} ? 'true' : 'false') .
+	'" key="' . ($options{'key'} ? 'true' : 'false') . "\">\n" .
+	indent(3) . "<attributes magnitude=\"$magName\">\n";
 	
-	for ( my $i = 0; $i < @$attributes; $i++ )
+	# members
+	#
+	my $assignedText;
+	my $summaryText;
+	#
+	if ( $assignedName && $summaryName )
 	{
-		$attributeString .= " $$attributes[$i]=\"$$attributeDisplayNames[$i]\"";
+		$header .= indent(4) . "<list>members</list>\n";
+		$assignedText = " listNode=\"members\"";
+		$summaryText = " listAll=\"members\"";
 	}
 	
+	# attributes
+	#
+	for ( my $i = 0; $i < @$attributes; $i++ )
+	{
+		my $attributeText;
+		my $name = $$attributes[$i];
+		
+		if ( $$attributeDisplayNames[$i] )
+		{
+			$attributeText .= " display=\"$$attributeDisplayNames[$i]\"";
+		}
+		
+		if ( $name eq 'count' )
+		{
+			# attach to list of members as summary of children
+			
+			$attributeText .= $summaryText;
+		}
+		elsif ( $name eq 'unassigned' )
+		{
+			# attach to list of members as node list
+			
+			$attributeText .= $assignedText;
+		}
+		elsif ( $name eq 'taxon' )
+		{
+			$attributeText .= " hrefBase=\"$taxonomyHrefBase\" target=\"taxonomy\"";
+		}
+		elsif ( $name eq 'ec' )
+		{
+			$attributeText .= " hrefBase=\"$ecHrefBase\" target=\"ec\"";
+		}
+		
+		if
+		(
+			$name eq 'taxon' ||
+			$name eq 'ec' ||
+			$name eq 'rank'
+		)
+		{
+			$attributeText .= ' mono="true"';
+		}
+		
+		$header .= indent(4) . "<attribute$attributeText>$$attributes[$i]</attribute>\n";
+	}
+	
+	$header .= indent(3) . "</attributes>\n";
+	
+	if ( @$datasetNames )
+	{
+		$header .= indent(3) . "<datasets>\n";
+		
+		foreach my $dataset ( @$datasetNames )
+		{
+			$dataset =~ s/</&lt;/g;
+			$dataset =~ s/>/&gt;/g;
+			
+			$header .= indent(4) . "<dataset>$dataset</dataset>\n";
+		}
+		
+		$header .= indent(3) . "</datasets>\n";
+	}
+	
+	# hue
+	#
 	if ( defined $hueName )
 	{
 		my $colorDefault = $options{'color'} ? 'true' : 'false';
 		
-		$colorString =
-			"<color attribute=\"$hueName\" " .
+		$header .=
+			indent(3) . "<color attribute=\"$hueName\" " .
 			"hueStart=\"$hueStart\" hueEnd=\"$hueEnd\" " .
 			"valueStart=\"$valueStart\" valueEnd=\"$valueEnd\" " .
 			"default=\"$colorDefault\" " .
-			"></color>";
+			"></color>\n";
 	}
 	
-	return '
-	<options collapse="' . ($options{'collapse'} ? 'true' : 'false') .
-	'" key="' . ($options{'showKey'} ? 'true' : 'false') . '"></options>
-	<magnitude attribute="'. $magName . '"></magnitude>
-	<attributes' . $attributeString . '></attributes>
-	<datasets names="' . (join ',', @$datasetNames) . '"></datasets>
-	' . "$colorString\n";
+	return $header;
 }
 
 sub ecLink
 {
 	my ($ec) = @_;
 	
-	my @numbers = split /\./, $ec;
+	my $path = $ec;
 	
-	my $path = join '/', @numbers;
+	my $count = ($path =~ s/\./\//g);
 	
-	if ( @numbers == 4 )
+	if ( $count == 3 )
 	{
 		$path .= ".html";
 	}
 	
-	return "<a target='_blank' href='http://www.chem.qmul.ac.uk/iubmb/enzyme/EC$path'>EC$ec</a>";
+	return $path;
+}
+
+sub ecText
+{
+	my ($ec) = @_;
+	
+	return "EC $ec";
+}
+
+sub indent
+{
+	my ($depth) = @_;
+	
+	return ' ' x $depth;
 }
 
 sub printHangingIndent
@@ -1159,9 +1547,19 @@ sub printHangingIndent
 	
 	my @words = split /\s+/, $text;
 	
-	my $col = $tab;
+	my $col;
 	
-	print $header, ' ' x ($tab - (length $header) - 1);
+	if ( $header )
+	{
+		print $header, ' ' x ($tab - (length $header) - 1);
+		$col = $tab;
+	}
+	else
+	{
+		my $word = shift @words;
+		print $word;
+		$col = length $word;
+	}
 	
 	foreach my $word ( @words )
 	{
@@ -1179,7 +1577,7 @@ sub printHangingIndent
 		}
 	}
 	
-	print "\n\n";
+	print "\n";
 }
 
 sub setScores
@@ -1207,11 +1605,11 @@ sub setScores
 				{
 					if ( $score > 0 )
 					{
-						$score = log $score;
+						$score = (log $score) / log 10;
 					}
 					else
 					{
-						$score = -413;
+						$score = $minEVal;
 					}
 				}
 				
@@ -1230,20 +1628,7 @@ sub setScores
 				$score = 0;
 			}
 			
-			if (1)
-			{
-				$score = sprintf("%g", $score);
-			}
-			elsif ( $score < 1 )
-			{
-				$score = sprintf("%.4e", $score);
-			}
-			else
-			{
-				$score = sprintf("%.2f", $score);
-			}
-			
-			${$node->{'score'}}[$i] = $score;
+			${$node->{'score'}}[$i] = sprintf("%g", $score);
 		}
 	}
 	
@@ -1273,38 +1658,109 @@ sub taxonLink
 {
 	my ($taxID) = @_;
 	
-	return "<a target='taxonomy' href='http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=$taxID'>$taxID</a>";
+	return $taxID;
 }
 
 sub toStringXML
 {
-	my ($node, $name, $depth) = @_;
+	my ($node, $name, $depth, $attributeHash) = @_;
 	
-	my $htmlString = '';
-	my $hueString = '';
+	my $string;
+	my $href;
 	
-	my $attributeString;
-	my $colorString;
+	if ( $node->{'href'} )
+	{
+		$href = " href=\"$node->{'href'}\"";
+	}
+	
+	$string = indent($depth) . "<node name=\"$name\"$href>\n";
 	
 	foreach my $key ( keys %$node )
 	{
-		if ( $key ne 'children' && $key ne 'scoreCount' && $key ne 'scoreTotal' )
+		if
+		(
+			$key ne 'children' &&
+			$key ne 'scoreCount' &&
+			$key ne 'scoreTotal' &&
+			$key ne 'href' &&
+			( keys %{$node->{'children'}} || $key ne 'unassigned' ) &&
+			( $key eq 'members' || defined $$attributeHash{$key} )
+		)
 		{
-			$attributeString .= (" $key=\"" . (join ',', @{$node->{$key}}) . '"');
+			$string .= indent($depth + 1) . "<$key>";
+			
+			foreach my $value ( @{$node->{$key}} )
+			{
+				if ( $key eq 'members' )
+				{
+					$string .= "\n" . indent($depth + 2) . "<vals>";
+					
+					foreach my $member ( @$value )
+					{
+						$member =~ s/</&lt;/g;
+						$member =~ s/>/&gt;/g;
+						
+						$string .= "<val>$member</val>";
+					}
+					
+					$string .= "</vals>";
+				}
+				else
+				{
+					my $href;
+					
+					if ( $key eq 'taxon' )
+					{
+						$href = ' href="' . taxonLink($value) . '"';
+					}
+					elsif ( $key eq 'ec' )
+					{
+						$href = ' href="' . ecLink($value) . '"';
+						$value = ecText($value);
+					}
+					
+					$value =~ s/</&lt;/g;
+					$value =~ s/>/&gt;/g;
+					
+					$string .= "<val$href>$value</val>";
+				}
+			}
+			
+			if ( $key eq 'members' )
+			{
+				$string .= "\n" . indent($depth + 1);
+			}
+			
+			$string .= "</$key>\n";
 		}
 	}
-	
-	my $string = "\t" x $depth . "<node name=\"$name\"$attributeString>\n";
 	
 	if ( defined $node->{'children'} )
 	{
 		foreach my $child (keys %{$node->{'children'}})
 		{
-			$string .= toStringXML($node->{'children'}{$child}, $child, $depth + 1);
+			$string .= toStringXML($node->{'children'}{$child}, $child, $depth + 1, $attributeHash);
 		}
 	}
 	
-	return $string . "\t" x $depth . "</node>\n";
+	return $string . indent($depth) . "</node>\n";
+}
+
+sub validateOptions
+{
+	if ( $options{'factor'} < 1 )
+	{
+		my $factor = getOptionString('factor');
+		ktDie("E-value factor ($factor) must be at least 1.");
+	}
+	
+	if ( $options{'percentIdentity'} && $options{'bitScore'} )
+	{
+		my $pi = getOptionString('percentIdentity');
+		my $bs = getOptionString('bitScore');
+		
+		ktDie("Cannot use $bs and $pi together.");
+	}
 }
 
 

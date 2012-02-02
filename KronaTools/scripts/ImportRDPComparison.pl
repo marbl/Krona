@@ -12,17 +12,18 @@ use strict;
 use lib (`ktGetLibPath`);
 use KronaTools;
 
-my $minScore = -300;
-
-my $script = scriptName();
-
 setOption('name', 'root');
-setOption('out', 'RDP.comp.krona.html');
+setOption('out', 'rdp.comp.krona.html');
+
+# Prevent the magnitude and score of each classification from being added to its
+# ancestors. This is necessary because internal nodes are explicitly listed in
+# the RDP comparison results.
+#
 setOption('leafAdd', 1);
 
 my @options =
 qw(
-	name1,
+	name
 	out
 	depth
 	hueBad
@@ -38,15 +39,29 @@ if
 	@ARGV < 1
 )
 {
-	print "
-
-$script [options] comparison.txt [name1] [name2]
-
-Creates a Krona chart from an RDP library comparison.
+	my $scriptName = getScriptName();
+	
+	printHeader($scriptName);
+	print
+'Creates a Krona chart from an RDP library comparison.
+';
+	printHeader('Usage');
+	print
+"$scriptName [options] rdp_comparison [name1] [name2]
 
 ";
+	printColumns
+	(
+		'   rdp_comparison',
+		'RDP comparison result downloaded as text.',
+		'   name',
+'A name for each library to appear in the chart. The default is "Library
+[1/2]".',
+	);
+	
 	printOptions(@options);
-	exit;
+	
+	exit 0;
 }
 
 my @ranks =
@@ -59,16 +74,12 @@ my @ranks =
 	'Genus',
 );
 
-my %all;
+my $tree = newTree();
 my ($fileName, $name1, $name2) = @ARGV;
 
 if ( ! defined $name1 )
 {
 	$name1 = 'Library 1';
-}
-
-if ( ! defined $name2 )
-{
 	$name2 = 'Library 2';
 }
 
@@ -90,8 +101,7 @@ do
 	
 	if ( ! $line )
 	{
-		print "Error: $fileName is not RDP comparison file.\n";
-		exit;
+		ktDie("\"$fileName\" is not RDP comparison file.");
 	}
 }
 while ( <INFILE> !~ /^Rank/ );
@@ -115,15 +125,11 @@ while ( my $line = <INFILE> )
 		$taxon =~ s/"/&quot;/g;
 		
 		my @scores;
-#"		
+		
 		if ( $rank ) # no rank means unclassified, so no score
 		{
 			push @lineage, $taxon;
 			shift @lineage; # remove root
-			
-			# leave the rest undefined so the score will only be applied to the leaf
-			#
-			#$scores[@lineage - 1] = $score;
 			
 			if ( $score )
 			{
@@ -131,21 +137,22 @@ while ( my $line = <INFILE> )
 			}
 			else
 			{
-				$score = $minScore;
+				$score = $KronaTools::minEVal;
 				$minScores++;
 			}
 			
-			addByLineage(\%all, 0, $mag1, \@lineage, undef, $score);
-			addByLineage(\%all, 1, $mag2, \@lineage, undef, $score);
+			addByLineage($tree, 0, \@lineage, undef, $mag1, $score);
+			addByLineage($tree, 1, \@lineage, undef, $mag2, $score);
 		}
-		
-#		print "$lineageString\n@lineage\n\n";
 	}
 }
 
 close INFILE;
 
-print "\nWarning: Couldn't log of 0 for $minScores scores.  Used -300.\n\n";
+if ( $minScores)
+{
+	print "\nWarning: Couldn't log[10] of 0 for $minScores scores.  Approximated as $KronaTools::minEVal.\n\n";
+}
 
 my @attributeNames =
 (
@@ -161,12 +168,10 @@ my @attributeDisplayNames =
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
 	getOption('hueGood'),
 	getOption('hueBad')
 );

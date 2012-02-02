@@ -17,6 +17,16 @@ function die
 	exit 1
 }
 
+function clean
+{
+	aFile=$1
+	
+	if [ -e "$aFile" ]
+	then
+		rm $aFile
+	fi
+}
+
 function update
 {
 	unzipped=$1
@@ -34,14 +44,19 @@ function update
 			die "Could not find $oldPath/taxonomy/$zipped.  Was it transfered?"
 		fi
 	else
-		curl -R -z $timestamp -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
+        if [ -e $timestamp ]
+        then
+            timestring=" -z $timestamp"
+        fi
+		
+		curl$timestring -R --retry 1 -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
 		return=$?
 		
 		if [ $return == "23" ]
 		then
 			die "Could not write '$oldPath/taxonomy/$zipped'. Do you have permission?"
 		fi
-		echo $return
+		
 		if [ $return != "0" ]
 		then
 			die "Is your internet connection okay?"
@@ -50,7 +65,7 @@ function update
 	
 	if [ $zipped -nt $timestamp ]
 	then
-		echo "     >>>>> Unzipping $description..."
+		echo ">>>>> Unzipping $description..."
 		gunzip -f $zipped
 		
 		if [ $? != "0" ]
@@ -58,7 +73,7 @@ function update
 			die "Could not unzip $oldPath/taxonomy/$zipped. Do you have permission?"
 		fi
 	else
-		echo "     >>>>> $description is up to date."
+		echo ">>>>> $description is up to date."
 	fi
 	
 	echo ""
@@ -99,17 +114,18 @@ echo ""
 
 if [ taxonomy/nodes.dmp -nt taxonomy/taxonomy.tab ]
 then
-	echo ">>>>> Extracting node info..." 
+	echo ">>>>> Extracting taxonomy info..." 
 	./scripts/extractTaxonomy.pl
 else
-	echo ">>>>> Node info is up to date"
+	echo ">>>>> Taxonomy info is up to date"
 fi
 
+echo
 echo ">>>>> Cleaning up..."
 
-rm taxonomy/*.dmp
-rm taxonomy/gc.prt
-rm taxonomy/readme.txt
+clean taxonomy/*.dmp
+clean taxonomy/gc.prt
+clean taxonomy/readme.txt
 
 echo
 echo ">>>>> Finished."

@@ -32,24 +32,26 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-ktImportText [options] file1.txt[,name1] [file2.txt[,name2]] ...
-
-Creates a Krona chart based on a text file that lists quantities and lineages.
-Each line should be a number followed by a list of wedges to contribute to
-(starting from the highest level), separated by tabs.  If no wedges are listed
-(and just a number is given), it will contribute to the top level.  If the same
-lineage is listed more than once, the values will be added.  To have each line
-count as 1 instead of specifying quantities, use -q.  By default, separate
-datasets will be created for each file (see -c).
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+		'Creates a Krona chart from text files listing quantities and
+lineages.',
+		'text',
+		'Tab-delimited text file. Each line should be a number followed by a
+list of wedges to contribute to (starting from the highest level). If no wedges
+are listed (and just a quantity is given), it will contribute to the top level.
+If the same lineage is listed more than once, the values will be added.
+Quantities can be omitted if -q is specified. Lines beginning with "#" will be
+ignored.',
+		0,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
-my %all;
+my $tree = newTree();
 my @datasetNames;
 my $set = 0;
 
@@ -57,15 +59,23 @@ foreach my $input ( @ARGV )
 {
 	my ($fileName, $magFile, $name) = parseDataset($input);
 	
-	push @datasetNames, $name;
+	if ( ! getOption('combine') )
+	{
+		push @datasetNames, $name;
+	}
 	
 	open INFILE, "<$fileName" or die $!;
 	
-	while ( my $line = <INFILE> )
+	while ( <INFILE> )
 	{
-		chomp $line;
+		if ( /^#/ )
+		{
+			next;
+		}
 		
-		my @lineage = split /\t/, $line;
+		chomp;
+		
+		my @lineage = split /\t/;
 		my $magnitude;
 		
 		if ( getOption('noMag') )
@@ -77,7 +87,7 @@ foreach my $input ( @ARGV )
 			$magnitude = shift @lineage;
 		}
 		
-		addByLineage(\%all, $set, $magnitude, \@lineage);
+		addByLineage($tree, $set, \@lineage, undef, $magnitude);
 	}
 	
 	if ( ! getOption('combine') )
@@ -90,20 +100,18 @@ foreach my $input ( @ARGV )
 
 my @attributeNames =
 (
-	'magnitude'
+	'magnitude',
 );
 
 my @attributeDisplayNames =
 (
-	'Total'
+	'Total',
 );
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames
 );
-

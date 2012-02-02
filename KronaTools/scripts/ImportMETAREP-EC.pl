@@ -33,43 +33,35 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-Description:
-   Creates a Krona chart of EC (Enzyme Commission) numbers in annotation.tab
-   files of METAREP data folders.  By default, separate datasets for each folder
-   will be created and named after the folder (see -c), and queries with no EC
-   number will be ignored (see -i).
-
-Usage:
-
-ktImportMETAREP [options] <folder_1> <folder_2> ...
-
-Input:
-
-<folders>       METAREP data folders containing an unzipped annotation.tab file.
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+'Creates a Krona chart of abundances of EC (Enzyme Commission) numbers in METAREP
+data folders. By default, queries with no EC number will be ignored (see -i).',
+		$KronaTools::argumentNames{'metarep'},
+		$KronaTools::argumentDescriptions{'metarep'},
+		0,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
 my $tree = newTree();
 
 print "Loading EC names...\n";
-
 loadEC();
 
-my $lastReadID;
 my $set = 0;
 my @datasetNames;
 
-foreach my $folder (@ARGV)
+foreach my $input (@ARGV)
 {
+	my ($folder, $magFile, $name) = parseDataset($input);
+	
 	if ( ! getOption('combine') )
 	{
-		$folder =~ /([^\/]+)\/*$/;
-		push @datasetNames, $1;
+		push @datasetNames, $name;
 	}
 	
 	print "Importing $folder...\n";
@@ -93,15 +85,21 @@ foreach my $folder (@ARGV)
 		
 		while ( $ec =~ s/\.-$// ) {}; # repeatedly remove trailing '.-'
 		
-		if ( $ec =~ /[-\|]/ )
+		if ( $ec ne '' && $ec !~ /^[\d\.]+$/ )
 		{
-			print "   Warning ($readID):\n";
-			print "      Bad EC ('$values[11]'); ignoring.\n";
+			ktWarn("$readID: Bad EC ('$values[11]'); ignoring.");
 			$ec = '';
 		}
 		if ( $ec || getOption('include') )
 		{
-			addByEC($tree, $set, $ec, 1);
+			my @ecs;
+			
+			if ( $ec )
+			{
+				@ecs = split /\./, $ec;
+			}
+			
+			addByEC($tree, $set, \@ecs, $readID);
 		}
 	}
 	
@@ -115,20 +113,21 @@ foreach my $folder (@ARGV)
 
 my @attributeNames =
 (
-	'magnitude',
+	'count',
+	'unassigned',
 	'ec',
 );
 
 my @attributeDisplayNames =
 (
-	'Total',
+	'Peptides',
+	'Unassigned',
 	'EC'
 );
 
 writeTree
 (
 	$tree,
-	'magnitude',
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames

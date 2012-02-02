@@ -12,20 +12,17 @@ use strict;
 use lib (`ktGetLibPath`);
 use KronaTools;
 
-my $totalMag;
-
 my @options =
 qw(
 	out
-	radius
+	factor
 	random
-	identity
-	score
-	verbose
+	percentIdentity
+	bitScore
+	summarize
 );
 
 setOption('out', 'blast.taxonomy.tab');
-setOption('include', 1);
 
 getKronaOptions(@options);
 
@@ -34,63 +31,57 @@ if
 	@ARGV < 1
 )
 {
- 	print '
-
-Description:
-   Infers taxonomic abundance from BLAST results.
-
-Usage:
-
-ktClassifyBLAST [options] \
-   blast_output_1[:magnitude_file_1] \
-   blast_output_2[:magnitude_file_2] \
-   ...
-
-Input:
-
-   blast_output      File containing BLAST results in tabular format ("Hit table
-                     (text)" when downloading from NCBI).  If running BLAST
-                     locally, subject IDs in the local database must contain GI
-                     numbers in "gi|12345" format.
-   
-   [magnitude_file]  Optional file listing query IDs with magnitudes, separated
-                     by tabs.  The can be used to account for read length or
-                     contig depth to obtain a more accurate representation of
-                     abundance.  By default, query sequences without specified
-                     magnitudes will be assigned a magnitude of 1.  Magnitude
-                     files for Newbler or Celera Assembler assemblies can be
-                     created with getContigMagnitudesNewbler.pl or
-                     getContigMagnitudesCA.pl
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+'Assigns each query in tabular BLAST results to an NCBI taxonomy ID. If the
+results contain comment lines, queries with no hits will be included in the
+output (with taxonomy IDs of -1 for consistency with MEGAN).',
+		$KronaTools::argumentNames{'blast'},
+		$KronaTools::argumentDescriptions{'blast'},
+		0,
+		0,
+		\@options
+	);
+	printHeader('Output');
+	printColumns
+	(
+		'Default:',
+		'<queryID> <taxID> <score>',
+		'Summarized (-s):',
+		'<count> <taxID> <score>'
+	);
+	print "\n";
+	printColumns
+	(
+		'   queryID',
+		'The query ID as it appears in the BLAST results.',
+		'   taxID',
+'The NCBI taxonomy ID the query was assigned to (or -1 if it has no hits).',
+		'   score',
+'The score of the assignment(s); by default, the average E-value of "best" hits
+(see -e, -p, -b).',
+		'   count',
+		'The number of assignments.'
+	);
+	print "\n";
+	
+	exit 0;
 }
-
-my %bestScores;
-my %lca;
-my %lcaMag;
 
 # load taxonomy
 
 print "Loading taxonomy...\n";
 loadTaxonomy();
 
-my %magnitudes;
-my %totalScores;
-my %counts;
+my %taxIDs;
+my %scores;
 
 # parse BLAST results
 
-foreach my $input (@ARGV)
+foreach my $fileName (@ARGV)
 {
-	my ($fileName, $magFile) = split /:/, $input;
-	
-	$fileName =~ /([^\/]+)\./;
-	
 	print "Classifying $fileName...\n";
-	
-	classifyBlast($fileName, $magFile, \%magnitudes, \%totalScores, \%counts);
+	classifyBlast($fileName, \%taxIDs, \%scores);
 }
 
 my $outFile = getOption('out');
@@ -99,17 +90,44 @@ print "Writing $outFile...\n";
 
 open OUT, ">$outFile" or die "Could not open $outFile for writing";
 
-foreach my $taxID ( keys %magnitudes )
+my $scoreName = getScoreName();
+
+if ( getOption('summarize') )
 {
-	my $magnitude = $magnitudes{$taxID};
-	my $score = $totalScores{$taxID} / $counts{$taxID};
+	my %magnitudes;
+	my %totalScores;
 	
-	if ( $taxID == 0 )
+	print OUT "#count\ttaxID\t$scoreName\n";
+	
+	foreach my $queryID ( keys %taxIDs )
 	{
-		$taxID = -1; # for consistency with MEGAN
+		$magnitudes{$taxIDs{$queryID}}++;
+		$totalScores{$taxIDs{$queryID}} += $scores{$queryID};
 	}
 	
-	print OUT "$taxID\t$magnitude\t$score\n";
+	foreach my $taxID ( sort {$a <=> $b} keys %magnitudes )
+	{
+		print OUT join "\t",
+		(
+			$magnitudes{$taxID},
+			$taxID,
+			$totalScores{$taxID} / $magnitudes{$taxID}
+		), "\n";
+	}
+}
+else
+{
+	print OUT "#queryID\ttaxID\t$scoreName\n";
+	
+	foreach my $queryID ( sort keys %taxIDs )
+	{
+		print OUT "$queryID\t$taxIDs{$queryID}\t$scores{$queryID}\n";
+	}
 }
 
 close OUT;
+
+my $options = getOption('summarize') ? ' -m 1' : '';
+my $outFile = getOption('out');
+
+print "\nTo import, run:\n   ktImportTaxonomy$options $outFile\n\n";

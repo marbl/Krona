@@ -13,7 +13,7 @@ use lib (`ktGetLibPath`);
 use KronaTools;
 
 setOption('name', 'all');
-setOption('out', 'MG-RAST.krona.html');
+setOption('out', 'mg-rast.krona.html');
 
 my @options =
 qw(
@@ -23,7 +23,7 @@ qw(
 	depth
 	hueBad
 	hueGood
-	identity
+	percentIdentity
 	local
 	url
 );
@@ -35,23 +35,21 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-importMG-RAST.pl \
-   [options] \
-   table1.tsv[,name1] \
-   [table2.tsv[,name2]] ...
-
-Creates a Krona chart from tables exported from MG-RAST sequence profiles.
-The profiles can be metabolic or phylogenetic, but must be consistent between
-files.  By default, separate datasets will be created for each file (see -c).
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+		'Creates a Krona chart from MG-RAST organism or functional analyses.',
+		'mgrast_table',
+		'A table exported from MG-RAST. It can be from organism or functional
+analysis, but all tables being imported should be consistent.',
+		0,
+		1,
+		\@options
+	);
+	
+	exit 0;
 }
 
-my %all;
+my $tree = newTree();
 my @ranks;
 my @datasetNames;
 my $set = 0;
@@ -107,7 +105,7 @@ foreach my $input ( @ARGV )
 		
 		map { if ( $_ eq '-' ) { $_ = '' } } @lineage;
 		
-		if ( getOption('identity') )
+		if ( getOption('percentIdentity') )
 		{
 			$score = $data[$offset + 2 + @ranks];
 		}
@@ -116,7 +114,7 @@ foreach my $input ( @ARGV )
 			$score = $data[$offset + 1 + @ranks];
 		}
 		
-		addByLineage(\%all, $set, $magnitude, \@lineage, \@ranks, $score);
+		addByLineage($tree, $set, \@lineage, undef, $magnitude, $score, \@ranks);
 	}
 	
 	close INFILE;
@@ -137,19 +135,17 @@ my @attributeNames =
 my @attributeDisplayNames =
 (
 	'Abundance',
-	getOption('identity') ? 'Avg. % identity' : 'Avg. log e-value',
+	getScoreName(),
 	'Rank'
 );
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
 	\@datasetNames,
-	'score',
-	getOption('identity') ? getOption('hueBad') : getOption('hueGood'),
-	getOption('identity') ? getOption('hueGood') : getOption('hueBad')
+	getOption('percentIdentity') ? getOption('hueBad') : getOption('hueGood'),
+	getOption('percentIdentity') ? getOption('hueGood') : getOption('hueBad')
 );
 

@@ -32,27 +32,33 @@ if
 	@ARGV < 1
 )
 {
-	print '
-
-ktImportFCP [options] file1.txt[,name1] [file2.txt[,name2]] ...
-
-Creates a Krona chart based on the results of FCP (Fragment Classification
-Package). By default, separate datasets will be created for each file (see -c).
-
-';
-	printOptions(@options);
-	exit;
+	printUsage
+	(
+'Creates a Krona chart based on the results of FCP (Fragment Classification
+Package).',
+		'fcp_output',
+'Results of running any FCP classification tool (except BLASTN.py, which only
+outputs raw BLAST results).',
+		1,
+		1,
+		\@options
+	);
+	exit 0;
 }
 
-my %all;
+my $tree = newTree();
 my @datasetNames;
 my $set = 0;
+my $useMag;
 
 foreach my $input ( @ARGV )
 {
 	my ($fileName, $magFile, $name) = parseDataset($input);
 	
-	push @datasetNames, $name;
+	if ( ! getOption('combine') )
+	{
+		push @datasetNames, $name;
+	}
 	
 	my %magnitudes;
 	my $totalMagnitude;
@@ -60,18 +66,8 @@ foreach my $input ( @ARGV )
 	if ( defined $magFile )
 	{
 		print "   Loading magnitudes from $magFile...\n";
-		
-		open MAG, "<$magFile" or die $!;
-		
-		while ( my $line = <MAG> )
-		{
-			chomp $line;
-			my ( $id, $magnitude ) = split /\t/, $line;
-			$magnitudes{$id} = $magnitude;
-			$totalMagnitude += $magnitude;
-		}
-		
-		close MAG;
+		loadMagnitudes($magFile, \%magnitudes);
+		$useMag = 1;
 	}
 	
 	print "   Reading classifications from $fileName...\n";
@@ -88,7 +84,7 @@ foreach my $input ( @ARGV )
 		my @lineage = split /;/, $classification;
 		my $magnitude = 1;
 		
-		if ( defined %magnitudes )
+		if ( %magnitudes )
 		{
 			if ( defined $magnitudes{$readID} )
 			{
@@ -96,11 +92,11 @@ foreach my $input ( @ARGV )
 			}
 			else
 			{
-				print STDERR "Warning: Query ID '$readID' doesn't exist in magnitude file; using 1.\n";
+				ktWarn("Query ID \"$readID\" doesn't exist in magnitude file; using 1.");
 			}
 		}
 		
-		addByLineage(\%all, $set, $magnitude, \@lineage);
+		addByLineage($tree, $set, \@lineage, $readID, $magnitude);
 	}
 	
 	if ( ! getOption('combine') )
@@ -113,20 +109,21 @@ foreach my $input ( @ARGV )
 
 my @attributeNames =
 (
-	'magnitude'
+	'magnitude',
+	'count',
 );
 
 my @attributeDisplayNames =
 (
-	'Total'
+	$useMag ? 'Magnitude' : undef,
+	'Count',
 );
 
 writeTree
 (
-	\%all,
-	'magnitude',
+	$tree,
 	\@attributeNames,
 	\@attributeDisplayNames,
-	\@datasetNames
+	\@datasetNames,
 );
 
