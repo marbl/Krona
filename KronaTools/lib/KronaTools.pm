@@ -10,6 +10,7 @@ package KronaTools;
 
 use Getopt::Long;
 use File::Basename;
+use File::Path;
 
 
 use base 'Exporter';
@@ -1317,7 +1318,8 @@ sub writeTree
 		$valueStart,
 		$valueEnd
 	);
-	print OUT toStringXML($tree, $options{'name'}, 0, \%attributeHash);
+	my $nodeID = 0;
+	print OUT toStringXML($tree, $options{'name'}, 0, \%attributeHash, \$nodeID);
 	print OUT dataFooter();
 	print OUT htmlFooter();
 	close OUT;
@@ -1429,6 +1431,15 @@ sub dataHeader
 		$header .= indent(4) . "<list>members</list>\n";
 		$assignedText = " listNode=\"members\"";
 		$summaryText = " listAll=\"members\"";
+		
+		my $outDir = "$options{'out'}.files";
+		
+		if ( -e $outDir )
+		{
+			rmtree $outDir or die $!;
+		}
+		
+		mkdir $outDir or die $!;
 	}
 	
 	# attributes
@@ -1663,7 +1674,7 @@ sub taxonLink
 
 sub toStringXML
 {
-	my ($node, $name, $depth, $attributeHash) = @_;
+	my ($node, $name, $depth, $attributeHash, $nodeIDRef) = @_;
 	
 	my $string;
 	my $href;
@@ -1677,7 +1688,38 @@ sub toStringXML
 	
 	foreach my $key ( keys %$node )
 	{
-		if
+		##
+		if ( $key eq 'members' )
+		{
+			$string .= '<members>';
+			
+			my $i = 0;
+			foreach my $set ( @{$node->{$key}} )
+			{
+				if ( @$set > 0 )
+				{
+					my $file = "node$$nodeIDRef.members.$i";
+					
+					$string .= "<val>$file</val>";
+					
+					open SUPP, ">$options{'out'}.files/$file" or die;
+					$i++;
+					
+					print SUPP "document.body.innerHTML += '";
+					foreach my $value ( @$set )
+					{
+						print SUPP "$value&lt;br/&gt;\\n";
+					}
+					print SUPP "';";
+					
+					close SUPP;
+				}
+			}
+			
+			$string .= '</members>';
+		}
+		##
+		elsif
 		(
 			$key ne 'children' &&
 			$key ne 'scoreCount' &&
@@ -1735,14 +1777,17 @@ sub toStringXML
 		}
 	}
 	
+	$$nodeIDRef++;
+	
 	if ( defined $node->{'children'} )
 	{
 		foreach my $child (keys %{$node->{'children'}})
 		{
-			$string .= toStringXML($node->{'children'}{$child}, $child, $depth + 1, $attributeHash);
+			$string .= toStringXML($node->{'children'}{$child}, $child, $depth + 1, $attributeHash, $nodeIDRef);
 		}
 	}
 	
+#	print "$string\n";
 	return $string . indent($depth) . "</node>\n";
 }
 

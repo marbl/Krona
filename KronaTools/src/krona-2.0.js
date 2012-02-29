@@ -113,6 +113,7 @@ var keyControl;
 var showKeys = true;
 var linkButton;
 var linkText;
+var frame;
 
 // Node references. Note that the meanings of 'selected' and 'focused' are
 // swapped in the docs.
@@ -1936,21 +1937,58 @@ function Node()
 		}
 	}
 	
-	this.getMembers = function(index)
+	this.getMembersAssigned = function(index, window)
 	{
-		var totalMembers = new Array();
-		
-		if ( this.attributes[index] && this.attributes[index][currentDataset] )
+		if ( this.attributes[index] != null && this.attributes[index][currentDataset] != null )
 		{
-			totalMembers = totalMembers.concat(this.attributes[index][currentDataset]);
+			var file = document.location +  '.files/node' + this.id + '.members.' + currentDataset;
+			script = document.createElement('script');
+			var date = new Date();
+			script.src = file + '?' + date.getTime();
+			window.document.body.appendChild(script);
 		}
-		
+	}
+	
+	this.getMembersSummary = function(index, window)
+	{
+		this.getMembersAssigned(index, window);
+		/*
+		xmlhttp=new XMLHttpRequest();
+		xmlhttp.open("GET",file,false);
+		xmlhttp.send();
+		xmlDoc=xmlhttp.responseXML;
+//		alert(xmlDoc);
+		*/
+		/*
+		frame = document.createElement('iframe');
+		frame.src = file;
+		document.body.insertBefore(frame, canvas);
+		frame.onload = function() {alert(frame.contentWindow.document.body.innerHTML)};
+		*/
+//		var data = window.open('data:text/plain;charset=utf-8,hello', file);
+//		document.body.appendChild(script);
+//		frame = document.createElement('iframe');
+/*		script = document.createElement('script');
+		var date = new Date();
+		script.src = file + '?' + date.getTime();
+		data.document.body.appendChild(script);
+*///		frame.src = file;
+//		frame = document.createElement('iframe');
+//		data.document.body.appendChild(frame);
+//		frame.src = file;
+	/*		data.document.open('text/plain');
+		data.document.write('hello');
+		data.document.close();
+		var button = document.createElement('input');
+		button.type = 'button';
+		button.value = 'save';
+		button.onclick = save;
+		data.document.body.appendChild(button);
+*/		
 		for ( var i = 0; i < this.children.length; i++ )
 		{
-			totalMembers = totalMembers.concat(this.children[i].getMembers(index));
+			this.children[i].getMembersAssigned(index, window);
 		}
-//		alert(this.name + ' - ' + totalMembers.join(','));
-		return totalMembers;
 	}
 	
 	this.getParent = function()
@@ -5583,12 +5621,14 @@ function showAssignedMembers(index)
 
 function showSummaryMembers(index)
 {
-	window.open
+	var data = window.open('', '_blank');
+	focusNode.getMembersSummary(index, data);
+/*	window.open
 	(
 		'data:text/plain;charset=utf-8,' +
-			encodeURIComponent(focusNode.getMembers(index).join('\n')),
+			encodeURIComponent(focusNode.getMembersSummary(index).join('\n')),
 		'_blank'
-	);
+	);*/
 }
 
 function snapshot()
