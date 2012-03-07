@@ -2933,15 +2933,18 @@ function Node()
 				}
 				else if ( this == selectedNode )
 				{
+					var min = 0.0;
+					var max = 1.0;
+					
 					if ( this.children.length > 6 )
 					{
-						childHueMin = (1 - Math.pow(1 - i / this.children.length, 1.4)) * .95;
-						childHueMax = (1 - Math.pow(1 - (i + .35) / this.children.length, 1.4)) * .95;
+						childHueMin = lerp((1 - Math.pow(1 - i / this.children.length, 1.4)) * .95, 0, 1, min, max);
+						childHueMax = lerp((1 - Math.pow(1 - (i + .55) / this.children.length, 1.4)) * .95, 0, 1, min, max);
 					}
 					else
 					{
-						childHueMin = i / this.children.length;
-						childHueMax = (i + .35) / this.children.length;
+						childHueMin = lerp(i / this.children.length, 0, 1, min, max);
+						childHueMax = lerp((i + .55) / this.children.length, 0, 1, min, max);
 					}
 				}
 				else
@@ -2956,7 +2959,7 @@ function Node()
 					);
 					childHueMax = lerp
 					(
-						child.baseMagnitude + child.magnitude * .7,
+						child.baseMagnitude + child.magnitude * .99,
 						this.baseMagnitude,
 						this.baseMagnitude + this.magnitude,
 						hueMin,
@@ -4486,11 +4489,17 @@ function hslToRgb(h, s, l)
 function hueToRgb(m1, m2, hue)
 {
 	var v;
-	if (hue < 0)
+	
+	while (hue < 0)
+	{
 		hue += 1;
-	else if (hue > 1)
+	}
+	
+	while (hue > 1)
+	{
 		hue -= 1;
-
+	}
+	
 	if (6 * hue < 1)
 		v = m1 + (m2 - m1) * hue * 6;
 	else if (2 * hue < 1)
