@@ -1684,7 +1684,7 @@ sub toStringXML
 		$href = " href=\"$node->{'href'}\"";
 	}
 	
-	$string = indent($depth) . "<node name=\"$name\"$href>\n";
+	$string = indent($depth) . "<node name=\"$name\" id=\"$$nodeIDRef\"$href>\n";
 	
 	foreach my $key ( keys %$node )
 	{
@@ -1705,12 +1705,14 @@ sub toStringXML
 					open SUPP, ">$options{'out'}.files/$file" or die;
 					$i++;
 					
-					print SUPP "document.body.innerHTML += '";
+					#print SUPP "var node$$nodeIDRef = '";
+					print SUPP "window.nodeData.push('";
+					#print SUPP "document.body.innerHTML += '";
 					foreach my $value ( @$set )
 					{
-						print SUPP "$value&lt;br/&gt;\\n";
+						print SUPP "$value<br/>\\\n";
 					}
-					print SUPP "';";
+					print SUPP "');";
 					
 					close SUPP;
 				}

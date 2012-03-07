@@ -1946,6 +1946,7 @@ function Node()
 			var date = new Date();
 			script.src = file + '?' + date.getTime();
 			window.document.body.appendChild(script);
+//			window.document.body.removeChild(script);
 		}
 	}
 	
@@ -1987,7 +1988,7 @@ function Node()
 */		
 		for ( var i = 0; i < this.children.length; i++ )
 		{
-			this.children[i].getMembersAssigned(index, window);
+			this.children[i].getMembersSummary(index, window);
 		}
 	}
 	
@@ -5622,7 +5623,16 @@ function showAssignedMembers(index)
 function showSummaryMembers(index)
 {
 	var data = window.open('', '_blank');
+	data.nodeData = new Array();
 	focusNode.getMembersSummary(index, data);
+	
+	var file = document.location +  '.files/combine.js';
+	var script = document.createElement('script');
+	var date = new Date();
+	script.src = file + '?' + date.getTime();
+//	script.innerHTML = 'document.body.innerHTML = nodeData.join("");';
+	data.document.body.appendChild(script);
+//	alert(data.node0);
 /*	window.open
 	(
 		'data:text/plain;charset=utf-8,' +
