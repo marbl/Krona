@@ -94,6 +94,8 @@ foreach my $input (@ARGV)
 		if ( $readID ne $lastReadID )
 		{
 			my $ties = 0;
+			my %lcaSet;
+			my @randomArray;
 			my $taxID;
 			my $readLength = $values[2];
 			
@@ -107,21 +109,23 @@ foreach my $input (@ARGV)
 					$newTaxID = 1;
 				}
 				
-				if ( getOption('random') && int(rand(++$ties)) == 0 )
+				if ( getOption('random') )
 				{
-					$taxID = $newTaxID;
+					push @randomArray, $newTaxID;
 				}
-				elsif ( ! getOption('random') )
+				else
 				{
-					if ( $taxID )
-					{
-						$taxID = taxLowestCommonAncestor($taxID, $newTaxID);
-					}
-					else
-					{
-						$taxID = $newTaxID;
-					}
+					$lcaSet{$newTaxID} = 1;
 				}
+			}
+			
+			if ( getOption('random') )
+			{
+				$taxID = $randomArray[int(rand(scalar @randomArray))];
+			}
+			else
+			{
+				$taxID = taxLowestCommonAncestor(keys %lcaSet);
 			}
 			
 			if ( getOption('verbose') )
