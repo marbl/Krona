@@ -38,7 +38,8 @@ if
 	(
 		'Creates a Krona chart from RDP classifications.',
 		'rdp_details',
-		'RDP assignment details downloaded as text.',
+		'RDP assignment details downloaded as text from the RDP Classifier web
+portal or output by the command line RDP Classifier or Multiclassifier.',
 		0,
 		1,
 		\@options
@@ -47,7 +48,7 @@ if
 	exit 0;
 }
 
-my @ranks =
+my @webRanks =
 (
 	'Domain',
 	'Phylum',
@@ -75,39 +76,96 @@ foreach my $input ( @ARGV )
 	
 	open INFILE, "<$fileName" or die $!;
 	
-	my $line;
+	my $webFormat;
+	my $line = <INFILE>;
 	
-	do
+	if ( $line =~ /^\s*$/ || $line =~ /^Classifier:/ )
 	{
-		$line = <INFILE>;
+		$webFormat = 1;
 		
-		if ( ! $line )
+		while ( $line =~ /^\s*$/ )
 		{
-			ktDie("\"$fileName\" is not RDP classification file.");
+			$line = <INFILE>;
 		}
+		
+		while ( $line !~ /^Details:|^\s*$/ )
+		{
+			$line = <INFILE>;
+			
+			if ( ! $line )
+			{
+				ktDie("\"$fileName\" is not RDP classification file.");
+			}
+		}
+		
+		if ( $line !~ /Details:/ )
+		{
+			ktDie("$fileName looks like a hierarchy file. Assignment detail required.");
+		}
+		
+		$line = <INFILE>;
 	}
-	while ( $line !~ /^Details:/ );
 	
-	while ( my $line = <INFILE> )
+	if ( $webFormat )
 	{
+		print "   Web portal format detected.\n";
+	}
+	else
+	{
+		print "   Command line format detected.\n";
+	}
+	
+	while ( $line )
+	{
+		my $queryID;
 		my @lineage;
+		my @ranks;
 		my @scores;
 		
 		chomp $line;
 		
 		if ( $line eq '' ) {next}
 		
-		chop $line; # last '%'
-		
-		my @fields = split /["%]?; "?/, $line;
-		
-		for ( my $i = 4; $i < @fields; $i += 2 )
+		if ( $webFormat )
 		{
-			push @lineage, $fields[$i];
-			push @scores, $fields[$i + 1];
+			chop $line; # last '%'
+			
+			my @fields = split /["%]?; "?/, $line;
+			
+			$queryID = $fields[0];
+			
+			for ( my $i = 4; $i < @fields; $i += 2 )
+			{
+				push @lineage, $fields[$i];
+				push @scores, $fields[$i + 1];
+			}
+		}
+		else
+		{
+			my @fields = split /"?\t"?/, $line;
+			
+			$queryID = $fields[0];
+			
+			for ( my $i = 5; $i < @fields; $i += 3 )
+			{
+				push @lineage, $fields[$i];
+				push @ranks, $fields[$i + 1];
+				push @scores, $fields[$i + 2] * 100;
+			}
 		}
 		
-		addByLineage($tree, $set, \@lineage, $fields[0], undef, \@scores, \@ranks);
+		addByLineage
+		(
+			$tree,
+			$set,
+			\@lineage,
+			$queryID,
+			undef,
+			\@scores,
+			$webFormat ? \@webRanks : \@ranks
+		);
+		
+		$line = <INFILE>;
 	}
 	
 	close INFILE;

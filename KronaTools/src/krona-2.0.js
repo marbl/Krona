@@ -113,6 +113,7 @@ var keyControl;
 var showKeys = true;
 var linkButton;
 var linkText;
+var frame;
 
 // Node references. Note that the meanings of 'selected' and 'focused' are
 // swapped in the docs.
@@ -127,6 +128,8 @@ var currentNodeID = 0; // to iterate while loading
 
 var nodeHistory = new Array();
 var nodeHistoryPosition = 0;
+
+var dataEnabled = false; // true when supplemental files are present
 
 // store non-Krona GET variables so they can be passed on to links
 //
@@ -281,6 +284,7 @@ window.onload = load;
 
 var image;
 var hiddenPattern;
+var loadingImage;
 
 function resize()
 {
@@ -1936,21 +1940,62 @@ function Node()
 		}
 	}
 	
-	this.getMembers = function(index)
+	this.getData = function(index, summary)
 	{
-		var totalMembers = new Array();
+		var files = new Array();
 		
-		if ( this.attributes[index] && this.attributes[index][currentDataset] )
+		if
+		(
+			this.attributes[index] != null &&
+			this.attributes[index][currentDataset] != null &&
+			this.attributes[index][currentDataset] != ''
+		)
 		{
-			totalMembers = totalMembers.concat(this.attributes[index][currentDataset]);
+			files.push
+			(
+				document.location +
+				'.files/' +
+				this.attributes[index][currentDataset]
+			);
 		}
 		
-		for ( var i = 0; i < this.children.length; i++ )
+		if ( summary )
 		{
-			totalMembers = totalMembers.concat(this.children[i].getMembers(index));
+			for ( var i = 0; i < this.children.length; i++ )
+			{
+				files = files.concat(this.children[i].getData(index, true));
+			}
 		}
-//		alert(this.name + ' - ' + totalMembers.join(','));
-		return totalMembers;
+		
+		return files;
+	}
+	
+	this.getList = function(index, summary)
+	{
+		var list;
+		
+		if
+		(
+			this.attributes[index] != null &&
+			this.attributes[index][currentDataset] != null
+		)
+		{
+			list = this.attributes[index][currentDataset];
+		}
+		else
+		{
+			list = new Array();
+		}
+		
+		if ( summary )
+		{
+			for ( var i = 0; i < this.children.length; i++ )
+			{
+				list = list.concat(this.children[i].getList(index, true));
+			}
+		}
+		
+		return list;
 	}
 	
 	this.getParent = function()
@@ -4688,7 +4733,9 @@ function load()
 					attributeElement = getNextSibling(attributeElement)
 				)
 				{
-					if ( attributeElement.tagName.toLowerCase() == 'attribute' )
+					var tag = attributeElement.tagName.toLowerCase();
+					
+					if ( tag == 'attribute' )
 					{
 						var attribute = new Attribute();
 						attribute.name = attributeElement.firstChild.nodeValue;
@@ -4711,23 +4758,19 @@ function load()
 						
 						if ( attributeElement.getAttribute('listAll') )
 						{
-							for ( var i = 0; i < attributes.length; i++ )
-							{
-								if ( attributes[i].name == attributeElement.getAttribute('listAll') )
-								{
-									attribute.listAllIndex = i;
-								}
-							}
+							attribute.listAll = attributeElement.getAttribute('listAll').toLowerCase();
 						}
 						else if ( attributeElement.getAttribute('listNode') )
 						{
-							for ( var i = 0; i < attributes.length; i++ )
-							{
-								if ( attributes[i].name == attributeElement.getAttribute('listNode') )
-								{
-									attribute.listNodeIndex = i;
-								}
-							}
+							attribute.listNode = attributeElement.getAttribute('listNode').toLowerCase();
+						}
+						else if ( attributeElement.getAttribute('dataAll') )
+						{
+							attribute.dataAll = attributeElement.getAttribute('dataAll').toLowerCase();
+						}
+						else if ( attributeElement.getAttribute('dataNode') )
+						{
+							attribute.dataNode = attributeElement.getAttribute('dataNode').toLowerCase();
 						}
 						
 						if ( attributeElement.getAttribute('mono') )
@@ -4737,13 +4780,28 @@ function load()
 						
 						attributes.push(attribute);
 					}
-					else if ( attributeElement.tagName.toLowerCase() == 'list' )
+					else if ( tag == 'list' )
 					{
 						var attribute = new Attribute();
 						
 						attribute.name = attributeElement.firstChild.nodeValue;
 						attribute.list = true;
 						attributes.push(attribute);
+					}
+					else if ( tag == 'data' )
+					{
+						var attribute = new Attribute();
+						
+						attribute.name = attributeElement.firstChild.nodeValue;
+						attribute.data = true;
+						attributes.push(attribute);
+						
+						var enableScript = document.createElement('script');
+						var date = new Date();
+						enableScript.src =
+							attributeElement.getAttribute('enable') + '?' +
+							date.getTime();
+						document.body.appendChild(enableScript);
 					}
 				}
 				break;
@@ -4915,67 +4973,6 @@ function loadTreeDOM
 			//
 			newNode.attributes[index] = new Array();
 			//
-			/*
-			var values = i.firstChild.nodeValue.split('\n');
-			
-			newNode.attributes[index] = new Array();
-			
-			if ( attributes[index].list )
-			{
-				for (var j = 0; j < values.length; j++ )
-				{
-					newNode.attributes[index][j] = values[j].split('\t');
-				}
-			}
-			else
-			{
-				for (var j = 0; j < values.length; j++ )
-				{
-					var value = values[j];
-					
-					if ( attributeName == magnitudeName || attributeName == hueName )
-					{
-						value = Number(value);
-						
-						if ( attributeName == hueName )
-						{
-							var hue = value;
-							
-							if ( hue < hueStart == hueStart < hueEnd )
-							{
-								hue = hueStart;
-							}
-							else if ( hue > hueEnd == hueStart < hueEnd )
-							{
-								hue = hueEnd;
-							}
-							
-							newNode.hues.push(lerp
-							(
-								value,
-								valueStart,
-								valueEnd,
-								hueStart,
-								hueEnd
-							));
-						}
-					}
-					
-//					if ( j.getAttribute('href') )
-					{
-						var target;
-						
-						if ( attributes[index].target )
-						{
-							target = ' target="' + attributes[index].target + '"';
-						}
-						
-//						value = '<a href="' + attributes[index].hrefBase + j.getAttribute('href') + '"' + target + '>' + value + '</a>';
-					}
-					
-					newNode.attributes[index][j] = value;
-				}
-			}*/
 			for ( var j = getFirstChild(i); j; j = getNextSibling(j) )
 			{
 				if ( attributes[index] == undefined )
@@ -5456,6 +5453,13 @@ function setCallBacks()
 			hiddenPattern = context.createPattern(image, 'repeat');
 		}
 	}
+	
+	var loadingImageElement = document.getElementById('loadingImage');
+	
+	if ( loadingImageElement )
+	{
+		loadingImage = loadingImageElement.src;
+	}
 }
 
 function selectDataset(newDataset)
@@ -5535,13 +5539,37 @@ function setFocus(node)
 			{
 				var value = node.attributes[i][index];
 				
-				if ( attributes[i].listNodeIndex != undefined )
+				if ( attributes[i].listNode != undefined )
 				{
-					value = '<a href="#" onclick="showAssignedMembers(' + attributes[i].listNodeIndex + ');return false;" title="Show members">' + value + '</a>';
+					value =
+						'<a href="" onclick="showList(' +
+						attributeIndex(attributes[i].listNode) + ',' + i +
+						',false);return false;" title="Show list">' +
+						value + '</a>';
 				}
-				else if ( attributes[i].listAllIndex != undefined )
+				else if ( attributes[i].listAll != undefined )
 				{
-					value = '<a href="#" onclick="showSummaryMembers(' + attributes[i].listAllIndex + ');return false;" title="Show members">' + value + '</a>';
+					value =
+						'<a href="" onclick="showList(' +
+						attributeIndex(attributes[i].listAll) + ',' + i +
+						',true);return false;" title="Show list">' +
+						value + '</a>';
+				}
+				else if ( attributes[i].dataNode != undefined && dataEnabled )
+				{
+					value =
+						'<a href="" onclick="showData(' +
+						attributeIndex(attributes[i].dataNode) + ',' + i +
+						',false);return false;" title="Show data">' +
+						value + '</a>';
+				}
+				else if ( attributes[i].dataAll != undefined && dataEnabled )
+				{
+					value =
+						'<a href="" onclick="showData(' +
+						attributeIndex(attributes[i].dataAll) + ',' + i +
+						',true);return false;" title="Show data">' +
+						value + '</a>';
 				}
 				
 				table +=
@@ -5577,27 +5605,118 @@ function setSelectedNode(newNode)
 	}
 }
 
-function showAssignedMembers(index)
+function waitForData(dataWindow, target, title, time)
 {
-	if ( focusNode.attributes[index] )
+	if ( nodeData.length == target )
 	{
-		window.open
-		(
-			'data:text/plain;charset=utf-8,' +
-				encodeURIComponent(focusNode.attributes[index][currentDataset].join('\n')),
-			'_blank'
-		);
+		var data = nodeData.join('');
+		
+		dataWindow.document.body.removeChild(dataWindow.document.getElementById('loading'));
+		document.body.removeChild(document.getElementById('data'));
+		
+		if ( true || navigator.appName == 'Microsoft Internet Explorer' ) // :(
+		{
+			dataWindow.document.open();
+			dataWindow.document.write('<pre>' + data + '</pre>');
+			dataWindow.document.close();
+		}
+		else
+		{
+			var pre = document.createElement('pre');
+			dataWindow.document.body.appendChild(pre);
+			pre.innerHTML = data;
+		}
+		
+		dataWindow.document.title = title; // replace after document.write()
+	}
+	else
+	{
+		var date = new Date();
+		
+		if ( date.getTime() - time > 10000 )
+		{
+			dataWindow.document.body.removeChild(dataWindow.document.getElementById('loading'));
+			document.body.removeChild(document.getElementById('data'));
+			dataWindow.document.body.innerHTML =
+				'Timed out loading supplemental files for:<br/>' + document.location;
+		}
+		else
+		{
+			setTimeout(function() {waitForData(dataWindow, target, title, time);}, 100);
+		}
 	}
 }
 
-function showSummaryMembers(index)
+function data(newData)
 {
-	window.open
-	(
-		'data:text/plain;charset=utf-8,' +
-			encodeURIComponent(focusNode.getMembers(index).join('\n')),
-		'_blank'
-	);
+	nodeData.push(newData);
+}
+
+function enableData()
+{
+	dataEnabled = true;
+}
+
+function showData(indexData, indexAttribute, summary)
+{
+	var dataWindow = window.open('', '_blank');
+	var title = 'Krona - ' + attributes[indexAttribute].displayName + ' - ' + focusNode.name;
+	dataWindow.document.title = title;
+	
+	nodeData = new Array();
+	
+	if ( dataWindow && dataWindow.document && dataWindow.document.body != null )
+	{
+		//var loadImage = document.createElement('img');
+		//loadImage.src = "file://localhost/Users/ondovb/Krona/KronaTools/img/loading.gif";
+		//loadImage.id = "loading";
+		//loadImage.alt = "Loading...";
+		//dataWindow.document.body.appendChild(loadImage);
+		dataWindow.document.body.innerHTML =
+			'<img id="loading" src="' + loadingImage + '" alt="Loading..."></img>';
+	}
+	
+	var scripts = document.createElement('div');
+	scripts.id = 'data';
+	document.body.appendChild(scripts);
+	
+	var files = focusNode.getData(indexData, summary);
+	
+	var date = new Date();
+	var time = date.getTime();
+	
+	for ( var i = 0; i < files.length; i++ )
+	{
+		var script = document.createElement('script');
+		script.src = files[i] + '?' + time;
+		scripts.appendChild(script);
+	}
+	
+	waitForData(dataWindow, files.length, title, time);
+	
+	return false;
+}
+
+function showList(indexList, indexAttribute, summary)
+{
+	var list = focusNode.getList(indexList, summary).join('\n');
+	
+	var dataWindow = window.open('', '_blank');
+	
+	if ( true || navigator.appName == 'Microsoft Internet Explorer' ) // :(
+	{
+		dataWindow.document.open();
+		dataWindow.document.write('<pre>' + list + '</pre>');
+		dataWindow.document.close();
+	}
+	else
+	{
+		var pre = document.createElement('pre');
+		dataWindow.document.body.appendChild(pre);
+		pre.innerHTML = list;
+	}
+	
+	dataWindow.document.title = 'Krona - ' + attributes[indexAttribute].displayName + ' - ' + focusNode.name;
 }
 
 function snapshot()
