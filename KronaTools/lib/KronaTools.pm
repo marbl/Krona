@@ -215,13 +215,19 @@ my $libPath = `ktGetLibPath`;
 my $taxonomyDir = "$libPath/../taxonomy";
 my $ecFile = "$libPath/../data/ec.tsv";
 
+my $version = '2.1';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
-my $image = "img/hidden.png";
-my $favicon = "img/favicon.ico";
+my $hiddenImage = 'img/hidden.png';
+my $favicon = 'img/favicon.ico';
+my $loadingImage = 'img/loading.gif';
 my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=info&id=';
 my $ecHrefBase = 'http://www.chem.qmul.ac.uk/iubmb/enzyme/EC';
-
+my $suppDirSuffix = '.files';
+my $suppEnableFile = 'enable.js';
+my $memberLimitDataset = 10000;
+my $memberLimitTotal = 100000;
+my $columns = `tput cols`;
 our $minEVal = -450;
 
 
@@ -233,6 +239,7 @@ my @taxDepths;
 my @taxParents;
 my @taxRanks;
 my @taxNames;
+my %taxIDByGI;
 my %ecNames;
 
 
@@ -627,6 +634,7 @@ sub classifyBlast
 	my $topEVal;
 	my $ties;
 	my $taxID;
+	my %lcaSet;
 	my $totalScore;
 	my $zeroEVal;
 	
@@ -676,15 +684,23 @@ sub classifyBlast
 			{
 				ktWarn("-i specified but $fileName does not contain comment lines. Queries with no hits will not be included for this file."); 
 			}
-			if (  defined $taxID )
+			
+			if (  $ties )
 			{
 				# add the chosen hit from the last queryID
+				
+				if ( ! $options{'random'} )
+				{
+					$taxID = taxLowestCommonAncestor(keys %lcaSet)
+				}
 				
 				$taxIDs->{$lastQueryID} = $taxID;
 				$scores->{$lastQueryID} = $totalScore / $ties;
 			}
+			
 			$ties = 0;
 			$totalScore = 0;
+			%lcaSet = ();
 		}
 		
 		if ( ! defined $hitID )
@@ -741,13 +757,13 @@ sub classifyBlast
 					$newTaxID = 1;
 				}
 				
-				if ( $queryID ne $lastQueryID || $options{'random'} )
+				if ( $options{'random'} )
 				{
 					$taxID = $newTaxID;
 				}
 				else
 				{
-					$taxID = taxLowestCommonAncestor($taxID, $newTaxID);
+					$lcaSet{$newTaxID} = 1;
 				}
 			}
 		}
@@ -883,30 +899,35 @@ sub getTaxIDFromGI
 {
 	my ($gi) = @_;
 	
-	if ( ! open GI, "<$taxonomyDir/gi_taxid.dat" )
+	if ( ! defined $taxIDByGI{$gi} )
 	{
-		print "ERROR: GI to TaxID data not found.  Was updateTaxonomy.sh run?\n";
-		exit 1;
+		if ( ! open GI, "<$taxonomyDir/gi_taxid.dat" )
+		{
+			print "ERROR: GI to TaxID data not found.  Was updateTaxonomy.sh run?\n";
+			exit 1;
+		}
+		
+		seek GI, $gi * 4, 0;
+		
+		my $data;
+		
+		read GI, $data, 4;
+		
+		my $taxID = unpack "L", $data;
+		
+		close GI;
+		
+		if ( 0 && $taxID == 0 )
+		{
+			$taxIDByGI{$gi} = 1;
+		}
+		else
+		{
+			$taxIDByGI{$gi} = $taxID;
+		}
 	}
 	
-	seek GI, $gi * 4, 0;
-	
-	my $data;
-	
-	read GI, $data, 4;
-	
-	my $taxID = unpack "L", $data;
-	
-	close GI;
-	
-	if ( 0 && $taxID == 0 )
-	{
-		return 1;
-	}
-	else
-	{
-		return $taxID;
-	}
+	return $taxIDByGI{$gi};
 }
 
 sub htmlFooter
@@ -916,9 +937,6 @@ sub htmlFooter
 
 sub htmlHeader
 {
-	my $javascriptPath;
-	my $imagePath;
-	my $faviconPath;
 	my $path;
 	my $notFound;
 	
@@ -944,7 +962,8 @@ sub htmlHeader
 			indent(2) . "<script src=\"$path$javascript\"></script>\n" .
 		indent(1) . "</head>\n" .
 		indent(1) . "<body>\n" .
-			indent(2) . "<img id=\"hiddenImage\" src=\"$path$image\" style=\"display:none\"/>\n" .
+			indent(2) . "<img id=\"hiddenImage\" src=\"$path$hiddenImage\" style=\"display:none\"/>\n" .
+			indent(2) . "<img id=\"loadingImage\" src=\"$path$loadingImage\" style=\"display:none\"/>\n" .
 			indent(2) . "<noscript>Javascript must be enabled to view this page.</noscript>\n" .
 			indent(2) . "<div style=\"display:none\">\n";
 }
@@ -1089,9 +1108,20 @@ sub printHeader
 	
 	my $width = length($header) + 2;
 	
-	print ' ', '_' x $width, "\n";
-	print '/ ', $header, " \\\n";
-	print '\\', '_' x $width, "/\n\n";
+	#print ' ', '_' x $width, "\n";
+	#print '/ ', $header, " \\\n";
+	#print '\\', '_' x $width, "/\n\n";
+	my $prefix = '/ ';
+	my $fill = '_';
+	my $suffix = ' \\___';
+	my $fillLength = $columns - length($header) - length($prefix) - length($suffix);
+	print ' ' x ($fillLength + 1);
+	print '_' x $width;
+	print "\n";
+	print $fill x $fillLength;
+	print "$prefix$header$suffix";
+	print "\n\n";
+#	print "\n [=== $header ===]]]\n\n";
 }
 
 sub printOptions
@@ -1135,7 +1165,7 @@ sub printUsage
 	
 	my $scriptName = getScriptName();
 	
-	printHeader($scriptName);
+	printHeader("KronaTools $version - $scriptName");
 	printHangingIndent('', $description);
 	printHeader('Usage');
 	print "$scriptName \\\n";
@@ -1211,56 +1241,59 @@ sub taxContains
 
 sub taxLowestCommonAncestor
 {
-	my ($a, $b) = @_;
-	
-	# degenerate case optimizations
-	#
-	if ( $a == $b )
-	{
-		return $a;
-	}
-	#
-	if ( $a == 1 || $b == 1 )
-	{
-		return 1;
-	}
+	my @nodes = @_;
 	
 	checkTaxonomy();
 	
 	# walk the nodes up to an equal depth
 	#
-	my $depthA = $taxDepths[$a];
-	my $depthB = $taxDepths[$b];
+	my $minDepth;
 	#
-	while ( $depthA > $depthB )
+	foreach my $node ( @nodes )
 	{
-		$a = $taxParents[$a];
-		$depthA--;
+		if ( ! defined $minDepth || $taxDepths[$node] < $minDepth )
+		{
+			$minDepth = $taxDepths[$node];
+		}
 	}
 	#
-	while ( $depthB > $depthA )
+	foreach my $node ( @nodes )
 	{
-		$b = $taxParents[$b];
-		$depthB--;
+		while ( $taxDepths[$node] > $minDepth )
+		{
+			$node = $taxParents[$node];
+		}
 	}
 	
-	# now walk both up until they are equal
-	#
-	while ( $a != $b )
+	my $done = 0;
+	
+	while ( ! $done )
 	{
-		if ( $a == 1 || $b == 1 )
+		$done = 1;
+		
+		my $prevNode;
+		
+		foreach my $node ( @nodes )
 		{
-			# one reached to top first; this shouldn't happen
+			if ( defined $prevNode && $prevNode != $node )
+			{
+				$done = 0;
+				last;
+			}
 			
-			warn "No common ancestor found for $a and $b; $depthA $depthB";
-			return 1;
+			$prevNode = $node;
 		}
 		
-		$a = $taxParents[$a];
-		$b = $taxParents[$b];
+		if ( ! $done )
+		{
+			for ( my $i = 0; $i < @nodes; $i++ )
+			{
+				$nodes[$i] = $taxParents[$nodes[$i]];
+			}
+		}
 	}
 	
-	return $a;
+	return $nodes[0];
 }
 
 sub taxIDExists
@@ -1300,7 +1333,42 @@ sub writeTree
 		($valueStart, $valueEnd) = setScores($tree);
 	}
 	
+	# check if members should be stored in supplemental files
+	#
+	my $totalCount;
+	my $supp;
+	#
+	foreach my $count ( @{$tree->{'count'}} )
+	{
+		$totalCount += $count;
+		
+		if ( $count > $memberLimitDataset || $totalCount > $memberLimitTotal )
+		{
+			$supp = 1;
+			last;
+		}
+	}
+	
 	print "Writing $options{'out'}...\n";
+	
+	if ( $supp )
+	{
+		my $suppDir = $options{'out'} . $suppDirSuffix;
+		
+		ktWarn("Too many members to store in chart; storing supplemental files in '$suppDir'.");
+		
+		if ( -e $suppDir )
+		{
+			ktWarn("Overwriting files in '$suppDir'.");
+			rmtree $suppDir or ktDie("Could not remove '$suppDir'.");
+		}
+		
+		mkdir $suppDir or ktDie("Could not create $suppDir");
+		
+		open SUPP, ">$suppDir/$suppEnableFile" or ktDie("Could not write file to '$suppDir'");
+		print SUPP "enableData();";
+		close SUPP;
+	}
 	
 	open OUT, ">$options{'out'}";
 	print OUT htmlHeader();
@@ -1316,10 +1384,12 @@ sub writeTree
 		$hueStart,
 		$hueEnd,
 		$valueStart,
-		$valueEnd
+		$valueEnd,
+		$supp
 	);
+	
 	my $nodeID = 0;
-	print OUT toStringXML($tree, $options{'name'}, 0, \%attributeHash, \$nodeID);
+	print OUT toStringXML($tree, $options{'name'}, 0, \%attributeHash, \$nodeID, $supp);
 	print OUT dataFooter();
 	print OUT htmlFooter();
 	close OUT;
@@ -1413,7 +1483,8 @@ sub dataHeader
 		$hueStart,
 		$hueEnd,
 		$valueStart,
-		$valueEnd
+		$valueEnd,
+		$supp
 	) = @_;
 	
 	my $header =
@@ -1428,18 +1499,12 @@ sub dataHeader
 	#
 	if ( $assignedName && $summaryName )
 	{
-		$header .= indent(4) . "<list>members</list>\n";
-		$assignedText = " listNode=\"members\"";
-		$summaryText = " listAll=\"members\"";
-		
-		my $outDir = "$options{'out'}.files";
-		
-		if ( -e $outDir )
-		{
-			rmtree $outDir or die $!;
-		}
-		
-		mkdir $outDir or die $!;
+		my $memberTag = $supp ? 'data' : 'list';
+		my $suppDir = basename($options{'out'}) . $suppDirSuffix;
+		my $enableText = $supp ? " enable=\"$suppDir/$suppEnableFile\"" : '';
+		$header .= indent(4) . "<$memberTag$enableText>members</$memberTag>\n";
+		$assignedText = " ${memberTag}Node=\"members\"";
+		$summaryText = " ${memberTag}\All=\"members\"";
 	}
 	
 	# attributes
@@ -1576,7 +1641,7 @@ sub printHangingIndent
 	{
 		my $wordLength = length $word;
 		
-		if ( $col + $wordLength + 1 >= 80 )
+		if ( $col + $wordLength + 1 >= $columns )
 		{
 			print "\n", ' ' x $tab, $word;
 			$col = $tab + $wordLength;
@@ -1674,7 +1739,7 @@ sub taxonLink
 
 sub toStringXML
 {
-	my ($node, $name, $depth, $attributeHash, $nodeIDRef) = @_;
+	my ($node, $name, $depth, $attributeHash, $nodeIDRef, $supp) = @_;
 	
 	my $string;
 	my $href;
@@ -1684,44 +1749,11 @@ sub toStringXML
 		$href = " href=\"$node->{'href'}\"";
 	}
 	
-	$string = indent($depth) . "<node name=\"$name\" id=\"$$nodeIDRef\"$href>\n";
+	$string = indent($depth) . "<node name=\"$name\"$href>\n";
 	
 	foreach my $key ( keys %$node )
 	{
-		##
-		if ( $key eq 'members' )
-		{
-			$string .= '<members>';
-			
-			my $i = 0;
-			foreach my $set ( @{$node->{$key}} )
-			{
-				if ( @$set > 0 )
-				{
-					my $file = "node$$nodeIDRef.members.$i";
-					
-					$string .= "<val>$file</val>";
-					
-					open SUPP, ">$options{'out'}.files/$file" or die;
-					$i++;
-					
-					#print SUPP "var node$$nodeIDRef = '";
-					print SUPP "window.nodeData.push('";
-					#print SUPP "document.body.innerHTML += '";
-					foreach my $value ( @$set )
-					{
-						print SUPP "$value<br/>\\\n";
-					}
-					print SUPP "');";
-					
-					close SUPP;
-				}
-			}
-			
-			$string .= '</members>';
-		}
-		##
-		elsif
+		if
 		(
 			$key ne 'children' &&
 			$key ne 'scoreCount' &&
@@ -1733,21 +1765,50 @@ sub toStringXML
 		{
 			$string .= indent($depth + 1) . "<$key>";
 			
+			my $i = 0;
+			
 			foreach my $value ( @{$node->{$key}} )
 			{
 				if ( $key eq 'members' )
 				{
-					$string .= "\n" . indent($depth + 2) . "<vals>";
-					
-					foreach my $member ( @$value )
+					if ( $supp )
 					{
-						$member =~ s/</&lt;/g;
-						$member =~ s/>/&gt;/g;
-						
-						$string .= "<val>$member</val>";
+						if ( defined $value && @$value > 0 )
+						{
+							my $file = "node$$nodeIDRef.members.$i.js";
+							
+							$string .= "<val>$file</val>";
+							
+							open SUPP, ">$options{'out'}$suppDirSuffix/$file" or die;
+							
+							print SUPP "data('";
+							foreach my $member ( @$value )
+							{
+								print SUPP "$member\\n\\\n";
+							}
+							print SUPP "')";
+							
+							close SUPP;
+						}
+						else
+						{
+							$string .= "<val></val>";
+						}
 					}
-					
-					$string .= "</vals>";
+					else
+					{
+						$string .= "\n" . indent($depth + 2) . "<vals>";
+						
+						foreach my $member ( @$value )
+						{
+							$member =~ s/</&lt;/g;
+							$member =~ s/>/&gt;/g;
+							
+							$string .= "<val>$member</val>";
+						}
+						
+						$string .= "</vals>";
+					}
 				}
 				else
 				{
@@ -1768,6 +1829,8 @@ sub toStringXML
 					
 					$string .= "<val$href>$value</val>";
 				}
+				
+				$i++;
 			}
 			
 			if ( $key eq 'members' )
@@ -1785,7 +1848,7 @@ sub toStringXML
 	{
 		foreach my $child (keys %{$node->{'children'}})
 		{
-			$string .= toStringXML($node->{'children'}{$child}, $child, $depth + 1, $attributeHash, $nodeIDRef);
+			$string .= toStringXML($node->{'children'}{$child}, $child, $depth + 1, $attributeHash, $nodeIDRef, $supp);
 		}
 	}
 	

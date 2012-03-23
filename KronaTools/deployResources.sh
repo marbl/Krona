@@ -38,6 +38,6 @@ then
 fi
 
 ln -sf $PWD/src/krona-*.js $target/src
-ln -sf $PWD/img/hidden.png $PWD/img/favicon.ico $target/img
+ln -sf $PWD/img/hidden.png $PWD/img/favicon.ico $PWD/img/loading.gif $target/img
 
 echo "Finished."
