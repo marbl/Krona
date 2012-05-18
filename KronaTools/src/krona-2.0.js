@@ -345,19 +345,13 @@ function Tween(start, end)
 	}
 }
 
-function Node()
+function NodeView()
 {
-	this.id = currentNodeID;
-	currentNodeID++;
-	nodes[this.id] = this;
-	
 	this.angleStart = new Tween(Math.PI, 0);
 	this.angleEnd = new Tween(Math.PI, 0);
 	this.radiusInner = new Tween(1, 1);
 	this.labelRadius = new Tween(1, 1);
 	this.labelWidth = new Tween(0, 0);
-	this.scale = new Tween(1, 1); // TEMP
-	this.radiusOuter = new Tween(1, 1);
 	
 	this.r = new Tween(255, 255);
 	this.g = new Tween(255, 255);
@@ -369,6 +363,38 @@ function Node()
 	this.alphaWedge = new Tween(0, 1);
 	this.alphaOther = new Tween(0, 1);
 	this.alphaPattern = new Tween(0, 0);
+	
+	this.initialize = function(nodeView)
+	{
+		this.angleStart.start = nodeView.angleStart.start;
+		this.angleEnd.start = nodeView.angleEnd.start;
+		this.radiusInner.start = nodeView.radiusInner.start;
+		this.labelRadius.start = nodeView.labelRadius.start;
+		this.labelWidth.start = nodeView.labelWidth.start;
+		
+		this.r.start = nodeView.r.start;
+		this.g.start = nodeView.g.start;
+		this.b.start = nodeView.b.start;
+		
+		this.alphaLabel.start = nodeView.alphaLabel.start;
+		this.alphaLine.start = nodeView.alphaLine.start;
+		this.alphaArc.start = nodeView.alphaArc.start;
+		this.alphaWedge.start = nodeView.alphaWedge.start;
+		this.alphaOther.start = nodeView.alphaOther.start;
+		this.alphaPattern.start = nodeView.alphaPattern.start;
+	}
+}
+
+function Node()
+{
+	this.id = currentNodeID;
+	currentNodeID++;
+	nodes[this.id] = this;
+	
+	this.nodeViews = new Array();
+	
+	nodeViews.push(new NodeView());
+	
 	this.children = Array();
 	this.parent = 0;
 	
@@ -395,6 +421,20 @@ function Node()
 		this.labelPrev = head.labelPrev;
 		head.labelPrev.labelNext = this;
 		head.labelPrev = this;
+	}
+	
+	this.addNodeView = function()
+	{
+		this.nodeViews.push(new NodeView());
+		
+		// initialize from last view
+		//
+		var nNodeViews = this.nodeViews.length;
+		//
+		if ( nNodeViews > 1 )
+		{
+			this.nodeViews[nNodeViews - 1].initialize(this.nodeViews[nNodeViews - 2]);
+		}
 	}
 	
 	this.canDisplayDepth = function()
@@ -2620,12 +2660,13 @@ function Node()
 		}
 	}
 	
-	this.setTargets = function()
+	this.setTargets = function(view)
 	{
 		if ( this == selectedNode )
 		{
 			this.setTargetsSelected
 			(
+				view,
 				0,
 				1,
 				lightnessBase,
@@ -2634,6 +2675,8 @@ function Node()
 			);
 			return;
 		}
+		
+		var nodeView = this.nodeViews[view];
 		
 		var depthRelative = this.getDepth() - selectedNode.getDepth();
 		
