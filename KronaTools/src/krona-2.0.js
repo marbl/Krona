@@ -274,11 +274,11 @@ var currentDataset = 0;
 var lastDataset = 0;
 var datasets = 1;
 var datasetNames;
-var datasetSelectSize = 40;
+var datasetSelectSize = 30;
 var datasetAlpha = new Tween(0, 0);
 var datasetWidths = new Array();
 var datasetChanged;
-var datasetSelectWidth = 120;
+var datasetSelectWidth = 50;
 
 window.onload = load;
 
@@ -297,14 +297,30 @@ function resize()
 		context.canvas.height = imageHeight;
 	}
 	
-	var minDimension = imageWidth - mapWidth > imageHeight ?
+	if ( datasetDropDown )
+	{
+		var ratio = 
+			(datasetDropDown.offsetTop + datasetDropDown.clientHeight) * 2 /
+			imageHeight;
+		
+		if ( ratio > 1 )
+		{
+			ratio = 1;
+		}
+		
+		ratio = Math.sqrt(ratio);
+		
+		datasetSelectWidth = 
+			(datasetDropDown.offsetLeft + datasetDropDown.clientWidth) * ratio;
+	}
+	var leftMargin = datasets > 1 ? datasetSelectWidth + 30 : 0;
+	var minDimension = imageWidth - mapWidth - leftMargin > imageHeight ?
 		imageHeight :
-		imageWidth - mapWidth;
+		imageWidth - mapWidth - leftMargin;
 	
 	maxMapRadius = minDimension * .03;
 	buffer = minDimension * .1;
 	margin = minDimension * .015;
-	var leftMargin = datasets > 1 ? datasetSelectWidth + 30 : 0;
 	centerX = (imageWidth - mapWidth - leftMargin) / 2 + leftMargin;
 	centerY = imageHeight / 2;
 	gRadius = minDimension / 2 - buffer;
@@ -3420,8 +3436,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 		
 		var select =
 			'<div style="float:left">&nbsp;</div><div style="float:left">' +
-			'<select id="datasets" style="width:' + datasetSelectWidth +
-			'px"' + 'size="' + size + '" onchange="onDatasetChange()">';
+			'<select id="datasets" style="min-width:100px" size="' + size + '" onchange="onDatasetChange()">';
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
 		{
