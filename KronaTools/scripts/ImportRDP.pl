@@ -79,31 +79,36 @@ foreach my $input ( @ARGV )
 	my $webFormat;
 	my $line = <INFILE>;
 	
-	if ( $line =~ /^\s*$/ || $line =~ /^Classifier:/ )
+	if ( $line =~ /^\s*$/ || $line =~ /^Classifier:/ || $line =~ /;;/ )
 	{
 		$webFormat = 1;
 		
-		while ( $line =~ /^\s*$/ )
+		if ( $line !~ /;;/ )
 		{
-			$line = <INFILE>;
-		}
-		
-		while ( $line !~ /^Details:|^\s*$/ )
-		{
-			$line = <INFILE>;
+			# old web format
 			
-			if ( ! $line )
+			while ( $line =~ /^\s*$/ )
 			{
-				ktDie("\"$fileName\" is not RDP classification file.");
+				$line = <INFILE>;
 			}
+			
+			while ( $line !~ /^Details:|^\s*$/ )
+			{
+				$line = <INFILE>;
+				
+				if ( ! $line )
+				{
+					ktDie("\"$fileName\" is not RDP classification file.");
+				}
+			}
+			
+			if ( $line !~ /Details:/ )
+			{
+				ktDie("$fileName looks like a hierarchy file. Assignment detail required.");
+			}
+			
+			$line = <INFILE>;
 		}
-		
-		if ( $line !~ /Details:/ )
-		{
-			ktDie("$fileName looks like a hierarchy file. Assignment detail required.");
-		}
-		
-		$line = <INFILE>;
 	}
 	
 	if ( $webFormat )
@@ -130,12 +135,17 @@ foreach my $input ( @ARGV )
 		{
 			chop $line; # last '%'
 			
-			my @fields = split /["%]?; "?/, $line;
+			my @fields = split /["%]?; ?"?/, $line;
 			
 			$queryID = $fields[0];
 			
-			for ( my $i = 4; $i < @fields; $i += 2 )
+			for ( my $i = 2; $i < @fields; $i += 2 )
 			{
+				if ( $fields[$i] eq 'Root' )
+				{
+					next;
+				}
+				
 				push @lineage, $fields[$i];
 				push @scores, $fields[$i + 1];
 			}
@@ -146,8 +156,13 @@ foreach my $input ( @ARGV )
 			
 			$queryID = $fields[0];
 			
-			for ( my $i = 5; $i < @fields; $i += 3 )
+			for ( my $i = 2; $i < @fields; $i += 3 )
 			{
+				if ( $fields[$i] eq 'Root' )
+				{
+					next;
+				}
+				
 				push @lineage, $fields[$i];
 				push @ranks, $fields[$i + 1];
 				push @scores, $fields[$i + 2] * 100;
