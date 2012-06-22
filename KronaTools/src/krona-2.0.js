@@ -3382,8 +3382,8 @@ function NodeView(treeView, node)
 function addOptionElement(position, innerHTML, title)
 {
 	var div = document.createElement("div");
-	div.style.position = 'absolute';
-	div.style.top = position + 'px';
+//	div.style.position = 'absolute';
+//	div.style.top = position + 'px';
 	div.innerHTML = innerHTML;
 	
 	if ( title )
@@ -3391,7 +3391,7 @@ function addOptionElement(position, innerHTML, title)
 		div.title = title;
 	}
 	
-	document.body.insertBefore(div, canvas);
+	details.appendChild(div);
 	return position + div.clientHeight;
 }
 
@@ -3402,9 +3402,12 @@ function addOptionElements(hueName, hueDefault)
 	
 	details = document.createElement('div');
 	details.style.position = 'absolute';
-	details.style.top = '1%';
-	details.style.right = '2%';
-	details.style.textAlign = 'right';
+	details.style.maxWidth = '25%';
+//	details.style.right = '100%';
+	details.style.left = '75%';
+	details.style.height = '100%';
+	details.style.borderLeft = '1px solid';
+//	details.style.textAlign = 'right';
 	document.body.insertBefore(details, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
 
@@ -3412,7 +3415,7 @@ function addOptionElements(hueName, hueDefault)
 <span id="detailsName" style="font-weight:bold"></span>&nbsp;\
 <input type="button" id="detailsExpand" onclick="expand(focusNode);"\
 value="&harr;" title="Expand this wedge to become the new focus of the chart"/><br/>\
-<div id="detailsInfo" style="float:right"></div>';
+<div id="detailsInfo"></div>';
 
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -3437,9 +3440,22 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	if ( datasets > 1 )
 	{
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
+		datasetSelect = document.createElement('div');
+		details.appendChild(datasetSelect);
+		datasetSelect.style.resize = 'vertical';
+		datasetSelect.style.overflowY = 'scroll';
+		var table = '<table>';
+		
+		for ( var i = 0; i < datasetNames.length; i++ )
+		{
+			table += '<tr><td>' + datasetNames[i] + '</td></tr>';
+		}
+		
+		table += '</table>';
+		datasetSelect.innerHTML = table;
 		
 		var select =
-			'<div style="float:left">&nbsp;</div><div style="float:left">' +
+			'<div>&nbsp;</div><div>' +
 			'<select id="datasets" style="width:' + datasetSelectWidth +
 			'px"' + 'size="' + size + '" onchange="onDatasetChange()">';
 		
@@ -4959,20 +4975,6 @@ function load()
 	treeViews.push(new TreeView(2)); // TEMP
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
-	treeViews.push(new TreeView(3)); // TEMP
-	treeViews.push(new TreeView(1)); // TEMP
-	treeViews.push(new TreeView(2)); // TEMP
-	treeViews.push(new TreeView(1)); // TEMP
-	treeViews.push(new TreeView(2)); // TEMP
-	treeViews.push(new TreeView(3)); // TEMP
-	treeViews.push(new TreeView(1)); // TEMP
-	treeViews.push(new TreeView(2)); // TEMP
-	treeViews.push(new TreeView(3)); // TEMP
-	treeViews.push(new TreeView(1)); // TEMP
-	treeViews.push(new TreeView(2)); // TEMP
-	treeViews.push(new TreeView(3)); // TEMP
-	treeViews.push(new TreeView(1)); // TEMP
-	treeViews.push(new TreeView(2)); // TEMP
 	maxAbsoluteDepth = 0;
 	focusTreeView = treeViews[0];
 	selectDataset(datasetDefault);
@@ -5396,7 +5398,7 @@ function resetKeyOffset()
 
 function resize()
 {
-	imageWidth = window.innerWidth;
+	imageWidth = window.innerWidth * .75;
 	imageHeight = window.innerHeight;
 	
 	if ( ! snapshotMode )
@@ -5404,10 +5406,10 @@ function resize()
 		context.canvas.width = imageWidth;
 		context.canvas.height = imageHeight;
 	}
-	mapWidth = 0; // TEMP
+	
 //	var rows = Math.floor(imageHeight / (imageWidth - mapWidth) * Math.floor(Math.sqrt(treeViews.length)));
 //	var rows = Math.ceil(treeViews.length * (imageWidth - mapWidth) / imageHeight);
-	var rows = Math.round(imageHeight / Math.sqrt(imageHeight * (imageWidth - mapWidth) / treeViews.length));
+	var rows = Math.round(imageHeight / Math.sqrt(imageHeight * imageWidth / treeViews.length));
 	var cols = Math.ceil(treeViews.length / rows);
 	
 	/*
@@ -5465,7 +5467,7 @@ function resize()
 		}
 		else
 		{
-			treeViews[i].centerX = (imageWidth - mapWidth) * (col + .5) / cols;
+			treeViews[i].centerX = imageWidth * (col + .5) / cols;
 		}
 		
 		treeViews[i].centerY = imageHeight * (row + .5) / rows;
