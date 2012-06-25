@@ -98,11 +98,13 @@ var upButton;
 var forwardButton;
 var snapshotButton;
 var snapshotMode = false;
+var panel;
 var details;
 var detailsName;
 var search;
 var searchResults;
 var nSearchResults;
+var searchActive;
 var useHueCheckBox;
 var useHueDiv;
 var datasetDropDown;
@@ -167,8 +169,14 @@ var buffer = 100;
 var mapBuffer = 10;
 var mapRadius = 0;
 var maxMapRadius = 25;
+var mapPositionX;
+var mapPositionY;
 var mapWidth = 150;
 var maxLabelOverhang = Math.PI * 4.18;
+var mapAngleStart = new Tween(0, 0);
+var mapAngleEnd = new Tween(0, 0);
+var mapRadiusInner = new Tween(0, 0);
+var mapRadii;
 
 // Keys are the labeled boxes for slices in the highest level that are too thin
 // to label.
@@ -447,6 +455,11 @@ function Node()
 		}
 		
 		return parent;
+	}
+	
+	this.hasChildren = function()
+	{
+		return this.children.length && this.depth < maxAbsoluteDepth;
 	}
 	
 	this.hasParent = function(parent)
@@ -1091,7 +1104,8 @@ function NodeView(treeView, node)
 						this.hasChildren() &&
 						! this.keyed &&
 						(compress || depth < maxDisplayDepth) &&
-						drawChildren
+						drawChildren &&
+						! snapshotMode
 					);
 					
 					if ( truncateWedge )
@@ -1927,17 +1941,17 @@ function NodeView(treeView, node)
 				
 				var longArc = angleEnd - angleStart > Math.PI ? 1 : 0;
 				
-				var x1 = centerX + radiusInner * Math.cos(angleStart);
-				var y1 = centerY + radiusInner * Math.sin(angleStart);
+				var x1 = radiusInner * Math.cos(angleStart);
+				var y1 = radiusInner * Math.sin(angleStart);
 				
-				var x2 = centerX + radius * Math.cos(angleStart);
-				var y2 = centerY + radius * Math.sin(angleStart);
+				var x2 = radius * Math.cos(angleStart);
+				var y2 = radius * Math.sin(angleStart);
 				
-				var x3 = centerX + radius * Math.cos(angleEnd);
-				var y3 = centerY + radius * Math.sin(angleEnd);
+				var x3 = radius * Math.cos(angleEnd);
+				var y3 = radius * Math.sin(angleEnd);
 				
-				var x4 = centerX + radiusInner * Math.cos(angleEnd);
-				var y4 = centerY + radiusInner * Math.sin(angleEnd);
+				var x4 = radiusInner * Math.cos(angleEnd);
+				var y4 = radiusInner * Math.sin(angleEnd);
 				
 				if ( this.alphaArc.end )
 				{
@@ -1999,11 +2013,12 @@ function NodeView(treeView, node)
 			return;
 		}
 		
+		var childView = this.treeView.nodeViews[child.id];
 		var angleStart =
-			(child.baseMagnitude - this.baseMagnitude) / this.magnitude * Math.PI * 2 +
+			(childView.baseMagnitude - this.baseMagnitude) / this.magnitude * Math.PI * 2 +
 			rotationOffset;
 		var angleEnd =
-			(child.baseMagnitude - this.baseMagnitude + child.magnitude) /
+			(childView.baseMagnitude - this.baseMagnitude + childView.magnitude) /
 			this.magnitude * Math.PI * 2 +
 			rotationOffset;
 		
@@ -2232,10 +2247,10 @@ function NodeView(treeView, node)
 		return this.node.children.length && this.node.depth < maxAbsoluteDepth;// && this.magnitude;
 	}
 	
-	this.maxVisibleDepth = function(maxDepth)
+	this.maxVisibleDepth = function(maxDepth, node, radii)
 	{
 		var childInnerRadius;
-		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
+		var depth = this.node.getDepth() - node.getDepth() + 1;
 		var currentMaxDepth = depth;
 		
 		if ( this.hasChildren() && depth < maxDepth)
@@ -2251,14 +2266,7 @@ function NodeView(treeView, node)
 				currentMaxDepth++;
 			}
 			
-			if ( compress )
-			{
-				childInnerRadius = compressedRadii[depth - 1];
-			}
-			else
-			{
-				childInnerRadius = (depth) / maxDepth;
-			}
+			childInnerRadius = radii[depth - 1];
 			
 			for ( var i = 0; i < this.node.children.length; i++ )
 			{
@@ -2271,7 +2279,7 @@ function NodeView(treeView, node)
 					minWidth()
 				)
 				{
-					var childMaxDepth = this.getChild(i).maxVisibleDepth(maxDepth);
+					var childMaxDepth = this.getChild(i).maxVisibleDepth(maxDepth, node, radii);
 					
 					if ( childMaxDepth > currentMaxDepth )
 					{
@@ -3283,14 +3291,7 @@ function NodeView(treeView, node)
 		}
 		else
 		{
-			if ( compress )
-			{
-				this.radiusInner.setTarget(compressedRadii[depth - 2]);
-			}
-			else
-			{
-				this.radiusInner.setTarget(nodeRadius * (depth - 1));
-			}
+			this.radiusInner.setTarget(compressedRadii[depth - 2]);
 		}
 		
 		if ( this.hide != undefined )
@@ -3379,7 +3380,7 @@ function NodeView(treeView, node)
 */	
 }
 
-function addOptionElement(position, innerHTML, title)
+function addOptionElement(innerHTML, title, id)
 {
 	var div = document.createElement("div");
 //	div.style.position = 'absolute';
@@ -3391,8 +3392,8 @@ function addOptionElement(position, innerHTML, title)
 		div.title = title;
 	}
 	
-	details.appendChild(div);
-	return position + div.clientHeight;
+	panel.appendChild(div);
+	return div;
 }
 
 function addOptionElements(hueName, hueDefault)
@@ -3400,22 +3401,30 @@ function addOptionElements(hueName, hueDefault)
 	document.body.style.font = '11px sans-serif';
 	var position = 5;
 	
-	details = document.createElement('div');
-	details.style.position = 'absolute';
-	details.style.maxWidth = '25%';
+	panel = document.createElement('div');
+	panel.style.position = 'absolute';
+	panel.style.maxWidth = '25%';
 //	details.style.right = '100%';
-	details.style.left = '75%';
-	details.style.height = '100%';
-	details.style.borderLeft = '1px solid';
+	panel.style.left = '75%';
+	panel.style.height = '100%';
+	panel.style.borderLeft = '1px solid gray';
 //	details.style.textAlign = 'right';
-	document.body.insertBefore(details, canvas);
+	document.body.insertBefore(panel, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
 
-	details.innerHTML = '\
-<span id="detailsName" style="font-weight:bold"></span>&nbsp;\
-<input type="button" id="detailsExpand" onclick="expand(focusNode);"\
-value="&harr;" title="Expand this wedge to become the new focus of the chart"/><br/>\
-<div id="detailsInfo"></div>';
+	position = addOptionElement
+	(
+'&nbsp;<input style="float:left" type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+<input style="float:left" type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
+&nbsp;<input style="float:left;max-width:100%;" type="text" id="search"/>\
+<input style="float:left" type="button" value="x" onclick="searchClear()"/> \
+<span id="searchResults"></span>'
+	);
+	
+	details = addOptionElement(
+'<span id="detailsName" style="font-weight:bold"></span>&nbsp;\
+<br/>\
+<div id="detailsInfo"></div>');
 
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -3427,22 +3436,12 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	document.body.insertBefore(keyControl, canvas);
 	
 //	document.getElementById('options').style.fontSize = '9pt';
-	position = addOptionElement
-	(
-		position,
-'&nbsp;<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
-<input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
-&nbsp;Search: <input type="text" id="search"/>\
-<input type="button" value="x" onclick="clearSearch()"/> \
-<span id="searchResults"></span>'
-	);
 	
 	if ( datasets > 1 )
 	{
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
 		datasetSelect = document.createElement('div');
 		details.appendChild(datasetSelect);
-		datasetSelect.style.resize = 'vertical';
 		datasetSelect.style.overflowY = 'scroll';
 		var table = '<table>';
 		
@@ -3470,7 +3469,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 			'<input title="Switch to the last dataset that was viewed (Shortcut: TAB)" id="lastDataset" type="button" style="font:11px Times new roman" value="last" onclick="selectLastDataset()"/>' +
 			'<br/><input title="Next dataset (Shortcut: &darr;)" id="nextDataset" type="button" value="&darr;" onclick="nextDataset()"/><br/>';
 		
-		position = addOptionElement(position + 5, select);
+		position = addOptionElement(select);
 		
 		datasetDropDown = document.getElementById('datasets');
 		datasetButtonLast = document.getElementById('lastDataset');
@@ -3480,7 +3479,6 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	
 	position = addOptionElement
 	(
-		position + 5,
 '&nbsp;<input type="button" id="maxAbsoluteDepthDecrease" value="-"/>\
 <span id="maxAbsoluteDepth"></span>\
 &nbsp;<input type="button" id="maxAbsoluteDepthIncrease" value="+"/> Max depth',
@@ -3490,7 +3488,6 @@ and including collapsed wedges.'
 	
 	position = addOptionElement
 	(
-		position,
 '&nbsp;<input type="button" id="fontSizeDecrease" value="-"/>\
 <span id="fontSize"></span>\
 &nbsp;<input type="button" id="fontSizeIncrease" value="+"/> Font size'
@@ -3502,7 +3499,6 @@ and including collapsed wedges.'
 		
 		position = addOptionElement
 		(
-			position + 5,
 			'<div style="float:left">&nbsp;</div>' +
 			'<input type="checkbox" id="useHue" style="float:left" ' +
 			'/><div style="float:left">Color by<br/>' + hueDisplayName +
@@ -3530,14 +3526,12 @@ and including collapsed wedges.'
 	*/
 	position = addOptionElement
 	(
-		position,
 		'&nbsp;<input type="checkbox" id="collapse" checked="checked" />Collapse',
 		'Collapse wedges that are redundant (entirely composed of another wedge)'
 	);
 	
 	position = addOptionElement
 	(
-		position + 5,
 		'&nbsp;<input type="button" id="snapshot" value="Snapshot"/>',
 'Render the current view as SVG (Scalable Vector Graphics), a publication-\
 quality format that can be printed and saved (see Help for browser compatibility)'
@@ -3545,7 +3539,6 @@ quality format that can be printed and saved (see Help for browser compatibility
 	
 	position = addOptionElement
 	(
-		position + 5,
 '&nbsp;<input type="button" id="linkButton" value="Link"/>\
 <input type="text" size="30" id="linkText"/>',
 'Show a link to this view that can be copied for bookmarking or sharing'
@@ -3553,7 +3546,6 @@ quality format that can be printed and saved (see Help for browser compatibility
 	
 	position = addOptionElement
 	(
-		position + 5,
 '&nbsp;<input type="button" id="help" value="?"\
 onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>',
 'Help'
@@ -3706,7 +3698,7 @@ function checkHighlight()
 				treeViews[i].nodeViews[selectedNode.getParent().id].checkHighlightCenter();
 			}
 			
-			treeViews[i].nodeViews[focusNode.id].checkHighlightMap();
+			//treeViews[i].nodeViews[focusNode.id].checkHighlightMap();
 		}
 	}
 	
@@ -3764,10 +3756,84 @@ function checkSelectedCollapse()
 	}
 }
 
-function clearSearch()
+function computeRadii(node)
 {
-	search.value = '';
-	onSearchChange();
+	// visibility of nodes depends on the depth they are displayed at,
+	// so we need to set the max depth assuming they can all be displayed
+	// and iterate it down based on the deepest child node we can display
+	
+	var maxDepth;
+	var newMaxDepth = node.getMaxDepth() - node.getDepth() + 1;
+	
+	var minRadiusInner = fontSize * 8 / treeViews[0].radius;
+	var minRadiusFirst = fontSize * 6 / treeViews[0].radius;
+	var minRadiusOuter = fontSize * 5 / treeViews[0].radius;
+	
+	if ( .25 < minRadiusInner )
+	{
+		minRadiusInner = .25;
+	}
+	
+	if ( .15 < minRadiusFirst )
+	{
+		minRadiusFirst = .15;
+	}
+	
+	if ( .15 < minRadiusOuter )
+	{
+		minRadiusOuter = .15;
+	}
+	
+	do
+	{
+		maxDepth = newMaxDepth;
+		
+		if ( ! compress && maxDepth > maxPossibleDepth )
+		{
+			maxDepth = maxPossibleDepth;
+		}
+		
+		radii = new Array(maxDepth);
+		
+		radii[0] = minRadiusInner;
+		
+		var offset = 0;
+		
+		while
+		(
+			lerp
+			(
+				Math.atan(offset + 2),
+				Math.atan(offset + 1),
+				Math.atan(maxDepth + offset - 1),
+				minRadiusInner,
+				1 - minRadiusOuter
+			) - minRadiusInner > minRadiusFirst &&
+			offset < 10
+		)
+		{
+			offset++;
+		}
+		
+		offset--;
+		
+		for ( var i = 1; i < maxDepth; i++ )
+		{
+			radii[i] = lerp
+			(
+				Math.atan(i + offset),
+				Math.atan(offset),
+				Math.atan(maxDepth + offset - 1),
+				minRadiusInner,
+				1 - minRadiusOuter
+			)
+		}
+		
+		newMaxDepth = treeViews[0].nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
+	}
+	while ( newMaxDepth < maxDepth );
+	
+	return radii;
 }
 
 function createSVG()
@@ -3812,13 +3878,14 @@ function draw()
 	
 	//context.strokeStyle = 'rgba(0, 0, 0, 0.3)';
 	
+	drawMap();
+	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
 		var selectedNodeView = treeViews[i].nodeViews[selectedNode.id];
 		var highlightedNodeView = treeViews[i].nodeViews[highlightedNode.id];
 		
-		context.save();
-		context.translate(treeViews[i].centerX, treeViews[i].centerY);
+		pushTranslation(treeViews[i].centerX, treeViews[i].centerY);
 		
 		resetKeyOffset();
 		
@@ -3895,20 +3962,6 @@ function draw()
 	
 	context.globalAlpha = 1;
 	
-	mapRadius =
-		(imageHeight / 2 - details.clientHeight - details.offsetTop) /
-		(pathRoot.getDepth() - 1) * 3 / 4 / 2;
-	
-	if ( mapRadius > maxMapRadius )
-	{
-		mapRadius = maxMapRadius;
-	}
-	
-	mapBuffer = mapRadius / 2;
-	
-	//context.font = fontNormal;
-	treeViews[0].nodeViews[pathRoot.id].drawMap(pathRoot);
-	
 	if ( hueDisplayName && useHue() )
 	{
 		drawLegend();
@@ -3975,7 +4028,7 @@ function drawBubbleSVG(x, y, width, height, radius, rotation)
 		'" fill="rgba(255, 255, 255, .75)' +
 		'" class="highlight" ' +
 		'transform="rotate(' +
-		degrees(rotation) + ',' + centerX + ',' + centerY +
+		degrees(rotation) + ',' + 0 + ',' + 0 +
 		')"/>';
 }
 
@@ -4107,6 +4160,92 @@ function drawLegendSVG()
 	svg += text;
 }
 
+function getMapArc(nodeView)
+{
+	var headView = treeViews[0].nodeViews[head.id];
+	
+	return {
+		start: nodeView.baseMagnitude / headView.magnitude * Math.PI * 2,
+		end: (nodeView.baseMagnitude + nodeView.magnitude) / headView.magnitude * Math.PI * 2
+	};
+}
+
+function drawMap()
+{
+	mapRadius = (Math.sqrt(Math.pow(treeViews[0].centerX, 2) + Math.pow(treeViews[0].centerY, 2)) - treeViews[0].radius) * .25;
+	mapPositionX = treeViews[0].centerX + treeViews[0].centerX * .8;
+	mapPositionY = treeViews[0].centerY * .20
+	
+	if ( mapRadius > maxMapRadius )
+	{
+//		mapRadius = maxMapRadius;
+	}
+	
+	var radiusInner = mapRadiusInner.current() * mapRadius;
+	var angleStart = mapAngleStart.current() + rotationOffset;
+	var angleEnd = mapAngleEnd.current() + rotationOffset;
+	
+	context.save();
+	
+	context.translate(mapPositionX, mapPositionY);
+	context.fillStyle = '#DDDDDD';
+	context.strokeStyle = '#DDDDDD';
+	context.beginPath();
+	context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
+	context.stroke();
+	context.beginPath();
+	context.arc(0, 0, radiusInner, angleEnd, angleStart, true);
+	context.arc(0, 0, mapRadius, angleStart, angleEnd, false);
+	context.fill();
+	
+	if ( radiusInner )
+	{
+		context.strokeStyle = '#CCCCCC';
+		context.stroke();
+	}
+	
+	if ( highlightedNode != selectedNode || focusNode != selectedNode )// || selectedNode != head )
+	{
+		var node;
+		
+		if ( highlightedNode != selectedNode )
+		{
+			node = highlightedNode;
+		}
+		else
+		{
+			node = focusNode;
+		}
+		
+		var highlightArc = getMapArc(treeViews[0].nodeViews[node.id]);
+		
+		highlightArc.start += rotationOffset;
+		highlightArc.end += rotationOffset;
+		
+		var highlightRadiusInner = node == head ? 0 :
+			mapRadii[node.getDepth() - 2] * mapRadius;
+		
+		context.beginPath();
+		
+		if ( node == head )
+		{
+			context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
+		}
+		else
+		{
+			context.arc(0, 0, highlightRadiusInner, highlightArc.end, highlightArc.start, true);
+			context.arc(0, 0, mapRadius, highlightArc.start, highlightArc.end, false);
+			context.closePath();
+		}
+		
+		context.lineWidth = 2;
+		context.strokeStyle = '#CCCCCC';
+		context.stroke();
+	}
+	
+	context.restore();
+}
+
 function drawSearchHighlights(label, bubbleX, bubbleY, rotation, center)
 {
 	var index = -1;
@@ -4167,9 +4306,9 @@ function drawText(text, x, y, angle, anchor, bold)
 	if ( snapshotMode )
 	{
 		svg +=
-			'<text x="' + (centerX + x) + '" y="' + (centerY + y) +
+			'<text x="' + x + '" y="' + y +
 			'" text-anchor="' + anchor + '" style="font-weight:' + (bold ? 'bold' : 'normal') +
-			'" transform="rotate(' + degrees(angle) + ',' + centerX + ',' + centerY + ')">' +
+			'" transform="rotate(' + degrees(angle) + ',' + 0 + ',' + 0 + ')">' +
 			text + '</text>';
 	}
 	else
@@ -4323,12 +4462,12 @@ function drawTick(start, length, angle)
 	if ( snapshotMode )
 	{
 		svg +=
-			'<line x1="' + (centerX + start) +
-			'" y1="' + centerY +
-			'" x2="' + (centerX + start + length) +
-			'" y2="' + centerY +
+			'<line x1="' + start +
+			'" y1="' + 0 +
+			'" x2="' + (start + length) +
+			'" y2="' + 0 +
 			'" class="tick" transform="rotate(' +
-			degrees(angle) + ',' + centerX + ',' + centerY +
+			degrees(angle) + ',' + 0 + ',' + 0 +
 			')"/>';
 	}
 	else
@@ -4370,17 +4509,17 @@ function drawWedge
 		
 		var longArc = angleEnd - angleStart > Math.PI ? 1 : 0;
 		
-		var x1 = centerX + radiusInner * Math.cos(angleStart);
-		var y1 = centerY + radiusInner * Math.sin(angleStart);
+		var x1 = radiusInner * Math.cos(angleStart);
+		var y1 = radiusInner * Math.sin(angleStart);
 		
-		var x2 = centerX + radiusOuter * Math.cos(angleStart);
-		var y2 = centerY + radiusOuter * Math.sin(angleStart);
+		var x2 = radiusOuter * Math.cos(angleStart);
+		var y2 = radiusOuter * Math.sin(angleStart);
 		
-		var x3 = centerX + radiusOuter * Math.cos(angleEnd);
-		var y3 = centerY + radiusOuter * Math.sin(angleEnd);
+		var x3 = radiusOuter * Math.cos(angleEnd);
+		var y3 = radiusOuter * Math.sin(angleEnd);
 		
-		var x4 = centerX + radiusInner * Math.cos(angleEnd);
-		var y4 = centerY + radiusInner * Math.sin(angleEnd);
+		var x4 = radiusInner * Math.cos(angleEnd);
+		var y4 = radiusInner * Math.sin(angleEnd);
 		
 		var dArray =
 		[
@@ -4968,14 +5107,14 @@ function load()
 	
 	head.sort(datasetDefault);
 	treeViews.push(new TreeView(datasetDefault));
-	treeViews.push(new TreeView(1)); // TEMP
+/*	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 	treeViews.push(new TreeView(3)); // TEMP
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
-	maxAbsoluteDepth = 0;
+*/	maxAbsoluteDepth = 0;
 	focusTreeView = treeViews[0];
 	selectDataset(datasetDefault);
 	
@@ -5346,7 +5485,8 @@ function onKeyUp(event)
 {
 	if ( event.keyCode == 27 && document.activeElement.id == 'search' )
 	{
-		search.value = '';
+		search.blur();
+		searchDeactivate();
 		onSearchChange();
 	}
 }
@@ -5356,17 +5496,29 @@ function onSearchChange()
 	nSearchResults = 0;
 	head.search();
 	
-	if ( search.value == '' )
+	if ( searchActive )
 	{
-		searchResults.innerHTML = '';
+		searchResults.innerHTML = nSearchResults + ' results';
 	}
 	else
 	{
-		searchResults.innerHTML = nSearchResults + ' results';
+		searchResults.innerHTML = '';
 	}
 	
 	setFocus(selectedNode);
 	draw();
+}
+
+function popTranslation()
+{
+	if ( snapshotMode )
+	{
+		svg += '</g>';
+	}
+	else
+	{
+		context.restore();
+	}
 }
 
 function prevDataset()
@@ -5389,6 +5541,18 @@ function prevDataset()
 	selectDataset(newDataset);
 }
 
+function pushTranslation(x, y)
+{
+	if ( snapshotMode )
+	{
+		svg += '<g transform="translate(' + x + ',' + y + ')">';
+	}
+	else
+	{
+		context.save();
+		context.translate(x, y);
+	}
+}
 function resetKeyOffset()
 {
 	currentKey = 1;
@@ -5532,6 +5696,42 @@ function passClick(e)
 	mouseClick(e);
 }
 
+function searchActivate()
+{
+	searchActive = true;
+	search.value = '';
+	search.style.color = 'black';
+}
+
+function searchBlur()
+{
+	if ( search.value == '' )
+	{
+		searchDeactivate();
+	}
+}
+
+function searchClear()
+{
+	searchDeactivate();
+	onSearchChange();
+}
+
+function searchDeactivate()
+{
+	searchActive = false;
+	search.value = 'Search';
+	search.style.color = 'gray';
+}
+
+function searchFocus()
+{
+	if ( ! searchActive )
+	{
+		searchActivate();
+	}
+}
+
 function searchResultString(results)
 {
 	var searchResults = this.searchResults;
@@ -5548,7 +5748,7 @@ function searchResultString(results)
 function setCallBacks()
 {
 	canvas.onselectstart = function(){return false;} // prevent unwanted highlighting
-	document.onmousemove = mouseMove;
+	canvas.onmousemove = mouseMove;
 	window.onblur = focusLost;
 	window.onmouseout = focusLost;
 	document.onkeyup = onKeyUp;
@@ -5578,10 +5778,12 @@ function setCallBacks()
 	snapshotButton.onclick = snapshot;
 //	details = document.getElementById('details');
 	detailsName = document.getElementById('detailsName');
-	detailsExpand = document.getElementById('detailsExpand');
 	detailsInfo = document.getElementById('detailsInfo');
 	search = document.getElementById('search');
 	search.onkeyup = onSearchChange;
+	search.onblur = searchBlur;
+	search.onfocus = searchFocus;
+	searchDeactivate();
 	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
 	linkButton = document.getElementById('linkButton');
@@ -5736,10 +5938,6 @@ function setFocus(node)
 	
 	table += '</table>';
 	detailsInfo.innerHTML = table;
-	
-	// TODO: focusNode.hasChildren()
-	//
-	detailsExpand.disabled = !focusNode.children.length || focusNode == selectedNode;
 }
 
 function setSelectedNode(newNode)
@@ -5884,8 +6082,20 @@ function snapshot()
 	
 	snapshotMode = true;
 	
-	selectedNode.draw(false, true);
-	selectedNode.draw(true, true);
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		var selectedNodeView = treeViews[i].nodeViews[selectedNode.id];
+		var highlightedNodeView = treeViews[i].nodeViews[highlightedNode.id];
+		
+		pushTranslation(treeViews[i].centerX, treeViews[i].centerY);
+		
+		resetKeyOffset();
+		
+		treeViews[i].nodeViews[selectedNode.id].draw(false, false); // draw pie slices
+		treeViews[i].nodeViews[selectedNode.id].draw(true, false); // draw labels
+		
+		popTranslation();
+	}
 	
 	if ( focusNode != 0 && focusNode != selectedNode )
 	{
@@ -6193,91 +6403,12 @@ function updateView()
 		maxPossibleDepth = 4;
 	}
 	
-	var minRadiusInner = fontSize * 8 / treeViews[0].radius;
-	var minRadiusFirst = fontSize * 6 / treeViews[0].radius;
-	var minRadiusOuter = fontSize * 5 / treeViews[0].radius;
+	compressedRadii = computeRadii(selectedNode);
+	maxDisplayDepth = compressedRadii.length;//maxDepth;
 	
-	if ( .25 < minRadiusInner )
-	{
-		minRadiusInner = .25;
-	}
+	mapRadii = computeRadii(head);
 	
-	if ( .15 < minRadiusFirst )
-	{
-		minRadiusFirst = .15;
-	}
-	
-	if ( .15 < minRadiusOuter )
-	{
-		minRadiusOuter = .15;
-	}
-	
-	// visibility of nodes depends on the depth they are displayed at,
-	// so we need to set the max depth assuming they can all be displayed
-	// and iterate it down based on the deepest child node we can display
-	//
-	var maxDepth;
-	var newMaxDepth = selectedNode.getMaxDepth() - selectedNode.getDepth() + 1;
-	//
-	do
-	{
-		maxDepth = newMaxDepth;
-		
-		if ( ! compress && maxDepth > maxPossibleDepth )
-		{
-			maxDepth = maxPossibleDepth;
-		}
-		
-		if ( compress )
-		{
-			compressedRadii = new Array(maxDepth);
-			
-			compressedRadii[0] = minRadiusInner;
-			
-			var offset = 0;
-			
-			while
-			(
-				lerp
-				(
-					Math.atan(offset + 2),
-					Math.atan(offset + 1),
-					Math.atan(maxDepth + offset - 1),
-					minRadiusInner,
-					1 - minRadiusOuter
-				) - minRadiusInner > minRadiusFirst &&
-				offset < 10
-			)
-			{
-				offset++;
-			}
-			
-			offset--;
-			
-			for ( var i = 1; i < maxDepth; i++ )
-			{
-				compressedRadii[i] = lerp
-				(
-					Math.atan(i + offset),
-					Math.atan(offset),
-					Math.atan(maxDepth + offset - 1),
-					minRadiusInner,
-					1 - minRadiusOuter
-				)
-			}
-		}
-		else
-		{
-			nodeRadius = 1 / maxDepth;
-		}
-		
-		newMaxDepth = treeViews[0].nodeViews[selectedNode.id].maxVisibleDepth(maxDepth);
-	}
-	while ( newMaxDepth < maxDepth );
-	
-	maxDisplayDepth = maxDepth;
-	
-	lightnessFactor = (lightnessMax - lightnessBase) / (maxDepth > 8 ? 8 : maxDepth);
+	lightnessFactor = (lightnessMax - lightnessBase) / (maxDisplayDepth > 8 ? 8 : maxDisplayDepth);
 	keys = 0;
 	
 	fontSizeText.innerHTML = fontSize;
@@ -6317,6 +6448,15 @@ function updateView()
 	{
 		treeViews[i].resetLabelArrays();
 		treeViews[i].nodeViews[head.id].setTargets(0);
+	}
+	
+	if ( treeViews.length == 1 )
+	{
+		var mapArc = getMapArc(treeViews[0].nodeViews[selectedNode.id]);
+		
+		mapAngleStart.setTarget(mapArc.start);
+		mapAngleEnd.setTarget(mapArc.end);
+		mapRadiusInner.setTarget(selectedNode == head ? 0 : mapRadii[selectedNode.getDepth() - 2]);
 	}
 	
 	keySize = ((imageHeight - margin * 3) * 1 / 2) / keys * 3 / 4;
