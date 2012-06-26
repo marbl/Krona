@@ -3316,7 +3316,11 @@ function NodeView(treeView, node)
 			if ( depth == 2 && ! this.node.getCollapse() && this.node.depth <= maxAbsoluteDepth )
 			{
 				this.keyed = true;
-				keys++;
+				if ( ! keyedNodeIds[this.node.id] )
+				{
+					keyedNodeIds[this.node.id] = true;
+					keys.push(this.node);
+				}
 				this.hide = false;
 				
 				var percentage = this.getPercentage();
@@ -3386,6 +3390,7 @@ function addOptionElement(innerHTML, title, id)
 //	div.style.position = 'absolute';
 //	div.style.top = position + 'px';
 	div.innerHTML = innerHTML;
+	div.width = '100%';
 	
 	if ( title )
 	{
@@ -3408,6 +3413,7 @@ function addOptionElements(hueName, hueDefault)
 	panel.style.left = '75%';
 	panel.style.height = '100%';
 	panel.style.borderLeft = '1px solid gray';
+	panel.padding = '0';
 //	details.style.textAlign = 'right';
 	document.body.insertBefore(panel, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
@@ -3452,24 +3458,6 @@ function addOptionElements(hueName, hueDefault)
 		
 		table += '</table>';
 		datasetSelect.innerHTML = table;
-		
-		var select =
-			'<div>&nbsp;</div><div>' +
-			'<select id="datasets" style="width:' + datasetSelectWidth +
-			'px"' + 'size="' + size + '" onchange="onDatasetChange()">';
-		
-		for ( var i = 0; i < datasetNames.length; i++ )
-		{
-			select += '<option>' + datasetNames[i] + '</option>';
-		}
-		
-		select +=
-			'</select></div>' +
-			'<input title="Previous dataset (Shortcut: &uarr;)" id="prevDataset" type="button" value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
-			'<input title="Switch to the last dataset that was viewed (Shortcut: TAB)" id="lastDataset" type="button" style="font:11px Times new roman" value="last" onclick="selectLastDataset()"/>' +
-			'<br/><input title="Next dataset (Shortcut: &darr;)" id="nextDataset" type="button" value="&darr;" onclick="nextDataset()"/><br/>';
-		
-		position = addOptionElement(select);
 		
 		datasetDropDown = document.getElementById('datasets');
 		datasetButtonLast = document.getElementById('lastDataset');
@@ -3550,6 +3538,15 @@ quality format that can be printed and saved (see Help for browser compatibility
 onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>',
 'Help'
 	);
+	
+	uiKeys = addOptionElement
+	(
+		'', 'Legend'
+	);
+	uiKeys.style.overflowY = 'scroll';
+	uiKeys.style.height = '25%';
+	uiKeyTable = document.createElement('table');
+	uiKeys.appendChild(uiKeyTable);
 }
 
 function arrow(angleStart, angleEnd, radiusInner, radiusOuter)
@@ -5820,7 +5817,7 @@ function selectDataset(newDataset)
 	currentDataset = newDataset
 	if ( datasets > 1 )
 	{
-		datasetDropDown.selectedIndex = currentDataset;
+//		datasetDropDown.selectedIndex = currentDataset;
 		updateDatasetButtons();
 		datasetAlpha.start = 1.5;
 		datasetChanged = true;
@@ -6309,7 +6306,7 @@ function update()
 
 function updateDatasetButtons()
 {
-	if ( datasets == 1 )
+	//if ( datasets == 1 )
 	{
 		return;
 	}
@@ -6409,7 +6406,8 @@ function updateView()
 	mapRadii = computeRadii(head);
 	
 	lightnessFactor = (lightnessMax - lightnessBase) / (maxDisplayDepth > 8 ? 8 : maxDisplayDepth);
-	keys = 0;
+	keyedNodeIds = new Array();
+	keys = new Array();
 	
 	fontSizeText.innerHTML = fontSize;
 	fontNormal = fontSize + 'px ' + fontFamily;
@@ -6467,6 +6465,26 @@ function updateView()
 	}
 	
 	keyBuffer = keySize / 3;
+	
+	uiKeyTable.innerHTML = '';
+	
+	for ( var i = 0; i < keys.length; i++ )
+	{
+		var nodeView = treeViews[0].nodeViews[keys[i].id];
+		
+		var row = document.createElement('tr');
+		var td1 = document.createElement('td');
+		var td2 = document.createElement('td');
+		
+		uiKeyTable.appendChild(row);
+		row.appendChild(td1);
+		row.appendChild(td2);
+		
+		td1.innerHTML = keys[i].name;
+		td2.style.minWidth = "10px";
+		td2.style.height = "10px"
+		td2.style.backgroundColor = rgbText(nodeView.r.end, nodeView.g.end, nodeView.b.end);
+	}
 	
 	fontSizeLast = fontSize;
 	
