@@ -1815,7 +1815,7 @@ function NodeView(treeView, node)
 				}
 			}
 			
-			drawText(label, boxLeft - keyBuffer, offset + keySize / 2, 0, 'end', bold);
+			//drawText(label, boxLeft - keyBuffer, offset + keySize / 2, 0, 'end', bold);
 			
 			context.translate(centerX, centerY);
 		}
@@ -1857,7 +1857,7 @@ function NodeView(treeView, node)
 			( !zoomOut || this.node != selectedNodeLast)
 		)
 		{
-			label = this.shortenLabel();
+			label = this.shortenLabel(this.labelWidth.current());
 		}
 		else
 		{
@@ -2296,7 +2296,7 @@ function NodeView(treeView, node)
 	{
 		var nameWidthOld = this.nameWidth;
 		
-		if ( ! this.radial )//&& fontSize != fontSizeLast )
+		if ( ! this.radial || this.keyed )//&& fontSize != fontSizeLast )
 		{
 			var dim = context.measureText(this.node.name);
 			this.nameWidth = dim.width;
@@ -2416,7 +2416,7 @@ function NodeView(treeView, node)
 		{
 			// same radius with small angle; use circumferential approximation
 			
-			var dist = a * this.labelRadius.end * radius - fontSize * (1 - a * 4 / Math.PI) * 1.3;
+			var dist = a * this.labelRadius.end * radius - fontSize * (1 - a * 4 / Math.PI) * 1.0;
 			
 			if ( this.labelWidth.end < dist )
 			{
@@ -2858,6 +2858,12 @@ function NodeView(treeView, node)
 		else
 		{
 			this.hideAlone = false;
+		}
+		
+		if ( this.keyed && ! keyedNodeIds[this.node.id] )
+		{
+			keyedNodeIds[this.node.id] = true;
+			keys.push(this.node);
 		}
 		
 		// set child wedges
@@ -3316,11 +3322,6 @@ function NodeView(treeView, node)
 			if ( depth == 2 && ! this.node.getCollapse() && this.node.depth <= maxAbsoluteDepth )
 			{
 				this.keyed = true;
-				if ( ! keyedNodeIds[this.node.id] )
-				{
-					keyedNodeIds[this.node.id] = true;
-					keys.push(this.node);
-				}
 				this.hide = false;
 				
 				var percentage = this.getPercentage();
@@ -3341,18 +3342,17 @@ function NodeView(treeView, node)
 		}
 	}
 	
-	this.shortenLabel = function()
+	this.shortenLabel = function(maxWidth)
 	{
 		var label = this.node.name;
 		
 		var labelWidth = this.nameWidth;
-		var maxWidth = this.labelWidth.current();
 		var minEndLength = 0;
 		
 		if ( labelWidth > maxWidth && label.length > minEndLength * 2 )
 		{
 			var endLength =
-				Math.floor((label.length - 1) * maxWidth / labelWidth / 2);
+				Math.floor((label.length - 1) * maxWidth / (labelWidth + ellipsisWidth) / 2);
 			
 			if ( endLength < minEndLength )
 			{
@@ -3543,8 +3543,13 @@ onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20c
 	(
 		'', 'Legend'
 	);
+	uiKeys.style.overflowX = 'hidden';
+	uiKeys.style.position = 'absolute';
 	uiKeys.style.overflowY = 'scroll';
 	uiKeys.style.height = '25%';
+	uiKeys.style.width = '100%';
+	uiKeys.style.bottom = '0%';
+	uiKeys.style.borderTop = '1px solid black';
 	uiKeyTable = document.createElement('table');
 	uiKeys.appendChild(uiKeyTable);
 }
@@ -4201,7 +4206,7 @@ function drawMap()
 		context.stroke();
 	}
 	
-	if ( highlightedNode != selectedNode || focusNode != selectedNode )// || selectedNode != head )
+	//if ( highlightedNode != selectedNode || focusNode != selectedNode )// || selectedNode != head )
 	{
 		var node;
 		
@@ -5608,9 +5613,9 @@ function resize()
 		minDimension = testMinDimension;
 	}
 	
-	fontSize = Math.floor(minDimension / 50);
+	//fontSize = Math.floor(minDimension / 50);
 	//fontSize = bound(fontSize, (imageWidth + imageHeight) / 200, (imageWidth + imageHeight) / 200);
-	fontSize = Math.floor(bound(fontSize, 6, 12));
+	//fontSize = Math.floor(bound(fontSize, 6, 12));
 	
 	maxMapRadius = minDimension * .03;
 	buffer = minDimension * .1;
@@ -5937,6 +5942,16 @@ function setFocus(node)
 	detailsInfo.innerHTML = table;
 }
 
+function setHighlightedNode(node)
+{
+	highlightedNode = node;
+	
+	if ( progress == 1 )
+	{
+		draw();
+	}
+}
+
 function setSelectedNode(newNode)
 {
 	if ( selectedNode && selectedNode.hasParent(newNode) )
@@ -5954,6 +5969,27 @@ function setSelectedNode(newNode)
 	if ( focusNode != selectedNode )
 	{
 		setFocus(selectedNode);
+	}
+}
+
+function shortenDivText(div, width)
+{
+	var minEndLength = 1;
+	
+	if ( div.clientWidth > width && div.innerHTML.length > minEndLength * 2 )
+	{
+		var endLength =
+			Math.floor((div.innerHTML.length - 1) * width / div.clientWidth / 2);
+		
+		if ( endLength < minEndLength )
+		{
+			endLength = minEndLength;
+		}
+		
+		div.innerHTML =
+			div.innerHTML.substring(0, endLength) +
+			'...' +
+			div.innerHTML.substring(div.innerHTML.length - endLength);
 	}
 }
 
@@ -6414,6 +6450,8 @@ function updateView()
 	context.font = fontNormal;
 	fontBold = 'bold ' + fontSize + 'px ' + fontFamily;
 	tickLength = fontSize * .7;
+	var dim = context.measureText('...');
+	ellipsisWidth = dim.width;
 	
 	nLabelOffsets = new Array(maxDisplayDepth - 1);
 	
@@ -6466,6 +6504,9 @@ function updateView()
 	
 	keyBuffer = keySize / 3;
 	
+	uiKeyTable.width = '100%';
+	uiKeyTable.padding = '0px';
+	uiKeyTable.style.font = fontNormal;
 	uiKeyTable.innerHTML = '';
 	
 	for ( var i = 0; i < keys.length; i++ )
@@ -6475,15 +6516,26 @@ function updateView()
 		var row = document.createElement('tr');
 		var td1 = document.createElement('td');
 		var td2 = document.createElement('td');
+		var divName = document.createElement('div');
 		
 		uiKeyTable.appendChild(row);
 		row.appendChild(td1);
 		row.appendChild(td2);
-		
-		td1.innerHTML = keys[i].name;
-		td2.style.minWidth = "10px";
-		td2.style.height = "10px"
+		row.kronaNode = keys[i];
+		td1.appendChild(divName);
+		row.onmouseover = function(){setHighlightedNode(this.kronaNode)};
+		row.onmouseout = function(){setHighlightedNode(selectedNode)};
+		divName.innerHTML = treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+		divName.style.width = 'auto';
+//		shortenDivText(divName, 80);
+		td1.style.overflowX = 'hidden';
+		td1.style.maxWidth = (uiKeys.clientWidth - 20) + 'px';
+		td2.style.width = "15px";
+		td2.style.height = "15px";
+		td1.style.padding = '0px';
+		td2.style.padding = '0px';
 		td2.style.backgroundColor = rgbText(nodeView.r.end, nodeView.g.end, nodeView.b.end);
+		td2.style.backgroundImage = 'url("' + image.src + '")';
 	}
 	
 	fontSizeLast = fontSize;
