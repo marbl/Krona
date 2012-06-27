@@ -5944,6 +5944,41 @@ function setFocus(node)
 
 function setHighlightedNode(node)
 {
+	
+	if ( node == selectedNode )
+	{
+		if ( toolTip != undefined )
+		{
+			document.body.removeChild(toolTip);
+			tooltip = undefined;
+		}
+		
+		uiKeyRowsById[highlightedNode.id].style.backgroundColor = "#FFFFFF";
+	}
+	else
+	{
+		uiKeyRowsById[node.id].style.backgroundColor = "#EEEEEE";
+		
+		if ( uiKeyRowsById[node.id].kronaShortened )
+		{
+			toolTip = document.createElement('div');
+			document.body.appendChild(toolTip);
+			toolTip.style.height = '15px';
+			toolTip.style.border = '1px solid black';
+			toolTip.style.position = 'absolute';
+			toolTip.style.font = fontNormal;
+			toolTip.style.backgroundColor = "#EEEEEE";
+			toolTip.innerHTML = node.name;
+			toolTip.style.top = (uiKeyRowsById[node.id].offsetTop + uiKeys.offsetTop - uiKeys.scrollTop) + 'px';
+			toolTip.style.left = (panel.offsetLeft + uiKeyRowsById[node.id].clientWidth - toolTip.clientWidth - 20) + 'px';
+			toolTip.onmouseout = function(){setHighlightedNode(selectedNode)};
+		}
+		else
+		{
+			uiKeyRowsById[node.id].onmouseout = function(){setHighlightedNode(selectedNode)};
+		}
+	}
+	
 	highlightedNode = node;
 	
 	if ( progress == 1 )
@@ -6508,6 +6543,7 @@ function updateView()
 	uiKeyTable.padding = '0px';
 	uiKeyTable.style.font = fontNormal;
 	uiKeyTable.innerHTML = '';
+	uiKeyRowsById = new Array();
 	
 	for ( var i = 0; i < keys.length; i++ )
 	{
@@ -6524,8 +6560,9 @@ function updateView()
 		row.kronaNode = keys[i];
 		td1.appendChild(divName);
 		row.onmouseover = function(){setHighlightedNode(this.kronaNode)};
-		row.onmouseout = function(){setHighlightedNode(selectedNode)};
+		uiKeyRowsById[keys[i].id] = row;
 		divName.innerHTML = treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+		row.kronaShortened = divName.innerHTML != keys[i].name;
 		divName.style.width = 'auto';
 //		shortenDivText(divName, 80);
 		td1.style.overflowX = 'hidden';
