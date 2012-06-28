@@ -666,7 +666,7 @@ function NodeView(treeView, node)
 	this.alphaLine = new Tween(0, 1);
 	this.alphaArc = new Tween(0, 0);
 	this.alphaWedge = new Tween(0, 1);
-	this.alphaOther = new Tween(0, 1);
+	this.alphaOther = new Tween(0, 0);
 	this.alphaPattern = new Tween(0, 0);
 	
 	if ( node.hues != undefined )
@@ -797,7 +797,7 @@ function NodeView(treeView, node)
 			//	document.body.style.cursor='pointer';
 			}
 			
-			highlightedNode = this.node;
+			setHighlightedNode(this.node);
 			highlightedTreeView = this.treeView;
 		}
 		
@@ -2165,6 +2165,11 @@ function NodeView(treeView, node)
 	
 	this.getChild = function(index)
 	{
+		if ( this.node.children[index] == undefined )
+		{
+			var poo = 4;
+		}
+		
 		return this.treeView.nodeViews[this.node.children[index].id];
 	}
 	
@@ -2860,7 +2865,7 @@ function NodeView(treeView, node)
 			this.hideAlone = false;
 		}
 		
-		if ( this.keyed && ! keyedNodeIds[this.node.id] )
+		if ( (this.keyed || treeViews.length > 1 && depth == 2 && ! collapse)  && ! keyedNodeIds[this.node.id] )
 		{
 			keyedNodeIds[this.node.id] = true;
 			keys.push(this.node);
@@ -3401,6 +3406,8 @@ function addOptionElement(innerHTML, title, id)
 	return div;
 }
 
+var uiDatasetCheckboxes;
+
 function addOptionElements(hueName, hueDefault)
 {
 	document.body.style.font = '11px sans-serif';
@@ -3446,20 +3453,53 @@ function addOptionElements(hueName, hueDefault)
 	if ( datasets > 1 )
 	{
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
-		datasetSelect = document.createElement('div');
-		details.appendChild(datasetSelect);
-		datasetSelect.style.overflowY = 'scroll';
-		var table = '<table>';
+		uiDatasets = document.createElement('div');
+		details.appendChild(uiDatasets);
+		uiDatasets.style.overflowY = 'scroll';
+		var table = document.createElement('table');
+		uiDatasets.appendChild(table);
+		table.width = '100%';
+		table.padding = '0px';
+		table.style.font = fontNormal;
+		table.innerHTML = '';
+		uiDatasetRowsById = new Array();
+		uiDatasetCheckboxes = new Array();
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
 		{
-			table += '<tr><td>' + datasetNames[i] + '</td></tr>';
+			var row = document.createElement('tr');
+			var tdName = document.createElement('td');
+			var tdCheckbox = document.createElement('td');
+			var tdChart = document.createElement('td');
+			var checkbox = document.createElement('input');
+			
+			checkbox.type = 'checkbox';
+			table.appendChild(row);
+			row.appendChild(tdName);
+			row.appendChild(tdCheckbox);
+			row.appendChild(tdChart);
+			tdCheckbox.appendChild(checkbox);
+			tdName.kronaDataset = i;
+			checkbox.kronaDataset = i;
+	//		row.onclick = mouseClick;
+			tdName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
+			uiDatasetRowsById[i] = tdName;
+			uiDatasetCheckboxes[i] = checkbox;
+			tdName.onclick = function(){selectDataset(this.kronaDataset)};
+			checkbox.onclick = function(){toggleDataset(this.kronaDataset)};
+			tdName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+//			row.kronaShortened = divName.innerHTML != keys[i].name;
+			tdName.style.overflowX = 'hidden';
+			tdName.style.maxWidth = (uiDatasets.clientWidth - 20) + 'px';
+			tdChart.style.width = "15px";
+			tdChart.style.height = "15px";
+			row.style.padding = '0px';
+			tdName.style.padding = '0px';
+			tdCheckbox.style.padding = '0px';
+			tdChart.style.backgroundColor = '#DDDDDD';//rgbText(nodeView.r.end, nodeView.g.end, nodeView.b.end);
+			//td2.style.backgroundImage = 'url("' + image.src + '")';
 		}
 		
-		table += '</table>';
-		datasetSelect.innerHTML = table;
-		
-		datasetDropDown = document.getElementById('datasets');
 		datasetButtonLast = document.getElementById('lastDataset');
 		datasetButtonPrev = document.getElementById('prevDataset');
 		datasetButtonNext = document.getElementById('nextDataset');
@@ -3686,7 +3726,7 @@ function checkHighlight()
 	var lastHighlightedNode = highlightedNode;
 	var lastHighlightingHidden = highlightingHidden;
 	
-	highlightedNode = selectedNode;
+	setHighlightedNode(selectedNode);
 	resetKeyOffset();
 	
 	if ( progress == 1 )
@@ -5109,10 +5149,10 @@ function load()
 	
 	head.sort(datasetDefault);
 	treeViews.push(new TreeView(datasetDefault));
-/*	treeViews.push(new TreeView(1)); // TEMP
+	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 	treeViews.push(new TreeView(3)); // TEMP
-	treeViews.push(new TreeView(1)); // TEMP
+/*	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
@@ -5752,7 +5792,7 @@ function setCallBacks()
 	canvas.onselectstart = function(){return false;} // prevent unwanted highlighting
 	canvas.onmousemove = mouseMove;
 	window.onblur = focusLost;
-	window.onmouseout = focusLost;
+	canvas.onmouseout = focusLost;
 	document.onkeyup = onKeyUp;
 	document.onkeydown = onKeyDown;
 	canvas.onmousedown = mouseClick;
@@ -5816,10 +5856,78 @@ function setCallBacks()
 	}
 }
 
+function toggleDataset(dataset)
+{
+	var treeView = 0;
+	
+	while ( treeView < treeViews.length && treeViews[treeView].dataset < dataset )
+	{
+		treeView++;
+	}
+	
+	if ( treeView < treeViews.length && treeViews[treeView].dataset == dataset )
+	{
+		// remove
+		
+		uiDatasetCheckboxes[dataset].checked = false;
+		treeViews.splice(treeView, 1);
+	}
+	else
+	{
+		// add
+		
+		uiDatasetCheckboxes[dataset].checked = true;
+		treeViews.splice(treeView, 0, new TreeView(dataset, treeViews[0]));
+	}
+	
+	updateDatasets();
+}
+
 function selectDataset(newDataset)
 {
+	var treeView;
+	
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		if ( treeViews[i].dataset == newDataset )
+		{
+			treeView = i;
+			break;
+		}
+	}
+	
+	if ( treeView == undefined )
+	{
+		treeViews[0].dataset = newDataset;
+	}
+	else
+	{
+		treeViews.splice(0, treeView);
+	}
+	
+	treeViews.splice(1, treeViews.length - 1);
+	
+	for ( var i = 0; i < datasetNames.length; i++ )
+	{
+		if ( i == newDataset )
+		{
+			uiDatasetCheckboxes[i].checked = true;
+			uiDatasetCheckboxes[i].disabled = treeViews.length == 1;
+		}
+		else
+		{
+			uiDatasetCheckboxes[i].checked = false;
+			uiDatasetCheckboxes[i].disabled = false;
+		}
+	}
+	
+	updateDatasets();
+}
+
+function updateDatasets()
+{
 	lastDataset = currentDataset;
-	currentDataset = newDataset
+	
 	if ( datasets > 1 )
 	{
 //		datasetDropDown.selectedIndex = currentDataset;
@@ -5941,41 +6049,52 @@ function setFocus(node)
 	table += '</table>';
 	detailsInfo.innerHTML = table;
 }
+var toolTip;
+var uiKeyRowsById;
+
+function setHighlightedDataset(dataset)
+{
+	uiDatasetRowsById[dataset].style.backgroundColor = "#EEEEEE";
+}
 
 function setHighlightedNode(node)
 {
-	
-	if ( node == selectedNode )
+	if ( uiKeyRowsById != undefined )
 	{
-		if ( toolTip != undefined )
+		if ( uiKeyRowsById[highlightedNode.id] != undefined )
 		{
-			document.body.removeChild(toolTip);
-			tooltip = undefined;
+			uiKeyRowsById[highlightedNode.id].style.backgroundColor = "#FFFFFF";
+			
+			if ( toolTip != undefined )
+			{
+				document.body.removeChild(toolTip);
+				toolTip = undefined;
+			}
 		}
-		
-		uiKeyRowsById[highlightedNode.id].style.backgroundColor = "#FFFFFF";
-	}
-	else
-	{
-		uiKeyRowsById[node.id].style.backgroundColor = "#EEEEEE";
-		
-		if ( uiKeyRowsById[node.id].kronaShortened )
+		if ( uiKeyRowsById[node.id] != undefined )
 		{
-			toolTip = document.createElement('div');
-			document.body.appendChild(toolTip);
-			toolTip.style.height = '15px';
-			toolTip.style.border = '1px solid black';
-			toolTip.style.position = 'absolute';
-			toolTip.style.font = fontNormal;
-			toolTip.style.backgroundColor = "#EEEEEE";
-			toolTip.innerHTML = node.name;
-			toolTip.style.top = (uiKeyRowsById[node.id].offsetTop + uiKeys.offsetTop - uiKeys.scrollTop) + 'px';
-			toolTip.style.left = (panel.offsetLeft + uiKeyRowsById[node.id].clientWidth - toolTip.clientWidth - 20) + 'px';
-			toolTip.onmouseout = function(){setHighlightedNode(selectedNode)};
-		}
-		else
-		{
-			uiKeyRowsById[node.id].onmouseout = function(){setHighlightedNode(selectedNode)};
+			uiKeyRowsById[node.id].style.backgroundColor = "#EEEEEE";
+			
+			if ( uiKeyRowsById[node.id].kronaShortened )
+			{
+				toolTip = document.createElement('div');
+				document.body.appendChild(toolTip);
+				toolTip.style.height = uiKeyRowsById[node.id].clientHeight + 'px';
+				toolTip.style.border = '1px solid black';
+				toolTip.style.padding = '1px 1px 0px 1px';
+				toolTip.style.position = 'absolute';
+				toolTip.style.font = fontNormal;
+				toolTip.style.backgroundColor = "#EEEEEE";
+				toolTip.innerHTML = node.name;
+				toolTip.style.top = (uiKeyRowsById[node.id].offsetTop + uiKeys.offsetTop - uiKeys.scrollTop - 1) + 'px';
+				toolTip.style.left = (panel.offsetLeft + uiKeyRowsById[node.id].clientWidth - toolTip.clientWidth - 18) + 'px';
+				toolTip.onmouseout = function(){setHighlightedNode(selectedNode)};
+				toolTip.onclick = mouseClick;
+			}
+			else
+			{
+				uiKeyRowsById[node.id].onmouseout = function(){setHighlightedNode(selectedNode)};
+			}
 		}
 	}
 	
@@ -6457,7 +6576,7 @@ function updateView()
 		maxAbsoluteDepth = selectedNode.depth + 1;
 	}
 	
-	highlightedNode = selectedNode;
+	setHighlightedNode(selectedNode);
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
@@ -6558,10 +6677,11 @@ function updateView()
 		row.appendChild(td1);
 		row.appendChild(td2);
 		row.kronaNode = keys[i];
-		td1.appendChild(divName);
+		row.onclick = mouseClick;
+		//td1.appendChild(divName);
 		row.onmouseover = function(){setHighlightedNode(this.kronaNode)};
 		uiKeyRowsById[keys[i].id] = row;
-		divName.innerHTML = treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+		td1.innerHTML = treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
 		row.kronaShortened = divName.innerHTML != keys[i].name;
 		divName.style.width = 'auto';
 //		shortenDivText(divName, 80);
@@ -6569,6 +6689,7 @@ function updateView()
 		td1.style.maxWidth = (uiKeys.clientWidth - 20) + 'px';
 		td2.style.width = "15px";
 		td2.style.height = "15px";
+		row.style.padding = '0px';
 		td1.style.padding = '0px';
 		td2.style.padding = '0px';
 		td2.style.backgroundColor = rgbText(nodeView.r.end, nodeView.g.end, nodeView.b.end);
