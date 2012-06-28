@@ -18,6 +18,7 @@ setOption('name', 'Root');
 my @options =
 qw(
 	out
+	name
 	include
 	combine
 	queryCol

@@ -18,6 +18,7 @@ setOption('out', 'rdp.krona.html');
 my @options =
 qw(
 	out
+	name
 	combine
 	minConfidence
 	depth

@@ -215,7 +215,7 @@ my $libPath = `ktGetLibPath`;
 my $taxonomyDir = "$libPath/../taxonomy";
 my $ecFile = "$libPath/../data/ec.tsv";
 
-my $version = '2.1';
+my $version = '2.2';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';

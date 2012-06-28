@@ -20,6 +20,7 @@ setOption('name', 'Root');
 my @options =
 qw(
 	out
+	name
 	factor
 	include
 	random

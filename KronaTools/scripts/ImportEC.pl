@@ -18,6 +18,7 @@ setOption('name', 'root');
 my @options =
 qw(
 	out
+	name
 	combine
 	queryCol
 	ecCol

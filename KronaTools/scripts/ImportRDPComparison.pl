@@ -23,8 +23,8 @@ setOption('leafAdd', 1);
 
 my @options =
 qw(
-	name
 	out
+	name
 	depth
 	hueBad
 	hueGood
