@@ -3122,7 +3122,7 @@ function NodeView(treeView, node)
 			{
 				if ( useHue() )
 				{
-					childHueMin = this.node.children[i].hues[currentDataset];
+					childHueMin = this.node.children[i].hues[this.treeView.dataset];
 				}
 				else if ( this.node == selectedNode )
 				{
@@ -6088,7 +6088,7 @@ function setFocus(node)
 	table += '</table>';
 	detailsInfo.innerHTML = table;
 	
-	if ( focusNode != selectedNode )
+	//if ( focusNode != selectedNode )
 	{
 		var max = 0;
 		
@@ -6106,6 +6106,20 @@ function setFocus(node)
 		{
 			var width = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i) / max * 25;
 			uiDatasetCharts[i].style.width = width + 'px';
+			
+			if ( useHue() )
+			{
+				uiDatasetCharts[i].style.backgroundColor = hslText(focusNode.hues[i]);
+			}
+			else
+			{
+				uiDatasetCharts[i].style.backgroundColor = rgbText
+				(
+					treeViews[0].nodeViews[focusNode.id].r.end,
+					treeViews[0].nodeViews[focusNode.id].g.end,
+					treeViews[0].nodeViews[focusNode.id].b.end
+				);
+			}
 		}
 	}
 }
@@ -6335,7 +6349,7 @@ function snapshot()
 		var selectedNodeView = treeViews[i].nodeViews[selectedNode.id];
 		var highlightedNodeView = treeViews[i].nodeViews[highlightedNode.id];
 		
-		pushTranslation(treeViews[i].centerX, treeViews[i].centerY);
+		pushTranslation(treeViews[i].centerXCurrent, treeViews[i].centerYCurrent);
 		
 		resetKeyOffset();
 		
