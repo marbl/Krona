@@ -38,6 +38,7 @@ foreach my $script qw
 	ClassifyBLAST
 	GetContigMagnitudes
 	GetLibPath
+	GetTaxIDFromGI
 	ImportAmphora
 	ImportBLAST
 	ImportDiskUsage

@@ -11,20 +11,24 @@ use strict;
 
 use lib (`ktGetLibPath`);
 use KronaTools;
+use Getopt::Long;
 
+my $help;
 my $totalMag;
+my $prepend;
+my $append;
 
-while ( <> )
+GetOptions
+(
+	'h' => \$help,
+	'help' => \$help,
+	'p' => \$prepend,
+	'a' => \$append
+);
+
+if ( $help )
 {
-	chomp;
-	
-	if
-	(
-		$_ eq ''
-	)
-	{
-		print '
-
+	print '
 Description:
    Translates GI numbers from <stdin> to NCBI taxonomy IDs.  A GI number can be
    identified within each line by "gi|<number>", or they can be bare numbers if
@@ -33,14 +37,42 @@ Description:
 
 Usage:
 
-	ktGetTaxIDFromGI < GI_list > tax_ID_list
+   ktGetTaxIDFromGI [options] < GI_list > tax_ID_list
+
+Options:
+
+   -p  Prepend tax IDs to the original lines (separated by tabs).
+  
+   -a  Append tax IDs to the original lines (separated by tabs).
 
 ';
-		exit;
-	}
+	exit;
+}
+
+if ( $prepend && $append )
+{
+	ktWarn('Both -p and -a specified. Only -a will be used.');
+	$prepend = 0;
+}
+
+while ( <> )
+{
+	chomp;
 	
 	if ( /^(\d+)$/ || /gi\|(\d+)/ )
 	{
-		print int(getTaxIDFromGI($1)), "\n";
+		if ( $append )
+		{
+			print "$_\t";
+		}
+		
+		print int(getTaxIDFromGI($1));
+		
+		if ( $prepend )
+		{
+			print "\t$_";
+		}
+		
+		print "\n";
 	}
 }
