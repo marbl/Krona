@@ -3507,6 +3507,10 @@ function addOptionElement(innerHTML, title, id)
 }
 
 var uiDatasetCheckboxes;
+var uiDetailsSelected;
+var uiDetailsSelectedRows = new Array();
+var uiDetailsFocus;
+var uiDetailsFocusRows = new Array();
 
 function addOptionElements(hueName, hueDefault)
 {
@@ -3524,7 +3528,7 @@ function addOptionElements(hueName, hueDefault)
 //	details.style.textAlign = 'right';
 	document.body.insertBefore(panel, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
-
+	
 	position = addOptionElement
 	(
 '&nbsp;<input style="float:left" type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
@@ -3536,9 +3540,44 @@ function addOptionElements(hueName, hueDefault)
 	
 	details = addOptionElement(
 '<span id="detailsName" style="font-weight:bold"></span>&nbsp;\
-<br/>\
-<div id="detailsInfo"></div>');
+<br/>');
 
+	uiDetailsSelected = document.createElement('table');
+	panel.appendChild(uiDetailsSelected);
+	uiDetailsSelected.style.width = '100%';
+	
+	for ( var i = 0; i < attributes.length; i++ )
+	{
+		if ( attributes[i].displayName == undefined )
+		{
+			continue;
+		}
+		
+		var row = document.createElement('tr');
+		uiDetailsSelected.appendChild(row);
+		
+		if ( i % 2 )
+		{
+			row.style.backgroundColor = '#FAFAFA';
+		}
+		else
+		{
+			row.style.backgroundColor = '#EEEEEE';
+		}
+		
+		var tdName = document.createElement('td');
+		var tdValue = document.createElement('td');
+		row.appendChild(tdName);
+		row.appendChild(tdValue);
+		uiDetailsSelectedRows[i] = tdValue;
+		
+		tdName.style.fontWeight = 'bold';
+		tdName.style.textAlign = 'right';
+		tdName.style.width = 'auto';
+		tdName.style.transform = 'rotate(90deg)';
+		tdName.innerHTML = attributes[i].displayName;
+	}
+	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
 	keyControl.value = showKeys ? 'x' : '…';
@@ -3554,7 +3593,7 @@ function addOptionElements(hueName, hueDefault)
 	{
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
 		uiDatasets = document.createElement('div');
-		details.appendChild(uiDatasets);
+		panel.appendChild(uiDatasets);
 		uiDatasets.style.overflowY = 'scroll';
 		var table = document.createElement('table');
 		uiDatasets.appendChild(table);
@@ -4069,7 +4108,7 @@ function drawBubble(angle, radius, width, radial, flip)
 	
 	if ( snapshotMode )
 	{
-		drawBubbleSVG(x + centerX, y + centerY, width, height, fontSize, angle);
+		drawBubbleSVG(x, y, width, height, fontSize, angle);
 	}
 	else
 	{
@@ -6031,10 +6070,6 @@ function setFocus(node)
 		detailsName.innerHTML = node.name;
 	}
 	
-	var table = '<table>';
-	
-	table += '<tr><td></td></tr>';
-	
 	for ( var i = 0; i < node.attributes.length; i++ )
 	{
 		if ( attributes[i].displayName && node.attributes[i] != undefined )
@@ -6044,49 +6079,75 @@ function setFocus(node)
 			if ( node.attributes[i][index] != undefined && node.attributes[i][focusTreeView.dataset] != '' )
 			{
 				var value = node.attributes[i][index];
+				var link = undefined;
+				var title;
+				var attribute;
+				var td = uiDetailsSelectedRows[i];
 				
 				if ( attributes[i].listNode != undefined )
 				{
-					value =
-						'<a href="" onclick="showList(' +
-						attributeIndex(attributes[i].listNode) + ',' + i +
-						',false);return false;" title="Show list">' +
-						value + '</a>';
+					link = function()
+					{
+						showList(this.kronaList, this.kronaAttribute, false);
+						return false
+					};
+					attribute = attributes[i].listNode;
+					title = 'Show list';
 				}
 				else if ( attributes[i].listAll != undefined )
 				{
-					value =
-						'<a href="" onclick="showList(' +
-						attributeIndex(attributes[i].listAll) + ',' + i +
-						',true);return false;" title="Show list">' +
-						value + '</a>';
+					link = function()
+					{
+						showList(this.kronaList, this.kronaAttribute, true);
+						return false;
+					};
+					attribute = attributes[i].listNode;
+					title = 'Show list';
 				}
 				else if ( attributes[i].dataNode != undefined && dataEnabled )
 				{
-					value =
-						'<a href="" onclick="showData(' +
-						attributeIndex(attributes[i].dataNode) + ',' + i +
-						',false);return false;" title="Show data">' +
-						value + '</a>';
+					link = function()
+					{
+						showData(this.kronaList, this.kronaAttribute, false);
+						return false;
+					};
+					attribute = attributes[i].dataNode;
+					title = 'Show data';
 				}
 				else if ( attributes[i].dataAll != undefined && dataEnabled )
 				{
-					value =
-						'<a href="" onclick="showData(' +
-						attributeIndex(attributes[i].dataAll) + ',' + i +
-						',true);return false;" title="Show data">' +
-						value + '</a>';
+					link = function()
+					{
+						showData(this.kronaList, this.kronaAttribute, false);
+						return false;
+					};
+					attribute = attributes[i].dataNode;
+					title = 'Show data';
 				}
 				
-				table +=
-					'<tr><td><strong>' + attributes[i].displayName + ':</strong></td><td>' +
-					value + '</td></tr>';
+				if ( link != undefined )
+				{
+					var a = document.createElement('a');
+					a.kronaList = attribute;
+					a.kronaAttribute = i;
+					a.href = '';
+					a.onclick = link;
+					a.innerHTML = value;
+					a.title = title;
+					td.innerHTML = '';
+					td.appendChild(a);
+				}
+				else
+				{
+					td.innerHTML = value;
+				}
+			}
+			else
+			{
+				uiDetailsSelectedRows[i].innerHTML = '';
 			}
 		}
 	}
-	
-	table += '</table>';
-	detailsInfo.innerHTML = table;
 	
 	//if ( focusNode != selectedNode )
 	{
@@ -6195,7 +6256,7 @@ function setSelectedNode(newNode)
 	selectedNodeLast = selectedNode;
 	selectedNode = newNode;
 	
-	if ( selectedNode.hasParent(focusNode) )
+	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
 	{
 		setFocus(selectedNode);
 	}
