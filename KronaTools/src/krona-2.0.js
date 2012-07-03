@@ -129,6 +129,8 @@ var highlightedNode = 0; // mouse hover node
 var highlightedTreeView;
 var highlightingHidden = false;
 var treeViews = new Array();
+var treeViewsActiveCount;
+var treeViewsActiveFirst;
 var currentNodeID = 0; // to iterate while loading
 
 var nodeHistory = new Array();
@@ -190,7 +192,6 @@ var keyMinTextLeft;
 var keyMinAngle;
 
 var minRingWidthFactor = 5; // will be multiplied by font size
-var maxPossibleDepth; // the theoretical max that can be displayed
 var maxDisplayDepth; // the actual depth that will be displayed
 var headerHeight = 0;//document.getElementById('options').clientHeight;
 var historySpacingFactor = 1.6; // will be multiplied by font size
@@ -306,10 +307,15 @@ function Tween(start, end)
 		}
 	};
 	
-	this.setTarget = function(target)
+	this.setTarget = function(target, init)
 	{
-		this.start = this.current();
+		this.start = init ? target : this.current();
 		this.end = target;
+	}
+	
+	this.setTargetEnd = function()
+	{
+		this.setTarget(this.end, false);
 	}
 }
 
@@ -586,6 +592,9 @@ function TreeView(dataset, treeView)
 {
 	this.dataset = dataset;
 	
+	this.initialized = false;
+	this.finishing = false;
+	
 	this.centerX = new Tween(0, 0);
 	this.centerY = new Tween(0, 0);
 	this.radius = new Tween(0, 0);
@@ -713,6 +722,14 @@ function TreeView(dataset, treeView)
 		popTranslation();
 	}
 	
+	this.finish = function()
+	{
+		this.finishing = true;
+//		this.radius.setTarget(0);
+//		this.centerX.start = this.centerX.end;
+//		this.centerY.start = this.centerY.end;
+	}
+	
 	this.resetLabelArrays = function()
 	{
 		this.labelOffsets = new Array(maxDisplayDepth - 1);
@@ -735,6 +752,38 @@ function TreeView(dataset, treeView)
 			}
 		}
 	}
+	
+	this.setTargets = function()
+	{
+		this.centerX.setTarget(this.centerXTarget, ! this.initialized);
+		this.centerY.setTarget(this.centerYTarget, ! this.initialized);
+		this.radius.setTarget(this.radiusTarget, false);
+		
+		if ( this.finishing )
+		{
+			this.radius.setTarget(0, false);
+			this.nodeViews[selectedNode.id].setTargetsFinish();
+		}
+		else
+		{
+			this.resetLabelArrays();
+			this.nodeViews[head.id].setTargets(! this.initialized);
+			this.initialized = true;
+		}
+	}
+	
+	this.setTargetCenter = function(x, y)
+	{
+		//this.centerX.setTarget(x, ! this.initialized);
+		//this.centerY.setTarget(y, ! this.initialized);
+		this.centerXTarget = x;
+		this.centerYTarget = y;
+	}
+	
+	this.setTargetRadius = function(radius)
+	{
+		this.radiusTarget = radius;
+	}
 }
 
 function NodeView(treeView, node)
@@ -744,7 +793,7 @@ function NodeView(treeView, node)
 	
 	this.angleStart = new Tween(Math.PI, 0);
 	this.angleEnd = new Tween(Math.PI, 0);
-	this.radiusInner = new Tween(1, 1);
+	this.radiusInner = new Tween(1, 1);     
 	this.labelRadius = new Tween(1, 1);
 	this.labelWidth = new Tween(0, 0);
 	
@@ -752,7 +801,7 @@ function NodeView(treeView, node)
 	this.g = new Tween(255, 255);
 	this.b = new Tween(255, 255);
 	
-	this.alphaLabel = new Tween(0, 1);
+	this.alphaLabel = new Tween(0, 0);
 	this.alphaLine = new Tween(0, 1);
 	this.alphaArc = new Tween(0, 0);
 	this.alphaWedge = new Tween(0, 1);
@@ -2177,11 +2226,6 @@ function NodeView(treeView, node)
 		
 		var maxDepth = this.node.getMaxDepth();
 		
-		if ( ! compress && maxDepth > maxPossibleDepth + this.node.getDepth() - 1 )
-		{
-			maxDepth = maxPossibleDepth + this.node.getDepth() - 1;
-		}
-		
 		if ( this.node.getDepth() < selectedNode.getDepth() )
 		{
 			if ( child.getDepth() - 1 >= maxDepth )
@@ -2310,7 +2354,7 @@ function NodeView(treeView, node)
 	
 	this.getTreeRadiusTarget = function()
 	{
-		return this.treeView.radius.end;
+		return this.treeView.radiusTarget;
 	}
 	
 	this.getUnclassifiedPercentage = function()
@@ -2646,7 +2690,7 @@ function NodeView(treeView, node)
 		this.maxChildMagnitude = baseMagnitude;
 	}
 	
-	this.setTargetLabelRadius = function()
+	this.setTargetLabelRadius = function(init)
 	{
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
 		var index = depth - 2;
@@ -2678,12 +2722,17 @@ function NodeView(treeView, node)
 						nLabelOffsets[index] + .5,
 						compressedRadii[index],
 						compressedRadii[index + 1]
-					)
+					),
+					init
 				);
 			}
 			else
 			{
-				this.labelRadius.setTarget((compressedRadii[index] + compressedRadii[index + 1]) / 2);
+				this.labelRadius.setTarget
+				(
+					(compressedRadii[index] + compressedRadii[index + 1]) / 2,
+					init
+				);
 			}
 		}
 		
@@ -2780,12 +2829,13 @@ function NodeView(treeView, node)
 		}
 	}
 	
-	this.setTargets = function()
+	this.setTargets = function(init)
 	{
 		if ( this.node == selectedNode )
 		{
 			this.setTargetsSelected
 			(
+				init,
 				0,
 				1,
 				lightnessBase,
@@ -2809,18 +2859,18 @@ function NodeView(treeView, node)
 			var dim = context.measureText(this.node.name);
 			this.nameWidth = dim.width;
 			//this.labelWidth.setTarget(this.labelWidth.end);
-			this.labelWidth.setTarget(0);
+			this.labelWidth.setTarget(0, false);
 		}
 		
 		// set angles
 		//
 		if ( this.baseMagnitude <= selectedNodeView.baseMagnitude )
 		{
-			this.angleStart.setTarget(0);
+			this.angleStart.setTarget(0, init);
 		}
 		else
 		{
-			this.angleStart.setTarget(Math.PI * 2);
+			this.angleStart.setTarget(Math.PI * 2, init);
 		}
 		//
 		if
@@ -2830,25 +2880,25 @@ function NodeView(treeView, node)
 			selectedNodeView.baseMagnitude + selectedNodeView.magnitude
 		)
 		{
-			this.angleEnd.setTarget(Math.PI * 2);
+			this.angleEnd.setTarget(Math.PI * 2, init);
 		}
 		else
 		{
-			this.angleEnd.setTarget(0);
+			this.angleEnd.setTarget(0, init);
 		}
 		
 		// children
 		//
 		for ( var i = 0; i < this.node.children.length; i++ )
 		{
-			this.getChild(i).setTargets();
+			this.getChild(i).setTargets(init);
 		}
 		
 		if ( depthRelative < 1 )
 		{
 			// collapse in
 			
-			this.radiusInner.setTarget(0);
+			this.radiusInner.setTarget(0, init);
 			
 			if ( parentOfSelected )
 			{
@@ -2860,7 +2910,7 @@ function NodeView(treeView, node)
 			}
 			else
 			{
-				this.labelRadius.setTarget(0);
+				this.labelRadius.setTarget(0, init);
 				//this.scale.setTarget(1); // TEMP
 			}
 		}
@@ -2868,37 +2918,38 @@ function NodeView(treeView, node)
 		{
 			// collapse out
 			
-			this.radiusInner.setTarget(1);
-			this.labelRadius.setTarget(1);
+			this.radiusInner.setTarget(1, init);
+			this.labelRadius.setTarget(1, init);
 		}
 		else
 		{
 			// don't collapse
 			
-			this.radiusInner.setTarget(compressedRadii[depthRelative - 1]);
+			this.radiusInner.setTarget(compressedRadii[depthRelative - 1], init);
 			
 			if ( this == selectedNode )
 			{
-				this.labelRadius.setTarget(0);
+				this.labelRadius.setTarget(0, init);
 			}
 			else
 			{
 				this.labelRadius.setTarget
 				(
-					(compressedRadii[depthRelative - 1] + compressedRadii[depthRelative]) / 2
+					(compressedRadii[depthRelative - 1] + compressedRadii[depthRelative]) / 2,
+					init
 				);
 			}
 		}
 		
-		this.r.setTarget(255);
-		this.g.setTarget(255);
-		this.b.setTarget(255);
+		this.r.setTarget(255, init);
+		this.g.setTarget(255, init);
+		this.b.setTarget(255, init);
 
-		this.alphaLine.setTarget(0);
-		this.alphaArc.setTarget(0);
-		this.alphaWedge.setTarget(0);
-		this.alphaPattern.setTarget(0);
-		this.alphaOther.setTarget(0);
+		this.alphaLine.setTarget(0, init);
+		this.alphaArc.setTarget(0, init);
+		this.alphaWedge.setTarget(0, init);
+		this.alphaPattern.setTarget(0, init);
+		this.alphaOther.setTarget(0, init);
 		
 		if ( parentOfSelected && ! this.node.getCollapse() )
 		{
@@ -2923,12 +2974,12 @@ function NodeView(treeView, node)
 				alpha = 0;
 			}
 			
-			this.alphaLabel.setTarget(alpha);
+			this.alphaLabel.setTarget(alpha, false);
 			this.radial = false;
 		}
 		else
 		{
-			this.alphaLabel.setTarget(0);
+			this.alphaLabel.setTarget(0, false);
 		}
 		
 		this.hideAlonePrev = this.hideAlone;
@@ -2948,7 +2999,34 @@ function NodeView(treeView, node)
 		this.radialPrev = this.radial;
 	}
 	
-	this.setTargetsSelected = function(hueMin, hueMax, lightness, hide, nextSiblingHidden)
+	this.setTargetsFinish = function()
+	{
+		this.alphaWedge.setTarget(0, false);
+		this.alphaLine.setTarget(0, false);
+		this.alphaArc.setTarget(0, false);
+		this.alphaLabel.setTarget(0, false);
+		this.alphaOther.setTarget(0, false);
+		this.alphaPattern.setTarget(0, false);
+		
+		this.labelWidth.setTarget(0, false);
+		this.labelRadius.setTargetEnd();
+		
+		this.angleStart.setTargetEnd();
+		this.angleEnd.setTargetEnd();
+		
+		this.radiusInner.setTargetEnd();
+		
+		this.r.setTargetEnd();
+		this.g.setTargetEnd();
+		this.b.setTargetEnd();
+		
+		for ( var i = 0; i < this.node.children.length; i++ )
+		{
+			this.getChild(i).setTargetsFinish();
+		}
+	}
+	
+	this.setTargetsSelected = function(init, hueMin, hueMax, lightness, hide, nextSiblingHidden)
 	{
 		var collapse = this.node.getCollapse();
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
@@ -2975,7 +3053,7 @@ function NodeView(treeView, node)
 		//
 		for ( var i = 0; i < this.node.children.length; i++ )
 		{
-			this.getChild(i).setTargetWedge();
+			this.getChild(i).setTargetWedge(init);
 			
 			if
 			(
@@ -3024,9 +3102,9 @@ function NodeView(treeView, node)
 				//keys++;
 			}
 			
-			this.angleStart.setTarget(0);
-			this.angleEnd.setTarget(Math.PI * 2);
-			this.radiusInner.setTarget(0);
+			this.angleStart.setTarget(0, init);
+			this.angleEnd.setTarget(Math.PI * 2, init);
+			this.radiusInner.setTarget(0, init);
 			this.hidePrev = this.hide;
 			this.hide = false;
 			this.hideAlonePrev = this.hideAlone;
@@ -3094,6 +3172,7 @@ function NodeView(treeView, node)
 					{
 						this.getChild(j).setTargetsSelected
 						(
+							init,
 							hiddenHue,
 							null,
 							lightness,
@@ -3145,7 +3224,7 @@ function NodeView(treeView, node)
 					childHueMin = lerp
 					(
 						child.baseMagnitude,
-						this.baseMagnitude, 
+						this.baseMagnitude,
 						this.baseMagnitude + this.magnitude,
 						hueMin,
 						hueMax
@@ -3190,6 +3269,7 @@ function NodeView(treeView, node)
 				
 				this.getChild(i).setTargetsSelected
 				(
+					init,
 					childHueMin,
 					childHueMax,
 					lightness,
@@ -3216,18 +3296,18 @@ function NodeView(treeView, node)
 		if ( this.node == selectedNode )
 		{
 			this.resetLabelWidth();
-			this.labelWidth.setTarget(this.nameWidth * labelWidthFudge);
-			this.alphaWedge.setTarget(0);
-			this.alphaLabel.setTarget(1);
-			this.alphaOther.setTarget(1);
-			this.alphaArc.setTarget(0);
-			this.alphaLine.setTarget(0);
-			this.alphaPattern.setTarget(0);
-			this.r.setTarget(255);
-			this.g.setTarget(255);
-			this.b.setTarget(255);
+			this.labelWidth.setTarget(this.nameWidth * labelWidthFudge, init);
+			this.alphaWedge.setTarget(0, false);
+			this.alphaLabel.setTarget(1, false);
+			this.alphaOther.setTarget(1, false);
+			this.alphaArc.setTarget(0, false);
+			this.alphaLine.setTarget(0, false);
+			this.alphaPattern.setTarget(0, false);
+			this.r.setTarget(255, init);
+			this.g.setTarget(255, init);
+			this.b.setTarget(255, init);
 			this.radial = false;
-			this.labelRadius.setTarget(0);
+			this.labelRadius.setTarget(0, init);
 		}
 		else
 		{
@@ -3238,20 +3318,20 @@ function NodeView(treeView, node)
 				lightness
 			);
 			
-			this.r.setTarget(rgb.r);
-			this.g.setTarget(rgb.g);
-			this.b.setTarget(rgb.b);
-			this.alphaOther.setTarget(0);
+			this.r.setTarget(rgb.r, init);
+			this.g.setTarget(rgb.g, init);
+			this.b.setTarget(rgb.b, init);
+			this.alphaOther.setTarget(0, false);
 			
-			this.alphaWedge.setTarget(1);
+			this.alphaWedge.setTarget(1, false);
 			
 			if ( this.hide || this.hideAlone )
 			{
-				this.alphaPattern.setTarget(1);
+				this.alphaPattern.setTarget(1, false);
 			}
 			else
 			{
-				this.alphaPattern.setTarget(0);
+				this.alphaPattern.setTarget(0, false);
 			}
 			
 			// set radial
@@ -3302,7 +3382,7 @@ function NodeView(treeView, node)
 				! this.node.canDisplayDepth()
 			)
 			{
-				this.alphaLabel.setTarget(0);
+				this.alphaLabel.setTarget(0, false);
 			}
 			else
 			{
@@ -3311,11 +3391,11 @@ function NodeView(treeView, node)
 					(this.radial || nLabelOffsets[depth - 2])
 				)
 				{
-					this.alphaLabel.setTarget(1);
+					this.alphaLabel.setTarget(1, false);
 				}
 				else
 				{
-					this.alphaLabel.setTarget(0);
+					this.alphaLabel.setTarget(0, false);
 					
 					if ( this.radialPrev )
 					{
@@ -3334,11 +3414,11 @@ function NodeView(treeView, node)
 				! this.node.canDisplayDepth()
 			)
 			{
-				this.alphaArc.setTarget(0);
+				this.alphaArc.setTarget(0, false);
 			}
 			else
 			{
-				this.alphaArc.setTarget(1);
+				this.alphaArc.setTarget(1, false);
 			}
 			
 			// set alphaLine
@@ -3351,11 +3431,11 @@ function NodeView(treeView, node)
 				! this.node.canDisplayDepth()
 			)
 			{
-				this.alphaLine.setTarget(0);
+				this.alphaLine.setTarget(0, false);
 			}
 			else
 			{
-				this.alphaLine.setTarget(1);
+				this.alphaLine.setTarget(1, false);
 			}
 			
 			//if (  ! this.radial )
@@ -3367,23 +3447,23 @@ function NodeView(treeView, node)
 			//
 			if ( collapse )
 			{
-				this.labelRadius.setTarget(this.radiusInner.end);
+				this.labelRadius.setTarget(this.radiusInner.end, init);
 			}
 			else
 			{
 				if ( depth > maxDisplayDepth || ! this.node.canDisplayDepth() )
 				{
-					this.labelRadius.setTarget(1);
+					this.labelRadius.setTarget(1, init);
 				}
 				else
 				{
-					this.setTargetLabelRadius();
+					this.setTargetLabelRadius(init);
 				}
 			}
 		}
 	}
 	
-	this.setTargetWedge = function()
+	this.setTargetWedge = function(init)
 	{
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
 		
@@ -3391,18 +3471,18 @@ function NodeView(treeView, node)
 		//
 		var baseMagnitudeRelative = this.baseMagnitude - this.treeView.nodeViews[selectedNode.id].baseMagnitude;
 		//
-		this.angleStart.setTarget(baseMagnitudeRelative * this.treeView.angleFactor);
-		this.angleEnd.setTarget((baseMagnitudeRelative + this.magnitude) * this.treeView.angleFactor);
+		this.angleStart.setTarget(baseMagnitudeRelative * this.treeView.angleFactor, init);
+		this.angleEnd.setTarget((baseMagnitudeRelative + this.magnitude) * this.treeView.angleFactor, init);
 		
 		// set radiusInner
 		//
 		if ( depth > maxDisplayDepth || ! this.node.canDisplayDepth() )
 		{
-			this.radiusInner.setTarget(1);
+			this.radiusInner.setTarget(1, init);
 		}
 		else
 		{
-			this.radiusInner.setTarget(compressedRadii[depth - 2]);
+			this.radiusInner.setTarget(compressedRadii[depth - 2], init);
 		}
 		
 		if ( this.hide != undefined )
@@ -3951,9 +4031,9 @@ function computeRadii(node)
 	var maxDepth;
 	var newMaxDepth = node.getMaxDepth() - node.getDepth() + 1;
 	
-	var minRadiusInner = fontSize * 8 / treeViews[0].radius.end;
-	var minRadiusFirst = fontSize * 6 / treeViews[0].radius.end;
-	var minRadiusOuter = fontSize * 5 / treeViews[0].radius.end;
+	var minRadiusInner = fontSize * 8 / treeViewsActiveFirst.radiusTarget;
+	var minRadiusFirst = fontSize * 6 / treeViewsActiveFirst.radiusTarget;
+	var minRadiusOuter = fontSize * 5 / treeViewsActiveFirst.radiusTarget;
 	
 	if ( .25 < minRadiusInner )
 	{
@@ -3973,11 +4053,6 @@ function computeRadii(node)
 	do
 	{
 		maxDepth = newMaxDepth;
-		
-		if ( ! compress && maxDepth > maxPossibleDepth )
-		{
-			maxDepth = maxPossibleDepth;
-		}
 		
 		radii = new Array(maxDepth);
 		
@@ -4015,7 +4090,7 @@ function computeRadii(node)
 			)
 		}
 		
-		newMaxDepth = treeViews[0].nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
+		newMaxDepth = treeViewsActiveFirst.nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
 	}
 	while ( newMaxDepth < maxDepth );
 	
@@ -4149,7 +4224,7 @@ function drawDatasetName()
 	
 	if ( alpha > 0 )
 	{
-		var radius = treeViews[0].radiusCurrent * compressedRadii[0] / -2; // TODO; gRadius
+		var radius = treeViewsActiveFirst.radiusCurrent * compressedRadii[0] / -2; // TODO; gRadius
 		
 		if ( alpha > 1 )
 		{
@@ -4273,7 +4348,7 @@ function drawLegendSVG()
 
 function getMapArc(nodeView)
 {
-	var headView = treeViews[0].nodeViews[head.id];
+	var headView = treeViewsActiveFirst.nodeViews[head.id];
 	
 	return {
 		start: nodeView.baseMagnitude / headView.magnitude * Math.PI * 2,
@@ -4283,9 +4358,9 @@ function getMapArc(nodeView)
 
 function drawMap()
 {
-	mapRadius = (Math.sqrt(Math.pow(treeViews[0].centerX.end, 2) + Math.pow(treeViews[0].centerY.end, 2)) - treeViews[0].radius.end) * .25;
-	mapPositionX = treeViews[0].centerX.end + treeViews[0].centerX.end * .8;
-	mapPositionY = treeViews[0].centerY.end * .20
+	mapRadius = (Math.sqrt(Math.pow(treeViewsActiveFirst.centerX.end, 2) + Math.pow(treeViewsActiveFirst.centerY.end, 2)) - treeViewsActiveFirst.radius.end) * .25;
+	mapPositionX = treeViewsActiveFirst.centerX.end + treeViewsActiveFirst.centerX.end * .8;
+	mapPositionY = treeViewsActiveFirst.centerY.end * .20
 	
 	if ( mapRadius > maxMapRadius )
 	{
@@ -4328,7 +4403,7 @@ function drawMap()
 			node = focusNode;
 		}
 		
-		var highlightArc = getMapArc(treeViews[0].nodeViews[node.id]);
+		var highlightArc = getMapArc(treeViewsActiveFirst.nodeViews[node.id]);
 		
 		highlightArc.start += rotationOffset;
 		highlightArc.end += rotationOffset;
@@ -5217,17 +5292,19 @@ function load()
 	setCallBacks();
 	
 	head.sort(datasetDefault);
-	treeViews.push(new TreeView(datasetDefault));
-	treeViews.push(new TreeView(1)); // TEMP
-	treeViews.push(new TreeView(2)); // TEMP
-	treeViews.push(new TreeView(3)); // TEMP
+//	treeViews.push(new TreeView(datasetDefault));
+//	treeViews.push(new TreeView(1)); // TEMP
+//	treeViews.push(new TreeView(2)); // TEMP
+//	treeViews.push(new TreeView(3)); // TEMP
 /*	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 */	maxAbsoluteDepth = 0;
-	focusTreeView = treeViews[0];
+	selectNode(nodes[nodeDefault]);
 	selectDataset(datasetDefault);
+	focusTreeView = treeViews[0];
+	updateDatasets();
 	
 	if ( maxDepthDefault && maxDepthDefault < head.maxDepth )
 	{
@@ -5238,7 +5315,6 @@ function load()
 		maxAbsoluteDepth = head.maxDepth;
 	}
 	
-	selectNode(nodes[nodeDefault]);
 	setFocus(nodes[nodeDefault]);
 	
 	setInterval(update, 20);
@@ -5668,12 +5744,14 @@ function pushTranslation(x, y)
 function resetKeyOffset()
 {
 	currentKey = 1;
-	keyMinTextLeft = treeViews[0].centerXCurrent + treeViews[0].radiusCurrent + buffer - buffer / (keys + 1) / 2 + fontSize / 2;
+	keyMinTextLeft = treeViewsActiveFirst.centerXCurrent + treeViewsActiveFirst.radiusCurrent + buffer - buffer / (keys + 1) / 2 + fontSize / 2;
 	keyMinAngle = 0;
 }
 
 function resize()
 {
+	var views = treeViewsActiveCount;
+	
 	imageWidth = window.innerWidth * .75;
 	imageHeight = window.innerHeight;
 	
@@ -5685,8 +5763,8 @@ function resize()
 	
 //	var rows = Math.floor(imageHeight / (imageWidth - mapWidth) * Math.floor(Math.sqrt(treeViews.length)));
 //	var rows = Math.ceil(treeViews.length * (imageWidth - mapWidth) / imageHeight);
-	var rows = Math.round(imageHeight / Math.sqrt(imageHeight * imageWidth / treeViews.length));
-	var cols = Math.ceil(treeViews.length / rows);
+	var rows = Math.round(imageHeight / Math.sqrt(imageHeight * imageWidth / views));
+	var cols = Math.ceil(views / rows);
 	
 	/*
 	if ( rows * cols < treeViews.length )
@@ -5695,7 +5773,7 @@ function resize()
 	}
 	*/
 	
-	while ( (rows - 1) * cols >= treeViews.length )
+	while ( (rows - 1) * cols >= views )
 	{
 		rows--;
 	}
@@ -5704,10 +5782,10 @@ function resize()
 		imageHeight / rows:
 		imageWidth / cols;
 	
-	var colsTest = Math.round(imageWidth / Math.sqrt(imageHeight * imageWidth / treeViews.length));
+	var colsTest = Math.round(imageWidth / Math.sqrt(imageHeight * imageWidth / views));
 	var rowsTest = Math.ceil(treeViews.length / colsTest);
 	
-	while ( (colsTest - 1) * rowsTest >= treeViews.length )
+	while ( (colsTest - 1) * rowsTest >= views )
 	{
 		colsTest--;
 	}
@@ -5731,23 +5809,34 @@ function resize()
 	buffer = minDimension * .1;
 	margin = minDimension * .015;
 	var leftMargin = datasets > 1 ? datasetSelectWidth + 30 : 0;
+	var currentView = 0;
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		var row = Math.floor(i / cols);
-		var col = i % cols;
-		
-		if ( row == rows - 1 && treeViews.length % cols )
+		if ( treeViews[i].finishing )
 		{
-			treeViews[i].centerX.setTarget(imageWidth * (col + .5 + (cols - treeViews.length % cols) / 2) / cols);
+			continue;
+		}
+		
+		var row = Math.floor(currentView / cols);
+		var col = currentView % cols;
+		var centerX;
+		var centerY;
+		
+		if ( row == rows - 1 && views % cols )
+		{
+			centerX = imageWidth * (col + .5 + (cols - views % cols) / 2) / cols;
 		}
 		else
 		{
-			treeViews[i].centerX.setTarget(imageWidth * (col + .5) / cols);
+			centerX = imageWidth * (col + .5) / cols;
 		}
 		
-		treeViews[i].centerY.setTarget(imageHeight * (row + .5) / rows);
-		treeViews[i].radius.setTarget(minDimension / 2 - buffer);
+		centerY = imageHeight * (row + .5) / rows;
+		treeViews[i].setTargetCenter(centerX, centerY);
+		treeViews[i].setTargetRadius(minDimension / 2 - buffer);
+		
+		currentView++
 	}
 	//context.font = '11px sans-serif';
 }
@@ -5940,11 +6029,16 @@ function toggleDataset(dataset)
 		// remove
 		
 		uiDatasetCheckboxes[dataset].checked = false;
-		treeViews.splice(treeView, 1);
+		treeViews[treeView].finish();
 	}
 	else
 	{
 		// add
+		
+		if ( treeViewsActiveCount == 1 )
+		{
+			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
+		}
 		
 		uiDatasetCheckboxes[dataset].checked = true;
 		
@@ -5955,7 +6049,7 @@ function toggleDataset(dataset)
 			treeViewClone = treeViews.length - 1;
 		}
 		
-		treeViews.splice(treeView, 0, new TreeView(dataset, treeViews[treeViewClone]));
+		treeViews.splice(treeView, 0, new TreeView(dataset));//, treeViews[treeViewClone]));
 	}
 	
 	updateDatasets();
@@ -5963,41 +6057,36 @@ function toggleDataset(dataset)
 
 function selectDataset(newDataset)
 {
-	var treeView;
-	
-	for ( var i = 0; i < treeViews.length; i++ )
+	if ( treeViewsActiveCount == 1 )
 	{
-		if ( treeViews[i].dataset == newDataset )
-		{
-			treeView = i;
-			break;
-		}
-	}
-	
-	if ( treeView == undefined )
-	{
-		treeViews[0].dataset = newDataset;
+		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
+		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false;
+		treeViewsActiveFirst.dataset = newDataset;
 	}
 	else
 	{
-		treeViews.splice(0, treeView);
+		var treeView;
+		
+		for ( var i = 0; i < treeViews.length; i++ )
+		{
+			if ( treeViews[i].dataset == newDataset )
+			{
+				treeView = i;
+			}
+			else
+			{
+				treeViews[i].finish();
+				uiDatasetCheckboxes[treeViews[i].dataset].checked = false;
+			}
+		}
+		
+		if ( treeView == undefined )
+		{
+			treeViews.push(new TreeView(newDataset));
+		}
 	}
 	
-	treeViews.splice(1, treeViews.length - 1);
-	
-	for ( var i = 0; i < datasetNames.length; i++ )
-	{
-		if ( i == newDataset )
-		{
-			uiDatasetCheckboxes[i].checked = true;
-			uiDatasetCheckboxes[i].disabled = treeViews.length == 1;
-		}
-		else
-		{
-			uiDatasetCheckboxes[i].checked = false;
-			uiDatasetCheckboxes[i].disabled = false;
-		}
-	}
+	uiDatasetCheckboxes[newDataset].checked = true;
 	
 	updateDatasets();
 }
@@ -6014,9 +6103,27 @@ function updateDatasets()
 		datasetChanged = true;
 	}
 	
+	treeViewsActiveCount = 0;
+	treeViewsActiveFirst = undefined;
+	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
+		if ( ! treeViews[i].finishing )
+		{
+			treeViewsActiveCount++;
+			
+			if ( treeViewsActiveFirst == undefined )
+			{
+				treeViewsActiveFirst = treeViews[i];
+			}
+		}
+		
 		treeViews[i].nodeViews[head.id].setMagnitudes(0);
+	}
+	
+	if ( treeViewsActiveCount == 1 )
+	{
+		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = true;
 	}
 	
 	head.setDepth(1, 1);
@@ -6176,9 +6283,9 @@ function setFocus(node)
 			{
 				uiDatasetCharts[i].style.backgroundColor = rgbText
 				(
-					treeViews[0].nodeViews[focusNode.id].r.end,
-					treeViews[0].nodeViews[focusNode.id].g.end,
-					treeViews[0].nodeViews[focusNode.id].b.end
+					treeViewsActiveFirst.nodeViews[focusNode.id].r.end,
+					treeViewsActiveFirst.nodeViews[focusNode.id].g.end,
+					treeViewsActiveFirst.nodeViews[focusNode.id].b.end
 				);
 			}
 		}
@@ -6597,6 +6704,14 @@ function update()
 	if ( progress >= 1 )
 	{
 		progress = 1;
+		
+		for ( var i = 0; i < treeViews.length; i++ )
+		{
+			if ( treeViews[i].finishing )
+			{
+				treeViews.splice(i, 1);
+			}
+		}
 	}
 	
 	if ( progress != progressLast )
@@ -6719,13 +6834,6 @@ function updateView()
 		treeViews[i].angleFactor = 2 * Math.PI / (treeViews[i].nodeViews[selectedNode.id].magnitude);
 	}
 	
-	maxPossibleDepth = Math.floor(treeViews[0].radius / (fontSize * minRingWidthFactor));
-	
-	if ( maxPossibleDepth < 4 )
-	{
-		maxPossibleDepth = 4;
-	}
-	
 	compressedRadii = computeRadii(selectedNode);
 	maxDisplayDepth = compressedRadii.length;//maxDepth;
 	
@@ -6755,7 +6863,7 @@ function updateView()
 		{
 			var width =
 				(compressedRadii[i + 1] - compressedRadii[i]) *
-				treeViews[0].radius.end;
+				treeViewsActiveFirst.radiusTarget;
 			
 			nLabelOffsets[i] = Math.floor(width / fontSize / 1.2);
 			
@@ -6772,13 +6880,15 @@ function updateView()
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		treeViews[i].resetLabelArrays();
-		treeViews[i].nodeViews[head.id].setTargets(0);
+//		if ( ! treeViews[i].finishing )
+		{
+			treeViews[i].setTargets();
+		}
 	}
 	
 	if ( treeViews.length == 1 )
 	{
-		var mapArc = getMapArc(treeViews[0].nodeViews[selectedNode.id]);
+		var mapArc = getMapArc(treeViewsActiveFirst.nodeViews[selectedNode.id]);
 		
 		mapAngleStart.setTarget(mapArc.start);
 		mapAngleEnd.setTarget(mapArc.end);
@@ -6802,7 +6912,7 @@ function updateView()
 	
 	for ( var i = 0; i < keys.length; i++ )
 	{
-		var nodeView = treeViews[0].nodeViews[keys[i].id];
+		var nodeView = treeViewsActiveFirst.nodeViews[keys[i].id];
 		
 		var row = document.createElement('tr');
 		var td1 = document.createElement('td');
@@ -6817,7 +6927,7 @@ function updateView()
 		//td1.appendChild(divName);
 		row.onmouseover = function(){setHighlightedNode(this.kronaNode)};
 		uiKeyRowsById[keys[i].id] = row;
-		td1.innerHTML = treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+		td1.innerHTML = treeViewsActiveFirst.nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
 		row.kronaShortened = divName.innerHTML != keys[i].name;
 		divName.style.width = 'auto';
 //		shortenDivText(divName, 80);
