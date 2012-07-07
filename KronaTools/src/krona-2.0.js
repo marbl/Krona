@@ -3020,6 +3020,8 @@ function NodeView(treeView, node)
 		this.g.setTargetEnd();
 		this.b.setTargetEnd();
 		
+		this.radialPrev = this.radial;
+		
 		for ( var i = 0; i < this.node.children.length; i++ )
 		{
 			this.getChild(i).setTargetsFinish();
@@ -3586,10 +3588,13 @@ function addOptionElement(innerHTML, title, id)
 	return div;
 }
 
+var uiDatasetCheckboxAll;
 var uiDatasetCheckboxes;
 var uiDetailsSelected;
+var uiDetailsSelectedName;
 var uiDetailsSelectedRows = new Array();
 var uiDetailsFocus;
+var uiDetailsFocusName;
 var uiDetailsFocusRows = new Array();
 
 function addOptionElements(hueName, hueDefault)
@@ -3618,45 +3623,14 @@ function addOptionElements(hueName, hueDefault)
 <span id="searchResults"></span>'
 	);
 	
-	details = addOptionElement(
-'<span id="detailsName" style="font-weight:bold"></span>&nbsp;\
-<br/>');
-
-	uiDetailsSelected = document.createElement('table');
+	uiNameSelected = document.createElement('div');
+	uiNameFocus = document.createElement('div');
+	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
+	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
+	panel.appendChild(uiNameSelected);
 	panel.appendChild(uiDetailsSelected);
-	uiDetailsSelected.style.width = '100%';
-	
-	for ( var i = 0; i < attributes.length; i++ )
-	{
-		if ( attributes[i].displayName == undefined )
-		{
-			continue;
-		}
-		
-		var row = document.createElement('tr');
-		uiDetailsSelected.appendChild(row);
-		
-		if ( i % 2 )
-		{
-			row.style.backgroundColor = '#FAFAFA';
-		}
-		else
-		{
-			row.style.backgroundColor = '#EEEEEE';
-		}
-		
-		var tdName = document.createElement('td');
-		var tdValue = document.createElement('td');
-		row.appendChild(tdName);
-		row.appendChild(tdValue);
-		uiDetailsSelectedRows[i] = tdValue;
-		
-		tdName.style.fontWeight = 'bold';
-		tdName.style.textAlign = 'right';
-		tdName.style.width = 'auto';
-		tdName.style.transform = 'rotate(90deg)';
-		tdName.innerHTML = attributes[i].displayName;
-	}
+	panel.appendChild(uiNameFocus);
+	panel.appendChild(uiDetailsFocus);
 	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -3684,6 +3658,23 @@ function addOptionElements(hueName, hueDefault)
 		uiDatasetRowsById = new Array();
 		uiDatasetCheckboxes = new Array();
 		uiDatasetCharts = new Array();
+		
+		var row = document.createElement('tr');
+		var tdName = document.createElement('td');
+		var tdCheckbox = document.createElement('td');
+		var tdChart = document.createElement('td');
+		uiDatasetCheckboxAll = document.createElement('input');
+		
+		table.appendChild(row);
+		
+		row.appendChild(tdName);
+		row.appendChild(tdCheckbox);
+		row.appendChild(tdChart);
+		
+		tdCheckbox.appendChild(uiDatasetCheckboxAll);
+		
+		uiDatasetCheckboxAll.type = 'checkbox';
+		uiDatasetCheckboxAll.onclick = selectDatasetsAll;
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
 		{
@@ -4022,6 +4013,29 @@ function checkSelectedCollapse()
 	}
 }
 
+function clearDatasetCharts()
+{
+	if ( datasets > 1 )
+	{
+		for ( var i = 0; i < uiDatasetCharts.length; i++ )
+		{
+			uiDatasetCharts[i].style.border = 'none';
+			uiDatasetCharts[i].style.backgroundColor = '#FFFFFF';
+		}
+	}
+}
+
+function clearDetails(elements)
+{
+	for ( var i = 0; i < attributes.length; i++ )
+	{
+		if ( attributes[i].displayName )
+		{
+			elements[i].innerHTML = '';
+		}
+	}
+}
+
 function computeRadii(node)
 {
 	// visibility of nodes depends on the depth they are displayed at,
@@ -4095,6 +4109,47 @@ function computeRadii(node)
 	while ( newMaxDepth < maxDepth );
 	
 	return radii;
+}
+
+function createDetailsTable(elements)
+{
+	var table = document.createElement('table');
+	
+	table.style.width = '100%';
+	
+	for ( var i = 0; i < attributes.length; i++ )
+	{
+		if ( attributes[i].displayName == undefined )
+		{
+			continue;
+		}
+		
+		var row = document.createElement('tr');
+		table.appendChild(row);
+		
+		if ( i % 2 )
+		{
+			row.style.backgroundColor = '#FAFAFA';
+		}
+		else
+		{
+			row.style.backgroundColor = '#EEEEEE';
+		}
+		
+		var tdName = document.createElement('td');
+		var tdValue = document.createElement('td');
+		row.appendChild(tdName);
+		row.appendChild(tdValue);
+		elements[i] = tdValue;
+		
+		tdName.style.fontWeight = 'bold';
+		tdName.style.textAlign = 'right';
+		tdName.style.width = 'auto';
+		tdName.style.transform = 'rotate(90deg)';
+		tdName.innerHTML = attributes[i].displayName;
+	}
+	
+	return table;
 }
 
 function createSVG()
@@ -5301,9 +5356,9 @@ function load()
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 */	maxAbsoluteDepth = 0;
-	selectNode(nodes[nodeDefault]);
 	selectDataset(datasetDefault);
 	focusTreeView = treeViews[0];
+	selectNode(nodes[nodeDefault]);
 	updateDatasets();
 	
 	if ( maxDepthDefault && maxDepthDefault < head.maxDepth )
@@ -6055,12 +6110,48 @@ function toggleDataset(dataset)
 	updateDatasets();
 }
 
-function selectDataset(newDataset)
+function selectDatasetsAll()
 {
+	var treeView = 0;
+	
 	if ( treeViewsActiveCount == 1 )
 	{
 		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
-		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false;
+	}
+	
+	for ( var i = 0; i < datasets; i++ )
+	{
+		uiDatasetCheckboxes[i].checked = true;
+		
+		if ( treeView < treeViews.length && treeViews[treeView].dataset == i )
+		{
+			if ( treeViews[treeView].finishing )
+			{
+				treeViews[treeView].finishing = false;
+			}
+		}
+		else
+		{
+			treeViews.splice(treeView, 0, new TreeView(i));
+		}
+		treeView++;
+	}
+	
+	updateDatasets();
+}
+
+function selectDataset(newDataset)
+{
+	uiDatasetCheckboxAll.checked = false;
+	
+	if ( treeViewsActiveCount == 1 )
+	{
+		if ( datasets > 1 )
+		{
+			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
+			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false;
+		}
+		
 		treeViewsActiveFirst.dataset = newDataset;
 	}
 	else
@@ -6076,7 +6167,11 @@ function selectDataset(newDataset)
 			else
 			{
 				treeViews[i].finish();
-				uiDatasetCheckboxes[treeViews[i].dataset].checked = false;
+				
+				if ( datasets > 1 )
+				{
+					uiDatasetCheckboxes[treeViews[i].dataset].checked = false;
+				}
 			}
 		}
 		
@@ -6086,7 +6181,10 @@ function selectDataset(newDataset)
 		}
 	}
 	
-	uiDatasetCheckboxes[newDataset].checked = true;
+	if ( datasets > 1 )
+	{
+		uiDatasetCheckboxes[newDataset].checked = true;
+	}
 	
 	updateDatasets();
 }
@@ -6121,10 +6219,13 @@ function updateDatasets()
 		treeViews[i].nodeViews[head.id].setMagnitudes(0);
 	}
 	
-	if ( treeViewsActiveCount == 1 )
+	if ( treeViewsActiveCount == 1 && datasets > 1 )
 	{
 		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = true;
 	}
+	
+	uiDatasetCheckboxAll.checked = treeViewsActiveCount == datasets;
+	uiDatasetCheckboxAll.disabled = uiDatasetCheckboxAll.checked;
 	
 	head.setDepth(1, 1);
 	head.setMaxDepths();
@@ -6158,25 +6259,47 @@ function selectNode(newNode)
 	updateDatasetButtons();
 }
 
-function setFocus(node)
+function setDatasetCharts()
 {
-	if ( node == focusNode )
+	if ( datasets > 1 )
 	{
-//		return;
+		var max = 0;
+		
+		for ( var i = 0; i < uiDatasetCharts.length; i++ )
+		{
+			var fraction = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i);
+			
+			if ( fraction > max )
+			{
+				max = fraction;
+			}
+		}
+		
+		for ( var i = 0; i < uiDatasetCharts.length; i++ )
+		{
+			var width = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i) / max * 25;
+			uiDatasetCharts[i].style.width = width + 'px';
+			uiDatasetCharts[i].style.border = '1px solid black';
+			
+			if ( useHue() )
+			{
+				uiDatasetCharts[i].style.backgroundColor = hslText(focusNode.hues[i]);
+			}
+			else
+			{
+				uiDatasetCharts[i].style.backgroundColor = rgbText
+				(
+					treeViewsActiveFirst.nodeViews[focusNode.id].r.end,
+					treeViewsActiveFirst.nodeViews[focusNode.id].g.end,
+					treeViewsActiveFirst.nodeViews[focusNode.id].b.end
+				);
+			}
+		}
 	}
-	
-	focusNode = node;
-	
-	if ( node.href )
-	{
-		detailsName.innerHTML =
-			'<a target="_blank" href="' + node.href + '">' + node.name + '</a>';
-	}
-	else
-	{
-		detailsName.innerHTML = node.name;
-	}
-	
+}
+
+function setDetails(node, elements)
+{
 	for ( var i = 0; i < node.attributes.length; i++ )
 	{
 		if ( attributes[i].displayName && node.attributes[i] != undefined )
@@ -6189,7 +6312,7 @@ function setFocus(node)
 				var link = undefined;
 				var title;
 				var attribute;
-				var td = uiDetailsSelectedRows[i];
+				var td = elements[i];
 				
 				if ( attributes[i].listNode != undefined )
 				{
@@ -6251,44 +6374,38 @@ function setFocus(node)
 			}
 			else
 			{
-				uiDetailsSelectedRows[i].innerHTML = '';
+				elements[i].innerHTML = '';
 			}
 		}
 	}
-	
-	//if ( focusNode != selectedNode )
+}
+
+function setFocus(node)
+{
+	if ( node == focusNode )
 	{
-		var max = 0;
-		
-		for ( var i = 0; i < uiDatasetCharts.length; i++ )
-		{
-			var fraction = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i);
-			
-			if ( fraction > max )
-			{
-				max = fraction;
-			}
-		}
-		
-		for ( var i = 0; i < uiDatasetCharts.length; i++ )
-		{
-			var width = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i) / max * 25;
-			uiDatasetCharts[i].style.width = width + 'px';
-			
-			if ( useHue() )
-			{
-				uiDatasetCharts[i].style.backgroundColor = hslText(focusNode.hues[i]);
-			}
-			else
-			{
-				uiDatasetCharts[i].style.backgroundColor = rgbText
-				(
-					treeViewsActiveFirst.nodeViews[focusNode.id].r.end,
-					treeViewsActiveFirst.nodeViews[focusNode.id].g.end,
-					treeViewsActiveFirst.nodeViews[focusNode.id].b.end
-				);
-			}
-		}
+//		return;
+	}
+	
+	focusNode = node;
+	
+	if ( focusNode == selectedNode )
+	{
+		uiNameFocus.innerHTML = '';
+		clearDetails(uiDetailsFocusRows);
+		clearDatasetCharts();
+	}
+	else
+	{
+		uiNameFocus.innerHTML = node.name;
+		setDetails(node, uiDetailsFocusRows);
+		setDatasetCharts();
+	}
+	
+	if ( node.href )
+	{
+		uiNameFocus.style.class = 'a';
+//			'<a target="_blank" href="' +  + '">' + node.name + '</a>';
 	}
 }
 
@@ -6362,6 +6479,9 @@ function setSelectedNode(newNode)
 	
 	selectedNodeLast = selectedNode;
 	selectedNode = newNode;
+	
+	uiNameSelected.innerHTML = selectedNode.name;
+	setDetails(selectedNode, uiDetailsSelectedRows);
 	
 	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
 	{
