@@ -725,6 +725,7 @@ function TreeView(dataset, treeView)
 	this.finish = function()
 	{
 		this.finishing = true;
+		this.radiusTarget = 0;
 //		this.radius.setTarget(0);
 //		this.centerX.start = this.centerX.end;
 //		this.centerY.start = this.centerY.end;
@@ -761,7 +762,7 @@ function TreeView(dataset, treeView)
 		
 		if ( this.finishing )
 		{
-			this.radius.setTarget(0, false);
+		//	this.radius.setTarget(0, false);
 			this.nodeViews[selectedNode.id].setTargetsFinish();
 		}
 		else
@@ -5987,10 +5988,20 @@ function toggleDataset(dataset)
 	
 	if ( treeView < treeViews.length && treeViews[treeView].dataset == dataset )
 	{
-		// remove
-		
-		uiDatasetCheckboxes[dataset].checked = false;
-		treeViews[treeView].finish();
+		if ( treeViews[treeView].finishing )
+		{
+			// restore
+			
+			treeViews[treeView].finishing = false;
+			uiDatasetCheckboxes[dataset].checked = true;
+		}
+		else
+		{
+			// remove
+			
+			uiDatasetCheckboxes[dataset].checked = false;
+			treeViews[treeView].finish();
+		}
 	}
 	else
 	{
@@ -6021,33 +6032,47 @@ function selectDataset(newDataset)
 	if ( treeViewsActiveCount == 1 )
 	{
 		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
-		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false;
-		treeViewsActiveFirst.dataset = newDataset;
 	}
-	else
+	
+	var treeView;
+	
+	// look for new dataset in current TreeViews
+	//
+	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		var treeView;
-		
-		for ( var i = 0; i < treeViews.length; i++ )
+		if ( treeViews[i].dataset == newDataset )
 		{
-			if ( treeViews[i].dataset == newDataset )
-			{
-				treeView = i;
-			}
-			else
-			{
-				treeViews[i].finish();
-				uiDatasetCheckboxes[treeViews[i].dataset].checked = false;
-			}
+			treeView = i;
+			break;
 		}
-		
-		if ( treeView == undefined )
+	}
+	
+	if ( treeView == undefined )
+	{
+		if ( treeViewsActiveCount == 1 )
+		{
+			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false
+			treeViewsActiveFirst.dataset = newDataset;
+		}
+		else
 		{
 			treeViews.push(new TreeView(newDataset));
 		}
 	}
 	
-	uiDatasetCheckboxes[newDataset].checked = true;
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		if ( treeViews[i].dataset == newDataset )
+		{
+			treeViews[i].finishing = false;
+			uiDatasetCheckboxes[treeViews[i].dataset].checked = true;
+		}
+		else
+		{
+			treeViews[i].finish();
+			uiDatasetCheckboxes[treeViews[i].dataset].checked = false;
+		}
+	}
 	
 	updateDatasets();
 }
