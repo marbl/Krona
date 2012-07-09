@@ -175,9 +175,6 @@ var mapPositionX;
 var mapPositionY;
 var mapWidth = 150;
 var maxLabelOverhang = Math.PI * 4.18;
-var mapAngleStart = new Tween(0, 0);
-var mapAngleEnd = new Tween(0, 0);
-var mapRadiusInner = new Tween(0, 0);
 var mapRadii;
 
 // Keys are the labeled boxes for slices in the highest level that are too thin
@@ -599,6 +596,10 @@ function TreeView(dataset, treeView)
 	this.centerY = new Tween(0, 0);
 	this.radius = new Tween(0, 0);
 	
+	this.mapAngleStart = new Tween(0, 0);
+	this.mapAngleEnd = new Tween(0, 0);
+	this.mapRadiusInner = new Tween(0, 0);
+	
 	// label staggering
 	//
 	var labelOffsets; // will store the current offset at each depth
@@ -722,6 +723,86 @@ function TreeView(dataset, treeView)
 		popTranslation();
 	}
 	
+	this.drawMap = function()
+	{
+//		mapRadius = (Math.sqrt(Math.pow(this.centerX.end, 2) + Math.pow(this.centerY.end, 2)) - this.radius.end) * .25;
+		var radius = this.radius.current();
+		mapRadius = radius * .2;
+		mapPositionX = this.centerX.current() + radius;
+		mapPositionY = this.centerY.current() - radius;
+//		mapPositionX = this.centerX.end + this.centerX.end * .8;
+//		mapPositionY = this.centerY.end * .20
+		
+		if ( mapRadius > maxMapRadius )
+		{
+	//		mapRadius = maxMapRadius;
+		}
+		
+		var radiusInner = this.mapRadiusInner.current() * mapRadius;
+		var angleStart = this.mapAngleStart.current() + rotationOffset;
+		var angleEnd = this.mapAngleEnd.current() + rotationOffset;
+		
+		context.save();
+		
+		context.translate(mapPositionX, mapPositionY);
+		context.fillStyle = '#DDDDDD';
+		context.strokeStyle = '#DDDDDD';
+		context.beginPath();
+		context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
+		context.stroke();
+		context.beginPath();
+		context.arc(0, 0, radiusInner, angleEnd, angleStart, true);
+		context.arc(0, 0, mapRadius, angleStart, angleEnd, false);
+		context.fill();
+		
+		if ( radiusInner )
+		{
+			context.strokeStyle = '#CCCCCC';
+			context.stroke();
+		}
+		
+		//if ( highlightedNode != selectedNode || focusNode != selectedNode )// || selectedNode != head )
+		{
+			var node;
+			
+			if ( highlightedNode != selectedNode )
+			{
+				node = highlightedNode;
+			}
+			else
+			{
+				node = focusNode;
+			}
+			
+			var highlightArc = this.getMapArc(this.nodeViews[node.id]);
+			
+			highlightArc.start += rotationOffset;
+			highlightArc.end += rotationOffset;
+			
+			var highlightRadiusInner = node == head ? 0 :
+				mapRadii[node.getDepth() - 2] * mapRadius;
+			
+			context.beginPath();
+			
+			if ( node == head )
+			{
+				context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
+			}
+			else
+			{
+				context.arc(0, 0, highlightRadiusInner, highlightArc.end, highlightArc.start, true);
+				context.arc(0, 0, mapRadius, highlightArc.start, highlightArc.end, false);
+				context.closePath();
+			}
+			
+			context.lineWidth = 2;
+			context.strokeStyle = '#CCCCCC';
+			context.stroke();
+		}
+		
+		context.restore();
+	}
+	
 	this.finish = function()
 	{
 		this.finishing = true;
@@ -729,6 +810,16 @@ function TreeView(dataset, treeView)
 //		this.radius.setTarget(0);
 //		this.centerX.start = this.centerX.end;
 //		this.centerY.start = this.centerY.end;
+	}
+	
+	this.getMapArc = function(nodeView)
+	{
+		var headView = this.nodeViews[head.id];
+		
+		return {
+			start: nodeView.baseMagnitude / headView.magnitude * Math.PI * 2,
+			end: (nodeView.baseMagnitude + nodeView.magnitude) / headView.magnitude * Math.PI * 2
+		};
 	}
 	
 	this.resetLabelArrays = function()
@@ -759,6 +850,12 @@ function TreeView(dataset, treeView)
 		this.centerX.setTarget(this.centerXTarget, ! this.initialized);
 		this.centerY.setTarget(this.centerYTarget, ! this.initialized);
 		this.radius.setTarget(this.radiusTarget, false);
+		
+		var mapArc = this.getMapArc(this.nodeViews[selectedNode.id]);
+		
+		this.mapAngleStart.setTarget(mapArc.start, ! this.initialized);
+		this.mapAngleEnd.setTarget(mapArc.end, ! this.initialized);
+		this.mapRadiusInner.setTarget(selectedNode == head ? 0 : mapRadii[selectedNode.getDepth() - 2]);
 		
 		if ( this.finishing )
 		{
@@ -3021,6 +3118,8 @@ function NodeView(treeView, node)
 		this.g.setTargetEnd();
 		this.b.setTargetEnd();
 		
+		this.radialPrev = this.radial;
+		
 		for ( var i = 0; i < this.node.children.length; i++ )
 		{
 			this.getChild(i).setTargetsFinish();
@@ -3587,7 +3686,14 @@ function addOptionElement(innerHTML, title, id)
 	return div;
 }
 
+var uiDatasetCheckboxAll;
 var uiDatasetCheckboxes;
+var uiDetailsSelected;
+var uiDetailsSelectedName;
+var uiDetailsSelectedRows = new Array();
+var uiDetailsFocus;
+var uiDetailsFocusName;
+var uiDetailsFocusRows = new Array();
 
 function addOptionElements(hueName, hueDefault)
 {
@@ -3605,7 +3711,7 @@ function addOptionElements(hueName, hueDefault)
 //	details.style.textAlign = 'right';
 	document.body.insertBefore(panel, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
-
+	
 	position = addOptionElement
 	(
 '&nbsp;<input style="float:left" type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
@@ -3615,11 +3721,15 @@ function addOptionElements(hueName, hueDefault)
 <span id="searchResults"></span>'
 	);
 	
-	details = addOptionElement(
-'<span id="detailsName" style="font-weight:bold"></span>&nbsp;\
-<br/>\
-<div id="detailsInfo"></div>');
-
+	uiNameSelected = document.createElement('div');
+	uiNameFocus = document.createElement('div');
+	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
+	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
+	panel.appendChild(uiNameSelected);
+	panel.appendChild(uiDetailsSelected);
+	panel.appendChild(uiNameFocus);
+	panel.appendChild(uiDetailsFocus);
+	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
 	keyControl.value = showKeys ? 'x' : '…';
@@ -3635,7 +3745,7 @@ function addOptionElements(hueName, hueDefault)
 	{
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
 		uiDatasets = document.createElement('div');
-		details.appendChild(uiDatasets);
+		panel.appendChild(uiDatasets);
 		uiDatasets.style.overflowY = 'scroll';
 		var table = document.createElement('table');
 		uiDatasets.appendChild(table);
@@ -3645,44 +3755,71 @@ function addOptionElements(hueName, hueDefault)
 		table.innerHTML = '';
 		uiDatasetRowsById = new Array();
 		uiDatasetCheckboxes = new Array();
-		uiDatasetCharts = new Array();
+		uiDatasetChartsSelected = new Array();
+		uiDatasetChartsRoot = new Array();
+		
+		var row = document.createElement('tr');
+		var tdName = document.createElement('td');
+		var tdCheckbox = document.createElement('td');
+		var tdChartSelected = document.createElement('td');
+		var tdChartRoot = document.createElement('td');
+		tdChartSelected.width = '25px';
+		tdChartRoot.width = '25px';
+		uiDatasetCheckboxAll = document.createElement('input');
+		
+		table.appendChild(row);
+		
+		row.appendChild(tdName);
+		row.appendChild(tdCheckbox);
+		row.appendChild(tdChartSelected);
+		row.appendChild(tdChartRoot);
+		
+		tdCheckbox.appendChild(uiDatasetCheckboxAll);
+		
+		uiDatasetCheckboxAll.type = 'checkbox';
+		uiDatasetCheckboxAll.onclick = selectDatasetsAll;
+		
+		tdCheckbox.style.padding = '0px';
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
 		{
 			var row = document.createElement('tr');
 			var tdName = document.createElement('td');
 			var tdCheckbox = document.createElement('td');
-			var tdChart = document.createElement('td');
+			var tdChartSelected = document.createElement('td');
+			var tdChartRoot = document.createElement('td');
 			var checkbox = document.createElement('input');
-			var chart = document.createElement('div');
+			var chartSelected = document.createElement('div');
+			var chartRoot = document.createElement('div');
 			
 			checkbox.type = 'checkbox';
 			table.appendChild(row);
 			row.appendChild(tdName);
 			row.appendChild(tdCheckbox);
-			row.appendChild(tdChart);
+			row.appendChild(tdChartSelected);
+			row.appendChild(tdChartRoot);
 			tdCheckbox.appendChild(checkbox);
 			tdName.kronaDataset = i;
-			tdChart.appendChild(chart);
+			tdChartSelected.appendChild(chartSelected);
+			tdChartRoot.appendChild(chartRoot);
 			checkbox.kronaDataset = i;
 	//		row.onclick = mouseClick;
 			tdName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
 			uiDatasetRowsById[i] = tdName;
 			uiDatasetCheckboxes[i] = checkbox;
-			uiDatasetCharts[i] = chart;
+			uiDatasetChartsSelected[i] = chartSelected;
+			uiDatasetChartsRoot[i] = chartRoot;
 			tdName.onclick = function(){selectDataset(this.kronaDataset)};
 			checkbox.onclick = function(){toggleDataset(this.kronaDataset)};
 			tdName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
 //			row.kronaShortened = divName.innerHTML != keys[i].name;
 			tdName.style.overflowX = 'hidden';
 			tdName.style.maxWidth = (uiDatasets.clientWidth - 20) + 'px';
-			chart.style.width = "25px";
-			chart.style.height = "15px";
-			chart.style.border = "1px solid gray";
+			chartSelected.style.height = "15px";
+			chartRoot.style.height = "15px";
 			row.style.padding = '0px';
 			tdName.style.padding = '0px';
 			tdCheckbox.style.padding = '0px';
-			chart.style.backgroundColor = '#DDDDDD';//rgbText(nodeView.r.end, nodeView.g.end, nodeView.b.end);
 			//td2.style.backgroundImage = 'url("' + image.src + '")';
 		}
 		
@@ -3984,6 +4121,31 @@ function checkSelectedCollapse()
 	}
 }
 
+function clearDatasetCharts()
+{
+	if ( datasets > 1 )
+	{
+		for ( var i = 0; i < uiDatasetChartsSelected.length; i++ )
+		{
+			uiDatasetChartsSelected[i].style.border = 'none';
+			uiDatasetChartsSelected[i].style.backgroundColor = '#FFFFFF';
+			uiDatasetChartsRoot[i].style.border = 'none';
+			uiDatasetChartsRoot[i].style.backgroundColor = '#FFFFFF';
+		}
+	}
+}
+
+function clearDetails(elements)
+{
+	for ( var i = 0; i < attributes.length; i++ )
+	{
+		if ( attributes[i].displayName )
+		{
+			elements[i].innerHTML = '';
+		}
+	}
+}
+
 function computeRadii(node)
 {
 	// visibility of nodes depends on the depth they are displayed at,
@@ -4059,6 +4221,47 @@ function computeRadii(node)
 	return radii;
 }
 
+function createDetailsTable(elements)
+{
+	var table = document.createElement('table');
+	
+	table.style.width = '100%';
+	
+	for ( var i = 0; i < attributes.length; i++ )
+	{
+		if ( attributes[i].displayName == undefined )
+		{
+			continue;
+		}
+		
+		var row = document.createElement('tr');
+		table.appendChild(row);
+		
+		if ( i % 2 )
+		{
+			row.style.backgroundColor = '#FAFAFA';
+		}
+		else
+		{
+			row.style.backgroundColor = '#EEEEEE';
+		}
+		
+		var tdName = document.createElement('td');
+		var tdValue = document.createElement('td');
+		row.appendChild(tdName);
+		row.appendChild(tdValue);
+		elements[i] = tdValue;
+		
+		tdName.style.fontWeight = 'bold';
+		tdName.style.textAlign = 'right';
+		tdName.style.width = 'auto';
+		tdName.style.transform = 'rotate(90deg)';
+		tdName.innerHTML = attributes[i].displayName;
+	}
+	
+	return table;
+}
+
 function createSVG()
 {
 	svgNS = "http://www.w3.org/2000/svg";
@@ -4101,10 +4304,9 @@ function draw()
 	
 	//context.strokeStyle = 'rgba(0, 0, 0, 0.3)';
 	
-	drawMap();
-	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
+		treeViews[i].drawMap();
 		treeViews[i].draw();
 	}
 	
@@ -4145,7 +4347,7 @@ function drawBubble(angle, radius, width, radial, flip)
 	
 	if ( snapshotMode )
 	{
-		drawBubbleSVG(x + centerX, y + centerY, width, height, fontSize, angle);
+		drawBubbleSVG(x, y, width, height, fontSize, angle);
 	}
 	else
 	{
@@ -4306,92 +4508,6 @@ function drawLegendSVG()
 		'" width="' + width + '" height="' + height + '"/>';
 	
 	svg += text;
-}
-
-function getMapArc(nodeView)
-{
-	var headView = treeViewsActiveFirst.nodeViews[head.id];
-	
-	return {
-		start: nodeView.baseMagnitude / headView.magnitude * Math.PI * 2,
-		end: (nodeView.baseMagnitude + nodeView.magnitude) / headView.magnitude * Math.PI * 2
-	};
-}
-
-function drawMap()
-{
-	mapRadius = (Math.sqrt(Math.pow(treeViewsActiveFirst.centerX.end, 2) + Math.pow(treeViewsActiveFirst.centerY.end, 2)) - treeViewsActiveFirst.radius.end) * .25;
-	mapPositionX = treeViewsActiveFirst.centerX.end + treeViewsActiveFirst.centerX.end * .8;
-	mapPositionY = treeViewsActiveFirst.centerY.end * .20
-	
-	if ( mapRadius > maxMapRadius )
-	{
-//		mapRadius = maxMapRadius;
-	}
-	
-	var radiusInner = mapRadiusInner.current() * mapRadius;
-	var angleStart = mapAngleStart.current() + rotationOffset;
-	var angleEnd = mapAngleEnd.current() + rotationOffset;
-	
-	context.save();
-	
-	context.translate(mapPositionX, mapPositionY);
-	context.fillStyle = '#DDDDDD';
-	context.strokeStyle = '#DDDDDD';
-	context.beginPath();
-	context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
-	context.stroke();
-	context.beginPath();
-	context.arc(0, 0, radiusInner, angleEnd, angleStart, true);
-	context.arc(0, 0, mapRadius, angleStart, angleEnd, false);
-	context.fill();
-	
-	if ( radiusInner )
-	{
-		context.strokeStyle = '#CCCCCC';
-		context.stroke();
-	}
-	
-	//if ( highlightedNode != selectedNode || focusNode != selectedNode )// || selectedNode != head )
-	{
-		var node;
-		
-		if ( highlightedNode != selectedNode )
-		{
-			node = highlightedNode;
-		}
-		else
-		{
-			node = focusNode;
-		}
-		
-		var highlightArc = getMapArc(treeViewsActiveFirst.nodeViews[node.id]);
-		
-		highlightArc.start += rotationOffset;
-		highlightArc.end += rotationOffset;
-		
-		var highlightRadiusInner = node == head ? 0 :
-			mapRadii[node.getDepth() - 2] * mapRadius;
-		
-		context.beginPath();
-		
-		if ( node == head )
-		{
-			context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
-		}
-		else
-		{
-			context.arc(0, 0, highlightRadiusInner, highlightArc.end, highlightArc.start, true);
-			context.arc(0, 0, mapRadius, highlightArc.start, highlightArc.end, false);
-			context.closePath();
-		}
-		
-		context.lineWidth = 2;
-		context.strokeStyle = '#CCCCCC';
-		context.stroke();
-	}
-	
-	context.restore();
 }
 
 function drawSearchHighlights(label, bubbleX, bubbleY, rotation, center)
@@ -5263,9 +5379,10 @@ function load()
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 */	maxAbsoluteDepth = 0;
-	selectNode(nodes[nodeDefault]);
 	selectDataset(datasetDefault);
+	//selectDatasetsAll();
 	focusTreeView = treeViews[0];
+	selectNode(nodes[nodeDefault]);
 	updateDatasets();
 	
 	if ( maxDepthDefault && maxDepthDefault < head.maxDepth )
@@ -6027,11 +6144,49 @@ function toggleDataset(dataset)
 	updateDatasets();
 }
 
-function selectDataset(newDataset)
+function selectDatasetsAll()
 {
+	var treeView = 0;
+	
 	if ( treeViewsActiveCount == 1 )
 	{
 		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
+	}
+	
+	for ( var i = 0; i < datasets; i++ )
+	{
+		uiDatasetCheckboxes[i].checked = true;
+		
+		if ( treeView < treeViews.length && treeViews[treeView].dataset == i )
+		{
+			if ( treeViews[treeView].finishing )
+			{
+				treeViews[treeView].finishing = false;
+			}
+		}
+		else
+		{
+			treeViews.splice(treeView, 0, new TreeView(i));
+		}
+		treeView++;
+	}
+	
+	updateDatasets();
+}
+
+function selectDataset(newDataset)
+{
+	uiDatasetCheckboxAll.checked = false;
+	
+	if ( treeViewsActiveCount == 1 )
+	{
+		if ( datasets > 1 )
+		{
+			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
+			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false;
+		}
+		
+		treeViewsActiveFirst.dataset = newDataset;
 	}
 	
 	var treeView;
@@ -6107,10 +6262,13 @@ function updateDatasets()
 		treeViews[i].nodeViews[head.id].setMagnitudes(0);
 	}
 	
-	if ( treeViewsActiveCount == 1 )
+	if ( treeViewsActiveCount == 1 && datasets > 1 )
 	{
 		uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = true;
 	}
+	
+	uiDatasetCheckboxAll.checked = treeViewsActiveCount == datasets;
+	uiDatasetCheckboxAll.disabled = uiDatasetCheckboxAll.checked;
 	
 	head.setDepth(1, 1);
 	head.setMaxDepths();
@@ -6144,29 +6302,68 @@ function selectNode(newNode)
 	updateDatasetButtons();
 }
 
-function setFocus(node)
+function setDatasetCharts()
 {
-	if ( node == focusNode )
+	if ( datasets > 1 )
 	{
-//		return;
+		setDatasetChartsColumn(selectedNode, uiDatasetChartsSelected, true);
+		setDatasetChartsColumn(head, uiDatasetChartsRoot, false);
+	}
+}
+
+function setDatasetChartsColumn(node, charts, color)
+{
+	var max = 0;
+	
+	for ( var i = 0; i < charts.length; i++ )
+	{
+		var fraction = focusNode.getMagnitude(i) / node.getMagnitude(i);
+		
+		if ( fraction > max )
+		{
+			max = fraction;
+		}
 	}
 	
-	focusNode = node;
-	
-	if ( node.href )
+	for ( var i = 0; i < charts.length; i++ )
 	{
-		detailsName.innerHTML =
-			'<a target="_blank" href="' + node.href + '">' + node.name + '</a>';
+		var width = focusNode.getMagnitude(i) / node.getMagnitude(i) / max * 25;
+		charts[i].style.width = width + 'px';
+		
+		if ( width == 0 )
+		{
+			charts[i].style.border = 'none';
+		}
+		else
+		{
+			charts[i].style.border = '1px solid black';
+		}
+		
+		if ( color )
+		{
+			if ( useHue() )
+			{
+				charts[i].style.backgroundColor = hslText(focusNode.hues[i]);
+			}
+			else
+			{
+				charts[i].style.backgroundColor = rgbText
+				(
+					treeViewsActiveFirst.nodeViews[focusNode.id].r.end,
+					treeViewsActiveFirst.nodeViews[focusNode.id].g.end,
+					treeViewsActiveFirst.nodeViews[focusNode.id].b.end
+				);
+			}
+		}
+		else
+		{
+			charts[i].style.backgroundColor = '#DDDDDD';
+		}
 	}
-	else
-	{
-		detailsName.innerHTML = node.name;
-	}
-	
-	var table = '<table>';
-	
-	table += '<tr><td></td></tr>';
-	
+}
+
+function setDetails(node, elements)
+{
 	for ( var i = 0; i < node.attributes.length; i++ )
 	{
 		if ( attributes[i].displayName && node.attributes[i] != undefined )
@@ -6176,83 +6373,103 @@ function setFocus(node)
 			if ( node.attributes[i][index] != undefined && node.attributes[i][focusTreeView.dataset] != '' )
 			{
 				var value = node.attributes[i][index];
+				var link = undefined;
+				var title;
+				var attribute;
+				var td = elements[i];
 				
 				if ( attributes[i].listNode != undefined )
 				{
-					value =
-						'<a href="" onclick="showList(' +
-						attributeIndex(attributes[i].listNode) + ',' + i +
-						',false);return false;" title="Show list">' +
-						value + '</a>';
+					link = function()
+					{
+						showList(this.kronaList, this.kronaAttribute, false);
+						return false
+					};
+					attribute = attributes[i].listNode;
+					title = 'Show list';
 				}
 				else if ( attributes[i].listAll != undefined )
 				{
-					value =
-						'<a href="" onclick="showList(' +
-						attributeIndex(attributes[i].listAll) + ',' + i +
-						',true);return false;" title="Show list">' +
-						value + '</a>';
+					link = function()
+					{
+						showList(this.kronaList, this.kronaAttribute, true);
+						return false;
+					};
+					attribute = attributes[i].listNode;
+					title = 'Show list';
 				}
 				else if ( attributes[i].dataNode != undefined && dataEnabled )
 				{
-					value =
-						'<a href="" onclick="showData(' +
-						attributeIndex(attributes[i].dataNode) + ',' + i +
-						',false);return false;" title="Show data">' +
-						value + '</a>';
+					link = function()
+					{
+						showData(this.kronaList, this.kronaAttribute, false);
+						return false;
+					};
+					attribute = attributes[i].dataNode;
+					title = 'Show data';
 				}
 				else if ( attributes[i].dataAll != undefined && dataEnabled )
 				{
-					value =
-						'<a href="" onclick="showData(' +
-						attributeIndex(attributes[i].dataAll) + ',' + i +
-						',true);return false;" title="Show data">' +
-						value + '</a>';
+					link = function()
+					{
+						showData(this.kronaList, this.kronaAttribute, false);
+						return false;
+					};
+					attribute = attributes[i].dataNode;
+					title = 'Show data';
 				}
 				
-				table +=
-					'<tr><td><strong>' + attributes[i].displayName + ':</strong></td><td>' +
-					value + '</td></tr>';
-			}
-		}
-	}
-	
-	table += '</table>';
-	detailsInfo.innerHTML = table;
-	
-	//if ( focusNode != selectedNode )
-	{
-		var max = 0;
-		
-		for ( var i = 0; i < uiDatasetCharts.length; i++ )
-		{
-			var fraction = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i);
-			
-			if ( fraction > max )
-			{
-				max = fraction;
-			}
-		}
-		
-		for ( var i = 0; i < uiDatasetCharts.length; i++ )
-		{
-			var width = focusNode.getMagnitude(i) / selectedNode.getMagnitude(i) / max * 25;
-			uiDatasetCharts[i].style.width = width + 'px';
-			
-			if ( useHue() )
-			{
-				uiDatasetCharts[i].style.backgroundColor = hslText(focusNode.hues[i]);
+				if ( link != undefined )
+				{
+					var a = document.createElement('a');
+					a.kronaList = attribute;
+					a.kronaAttribute = i;
+					a.href = '';
+					a.onclick = link;
+					a.innerHTML = value;
+					a.title = title;
+					td.innerHTML = '';
+					td.appendChild(a);
+				}
+				else
+				{
+					td.innerHTML = value;
+				}
 			}
 			else
 			{
-				uiDatasetCharts[i].style.backgroundColor = rgbText
-				(
-					treeViewsActiveFirst.nodeViews[focusNode.id].r.end,
-					treeViewsActiveFirst.nodeViews[focusNode.id].g.end,
-					treeViewsActiveFirst.nodeViews[focusNode.id].b.end
-				);
+				elements[i].innerHTML = '';
 			}
 		}
+	}
+}
+
+function setFocus(node)
+{
+	if ( node == focusNode )
+	{
+//		return;
+	}
+	
+	focusNode = node;
+	
+	if ( focusNode == selectedNode )
+	{
+		uiNameFocus.innerHTML = '';
+		clearDetails(uiDetailsFocusRows);
+		clearDatasetCharts();
+	}
+	else
+	{
+		uiNameFocus.innerHTML = node.name;
+		setDetails(node, uiDetailsFocusRows);
+		setDatasetCharts();
+	}
+	
+	if ( node.href )
+	{
+		uiNameFocus.style.class = 'a';
+//			'<a target="_blank" href="' +  + '">' + node.name + '</a>';
 	}
 }
 
@@ -6327,7 +6544,10 @@ function setSelectedNode(newNode)
 	selectedNodeLast = selectedNode;
 	selectedNode = newNode;
 	
-	if ( selectedNode.hasParent(focusNode) )
+	uiNameSelected.innerHTML = selectedNode.name;
+	setDetails(selectedNode, uiDetailsSelectedRows);
+	
+	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
 	{
 		setFocus(selectedNode);
 	}
@@ -6848,15 +7068,6 @@ function updateView()
 		{
 			treeViews[i].setTargets();
 		}
-	}
-	
-	if ( treeViews.length == 1 )
-	{
-		var mapArc = getMapArc(treeViewsActiveFirst.nodeViews[selectedNode.id]);
-		
-		mapAngleStart.setTarget(mapArc.start);
-		mapAngleEnd.setTarget(mapArc.end);
-		mapRadiusInner.setTarget(selectedNode == head ? 0 : mapRadii[selectedNode.getDepth() - 2]);
 	}
 	
 	keySize = ((imageHeight - margin * 3) * 1 / 2) / keys * 3 / 4;
