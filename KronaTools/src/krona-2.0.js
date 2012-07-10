@@ -3688,7 +3688,7 @@ function addOptionElement(innerHTML, title, id)
 
 var uiDatasetCheckboxAll;
 var uiDatasetCheckboxes;
-var uiDetailsSelected;
+var uiDetailsTable;
 var uiDetailsSelectedName;
 var uiDetailsSelectedRows = new Array();
 var uiDetailsFocus;
@@ -3714,21 +3714,19 @@ function addOptionElements(hueName, hueDefault)
 	
 	position = addOptionElement
 	(
-'&nbsp;<input style="float:left" type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
-<input style="float:left" type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
-&nbsp;<input style="float:left;max-width:100%;" type="text" id="search"/>\
-<input style="float:left" type="button" value="x" onclick="searchClear()"/> \
+'&nbsp;<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+<input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
+&nbsp;<input style="width:auto;" type="text" id="search"/>\
+<input  type="button" value="x" onclick="searchClear()"/> \
 <span id="searchResults"></span>'
 	);
 	
-	uiNameSelected = document.createElement('div');
-	uiNameFocus = document.createElement('div');
-	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
-	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
-	panel.appendChild(uiNameSelected);
-	panel.appendChild(uiDetailsSelected);
-	panel.appendChild(uiNameFocus);
-	panel.appendChild(uiDetailsFocus);
+//	uiNameSelected = document.createElement('div');
+//	uiNameFocus = document.createElement('div');
+	uiDetailsTable = createDetailsTable(uiDetailsFocusRows, uiDetailsSelectedRows);
+//	panel.appendChild(uiNameFocus);
+//	panel.appendChild(uiNameSelected);
+	panel.appendChild(uiDetailsTable);
 	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -3746,6 +3744,7 @@ function addOptionElements(hueName, hueDefault)
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
 		uiDatasets = document.createElement('div');
 		panel.appendChild(uiDatasets);
+		uiDatasets.style.overflowX = 'hidden';
 		uiDatasets.style.overflowY = 'scroll';
 		var table = document.createElement('table');
 		uiDatasets.appendChild(table);
@@ -4221,11 +4220,37 @@ function computeRadii(node)
 	return radii;
 }
 
-function createDetailsTable(elements)
+function createDetailsTable(elementsFocus, elementsSelected)
 {
 	var table = document.createElement('table');
 	
 	table.style.width = '100%';
+	table.style.borderSpacing = '0px';
+	
+	var rowNameFocus = document.createElement('tr');
+	var rowNameSelected = document.createElement('tr');
+	
+	var border = '2px solid #CCCCCC';
+	
+	uiNameSelected = document.createElement('td');
+	uiNameSelected.colSpan = 3;
+	uiNameSelected.style.borderTop = border;
+	uiNameSelected.style.borderRight = border;
+	uiNameFocus = document.createElement('td');
+	uiNameFocus.colSpan = 2;
+	uiNameFocus.style.borderTop = border;
+	uiNameFocus.style.borderRight = border; 
+	
+	var tdNameSpacer = document.createElement('td');
+	tdNameSpacer.style.borderRight = border;
+	
+	table.appendChild(rowNameSelected);
+	table.appendChild(rowNameFocus);
+	rowNameSelected.appendChild(uiNameSelected);
+	rowNameFocus.appendChild(uiNameFocus);
+	rowNameFocus.appendChild(tdNameSpacer);
+	
+	var count = 0;
 	
 	for ( var i = 0; i < attributes.length; i++ )
 	{
@@ -4237,9 +4262,9 @@ function createDetailsTable(elements)
 		var row = document.createElement('tr');
 		table.appendChild(row);
 		
-		if ( i % 2 )
+		if ( count % 2 )
 		{
-			row.style.backgroundColor = '#FAFAFA';
+			row.style.backgroundColor = '#F5F5F5';
 		}
 		else
 		{
@@ -4247,16 +4272,36 @@ function createDetailsTable(elements)
 		}
 		
 		var tdName = document.createElement('td');
-		var tdValue = document.createElement('td');
+		var tdValueFocus = document.createElement('td');
+		var tdValueSelected = document.createElement('td');
 		row.appendChild(tdName);
-		row.appendChild(tdValue);
-		elements[i] = tdValue;
+		row.appendChild(tdValueFocus);
+		row.appendChild(tdValueSelected);
+		elementsFocus[i] = tdValueFocus;
+		elementsSelected[i] = tdValueSelected;
 		
+		if ( count == 0 )
+		{
+			tdName.style.borderTop = border;
+		}
+		
+		tdName.style.paddingRight = '3px';
 		tdName.style.fontWeight = 'bold';
 		tdName.style.textAlign = 'right';
-		tdName.style.width = 'auto';
-		tdName.style.transform = 'rotate(90deg)';
+		tdName.style.width = '50%';
+//		tdName.style.transform = 'rotate(90deg)';
 		tdName.innerHTML = attributes[i].displayName;
+		tdName.style.borderRight = border;
+		tdValueFocus.style.borderRight = border;
+		tdValueFocus.style.minWidth = '25%';
+		tdValueFocus.style.paddingLeft = '2px';
+		tdValueFocus.style.paddingRight = '2px';
+		tdValueSelected.style.borderRight = border;
+		tdValueSelected.style.minWidth = '25%';
+		tdValueSelected.style.paddingLeft = '2px';
+		tdValueSelected.style.paddingRight = '2px';
+		
+		count++
 	}
 	
 	return table;
@@ -6109,6 +6154,11 @@ function toggleDataset(dataset)
 		{
 			// restore
 			
+			if ( treeViewsActiveCount == 1 )
+			{
+				uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
+			}
+			
 			treeViews[treeView].finishing = false;
 			uiDatasetCheckboxes[dataset].checked = true;
 		}
@@ -6185,8 +6235,6 @@ function selectDataset(newDataset)
 			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].disabled = false;
 			uiDatasetCheckboxes[treeViewsActiveFirst.dataset].checked = false;
 		}
-		
-		treeViewsActiveFirst.dataset = newDataset;
 	}
 	
 	var treeView;
@@ -6455,7 +6503,7 @@ function setFocus(node)
 	
 	if ( focusNode == selectedNode )
 	{
-		uiNameFocus.innerHTML = '';
+		uiNameFocus.innerHTML = '&nbsp;';
 		clearDetails(uiDetailsFocusRows);
 		clearDatasetCharts();
 	}
