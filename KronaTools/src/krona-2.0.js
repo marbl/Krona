@@ -3754,24 +3754,25 @@ function addOptionElements(hueName, hueDefault)
 		table.innerHTML = '';
 		uiDatasetRowsById = new Array();
 		uiDatasetCheckboxes = new Array();
-		uiDatasetChartsSelected = new Array();
-		uiDatasetChartsRoot = new Array();
+		uiDatasetChartsFocusSelected = new Array();
+		uiDatasetChartsFocusRoot = new Array();
+		uiDatasetChartsSelectedRoot = new Array();
 		
 		var row = document.createElement('tr');
 		var tdName = document.createElement('td');
 		var tdCheckbox = document.createElement('td');
+		var tdChartFocus = document.createElement('td');
 		var tdChartSelected = document.createElement('td');
-		var tdChartRoot = document.createElement('td');
+		tdChartFocus.width = '25px';
 		tdChartSelected.width = '25px';
-		tdChartRoot.width = '25px';
 		uiDatasetCheckboxAll = document.createElement('input');
 		
 		table.appendChild(row);
 		
 		row.appendChild(tdName);
 		row.appendChild(tdCheckbox);
+		row.appendChild(tdChartFocus);
 		row.appendChild(tdChartSelected);
-		row.appendChild(tdChartRoot);
 		
 		tdCheckbox.appendChild(uiDatasetCheckboxAll);
 		
@@ -3785,37 +3786,44 @@ function addOptionElements(hueName, hueDefault)
 			var row = document.createElement('tr');
 			var tdName = document.createElement('td');
 			var tdCheckbox = document.createElement('td');
+			var tdChartFocus = document.createElement('td');
 			var tdChartSelected = document.createElement('td');
-			var tdChartRoot = document.createElement('td');
 			var checkbox = document.createElement('input');
-			var chartSelected = document.createElement('div');
-			var chartRoot = document.createElement('div');
+			var chartFocusSelected = document.createElement('div');
+			var chartFocusRoot = document.createElement('div');
+			var chartSelectedRoot = document.createElement('div');
+			var spacer = document.createElement('div');
 			
 			checkbox.type = 'checkbox';
 			table.appendChild(row);
 			row.appendChild(tdName);
 			row.appendChild(tdCheckbox);
+			row.appendChild(tdChartFocus);
 			row.appendChild(tdChartSelected);
-			row.appendChild(tdChartRoot);
 			tdCheckbox.appendChild(checkbox);
 			tdName.kronaDataset = i;
-			tdChartSelected.appendChild(chartSelected);
-			tdChartRoot.appendChild(chartRoot);
+			spacer.style.height = '1px';
+			tdChartFocus.appendChild(chartFocusSelected);
+			//tdChartFocus.appendChild(spacer);
+			tdChartFocus.appendChild(chartFocusRoot);
+			tdChartSelected.appendChild(chartSelectedRoot);
 			checkbox.kronaDataset = i;
 	//		row.onclick = mouseClick;
 			tdName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
 			uiDatasetRowsById[i] = tdName;
 			uiDatasetCheckboxes[i] = checkbox;
-			uiDatasetChartsSelected[i] = chartSelected;
-			uiDatasetChartsRoot[i] = chartRoot;
+			uiDatasetChartsFocusSelected[i] = chartFocusSelected;
+			uiDatasetChartsFocusRoot[i] = chartFocusRoot;
+			uiDatasetChartsSelectedRoot[i] = chartSelectedRoot;
 			tdName.onclick = function(){selectDataset(this.kronaDataset)};
 			checkbox.onclick = function(){toggleDataset(this.kronaDataset)};
 			tdName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
 //			row.kronaShortened = divName.innerHTML != keys[i].name;
 			tdName.style.overflowX = 'hidden';
 			tdName.style.maxWidth = (uiDatasets.clientWidth - 20) + 'px';
-			chartSelected.style.height = "15px";
-			chartRoot.style.height = "15px";
+			chartFocusSelected.style.height = "8px";
+			chartFocusRoot.style.height = "8px";
+			chartSelectedRoot.style.height = "16px";
 			row.style.padding = '0px';
 			tdName.style.padding = '0px';
 			tdCheckbox.style.padding = '0px';
@@ -4120,16 +4128,31 @@ function checkSelectedCollapse()
 	}
 }
 
-function clearDatasetCharts()
+function clearDatasetChart(chart)
+{
+	chart.style.border = 'none';
+	chart.style.backgroundColor = '#FFFFFF';
+}
+
+function clearDatasetChartsFocus()
 {
 	if ( datasets > 1 )
 	{
-		for ( var i = 0; i < uiDatasetChartsSelected.length; i++ )
+		for ( var i = 0; i < datasets; i++ )
 		{
-			uiDatasetChartsSelected[i].style.border = 'none';
-			uiDatasetChartsSelected[i].style.backgroundColor = '#FFFFFF';
-			uiDatasetChartsRoot[i].style.border = 'none';
-			uiDatasetChartsRoot[i].style.backgroundColor = '#FFFFFF';
+			clearDatasetChart(uiDatasetChartsFocusSelected[i]);
+			clearDatasetChart(uiDatasetChartsFocusRoot[i]);
+		}
+	}
+}
+
+function clearDatasetChartsSelected()
+{
+	if ( datasets > 1 )
+	{
+		for ( var i = 0; i < datasets; i++ )
+		{
+			clearDatasetChart(uiDatasetChartsSelectedRoot[i]);
 		}
 	}
 }
@@ -6354,18 +6377,52 @@ function setDatasetCharts()
 {
 	if ( datasets > 1 )
 	{
-		setDatasetChartsColumn(selectedNode, uiDatasetChartsSelected, true);
-		setDatasetChartsColumn(head, uiDatasetChartsRoot, false);
+		if ( focusNode == selectedNode )
+		{
+			clearDatasetChartsFocus();
+		}
+		else
+		{
+			setDatasetChartsColumn(focusNode, selectedNode, uiDatasetChartsFocusSelected, true);
+			setDatasetChartsColumn(focusNode, head, uiDatasetChartsFocusRoot, false);
+		}
+		
+		if ( selectedNode == head )
+		{
+			clearDatasetChartsSelected();
+		}
+		else
+		{
+			setDatasetChartsColumn(selectedNode, head, uiDatasetChartsSelectedRoot, false);
+		}
+	}
+	
+	for ( var i = 0; i < datasets; i++ )
+	{
+		if ( Number(uiDatasetChartsFocusSelected[i].clientWidth) > Number(uiDatasetChartsFocusRoot[i].clientWidth) )
+		{
+//			uiDatasetChartsFocusSelected[i].style.borderBottom = '1px solid black';
+			uiDatasetChartsFocusSelected[i].style.height = '10px';
+			uiDatasetChartsFocusRoot[i].style.borderTop = 'none';
+			uiDatasetChartsFocusRoot[i].style.height = '5px';
+		}
+		else
+		{
+			uiDatasetChartsFocusSelected[i].style.borderBottom = 'none';
+			uiDatasetChartsFocusSelected[i].style.height = '9px';
+//			uiDatasetChartsFocusRoot[i].style.borderTop = '1px solid black';
+			uiDatasetChartsFocusRoot[i].style.height = '6px';
+		}
 	}
 }
 
-function setDatasetChartsColumn(node, charts, color)
+function setDatasetChartsColumn(nodeNum, nodeDen, charts, color)
 {
 	var max = 0;
 	
 	for ( var i = 0; i < charts.length; i++ )
 	{
-		var fraction = focusNode.getMagnitude(i) / node.getMagnitude(i);
+		var fraction = nodeNum.getMagnitude(i) / nodeDen.getMagnitude(i);
 		
 		if ( fraction > max )
 		{
@@ -6375,8 +6432,8 @@ function setDatasetChartsColumn(node, charts, color)
 	
 	for ( var i = 0; i < charts.length; i++ )
 	{
-		var width = focusNode.getMagnitude(i) / node.getMagnitude(i) / max * 25;
-		charts[i].style.width = width + 'px';
+		var width = nodeNum.getMagnitude(i) / nodeDen.getMagnitude(i) / max * 25;
+		charts[i].style.width = Math.floor(width) + 'px';
 		
 		if ( width == 0 )
 		{
@@ -6505,14 +6562,14 @@ function setFocus(node)
 	{
 		uiNameFocus.innerHTML = '&nbsp;';
 		clearDetails(uiDetailsFocusRows);
-		clearDatasetCharts();
 	}
 	else
 	{
 		uiNameFocus.innerHTML = node.name;
 		setDetails(node, uiDetailsFocusRows);
-		setDatasetCharts();
 	}
+	
+	setDatasetCharts();
 	
 	if ( node.href )
 	{
@@ -6598,6 +6655,10 @@ function setSelectedNode(newNode)
 	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
 	{
 		setFocus(selectedNode);
+	}
+	else
+	{
+		setFocus(focusNode);
 	}
 }
 
