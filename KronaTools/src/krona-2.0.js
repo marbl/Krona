@@ -3757,18 +3757,11 @@ function addOptionElements(hueName, hueDefault)
 	
 	uiNameSelected = document.createElement('div');
 	uiNameFocus = document.createElement('div');
-	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
-	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
 	panel.appendChild(uiNameSelected);
-	panel.appendChild(uiDetailsSelected);
 	panel.appendChild(uiNameFocus);
-	panel.appendChild(uiDetailsFocus);
-//	uiNameSelected = document.createElement('div');
-//	uiNameFocus = document.createElement('div');
 	uiDetailsTable = createDetailsTable(uiDetailsFocusRows, uiDetailsSelectedRows);
-//	panel.appendChild(uiNameFocus);
-//	panel.appendChild(uiNameSelected);
 	var div = document.createElement('div');
+	div.style.width = '100%';
 	div.appendChild(uiDetailsTable);
 	panel.appendChild(div);
 	div.style.overflowY = 'scroll';
