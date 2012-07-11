@@ -3688,6 +3688,7 @@ function addOptionElement(innerHTML, title, id)
 
 var uiDatasetCheckboxAll;
 var uiDatasetCheckboxes;
+var uiDatasetName;
 var uiDetailsTable;
 var uiDetailsSelectedName;
 var uiDetailsSelectedRows = new Array();
@@ -3726,7 +3727,10 @@ function addOptionElements(hueName, hueDefault)
 	uiDetailsTable = createDetailsTable(uiDetailsFocusRows, uiDetailsSelectedRows);
 //	panel.appendChild(uiNameFocus);
 //	panel.appendChild(uiNameSelected);
-	panel.appendChild(uiDetailsTable);
+	var div = document.createElement('div');
+	div.appendChild(uiDetailsTable);
+	panel.appendChild(div);
+	div.style.overflowY = 'scroll';
 	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -3741,17 +3745,19 @@ function addOptionElements(hueName, hueDefault)
 	
 	if ( datasets > 1 )
 	{
+		var border = '2px solid #CCCCCC';
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
 		uiDatasets = document.createElement('div');
 		panel.appendChild(uiDatasets);
-		uiDatasets.style.overflowX = 'hidden';
+		uiDatasets.style.overflowX = 'none';
 		uiDatasets.style.overflowY = 'scroll';
 		var table = document.createElement('table');
 		uiDatasets.appendChild(table);
 		table.width = '100%';
 		table.padding = '0px';
 		table.style.font = fontNormal;
-		table.innerHTML = '';
+		table.style.borderSpacing = '0px';
+//		table.innerHTML = '';
 		uiDatasetRowsById = new Array();
 		uiDatasetCheckboxes = new Array();
 		uiDatasetChartsFocusSelected = new Array();
@@ -3763,8 +3769,11 @@ function addOptionElements(hueName, hueDefault)
 		var tdCheckbox = document.createElement('td');
 		var tdChartFocus = document.createElement('td');
 		var tdChartSelected = document.createElement('td');
+		tdCheckbox.style.borderRight = border;
 		tdChartFocus.width = '25px';
+		tdChartFocus.style.borderRight = border;
 		tdChartSelected.width = '25px';
+		tdChartSelected.style.borderRight = border;
 		uiDatasetCheckboxAll = document.createElement('input');
 		
 		table.appendChild(row);
@@ -3825,8 +3834,15 @@ function addOptionElements(hueName, hueDefault)
 			chartFocusRoot.style.height = "8px";
 			chartSelectedRoot.style.height = "16px";
 			row.style.padding = '0px';
-			tdName.style.padding = '0px';
+			tdCheckbox.style.borderRight = border;
 			tdCheckbox.style.padding = '0px';
+			tdName.style.padding = '0px';
+			tdName.style.overflowX = 'hidden';
+			tdName.style.maxWidth = uiDetailsNameFirst.clientWidth + 'px';
+			tdChartFocus.style.borderRight = border;
+			tdChartFocus.style.width = uiDetailsValueFocusFirst.clientWidth + 'px';
+			tdChartSelected.style.borderRight = border;
+			tdChartSelected.style.width = uiDetailsValueSelectedFirst.clientWidth + 'px';
 			//td2.style.backgroundImage = 'url("' + image.src + '")';
 		}
 		
@@ -4252,26 +4268,42 @@ function createDetailsTable(elementsFocus, elementsSelected)
 	
 	var rowNameFocus = document.createElement('tr');
 	var rowNameSelected = document.createElement('tr');
+	var rowNameDataset = document.createElement('tr');
 	
 	var border = '2px solid #CCCCCC';
 	
 	uiNameSelected = document.createElement('td');
 	uiNameSelected.colSpan = 3;
+	uiNameSelected.style.textAlign = 'right';
 	uiNameSelected.style.borderTop = border;
 	uiNameSelected.style.borderRight = border;
 	uiNameFocus = document.createElement('td');
 	uiNameFocus.colSpan = 2;
+	uiNameFocus.style.textAlign = 'right';
 	uiNameFocus.style.borderTop = border;
-	uiNameFocus.style.borderRight = border; 
+	uiNameFocus.style.borderRight = border;
+	uiDatasetName = document.createElement('td');
+	uiDatasetName.style.borderRight = border;
+	uiDatasetName.style.borderTop = border;
+	uiDatasetName.style.overflow = 'hidden';
+	uiDatasetName.style.maxWidth = '50px';
+	var tdDatasetSpacer1 = document.createElement('td');
+	var tdDatasetSpacer2 = document.createElement('td');
+	tdDatasetSpacer1.style.borderRight = border;
+	tdDatasetSpacer2.style.borderRight = border;
 	
 	var tdNameSpacer = document.createElement('td');
 	tdNameSpacer.style.borderRight = border;
 	
 	table.appendChild(rowNameSelected);
 	table.appendChild(rowNameFocus);
+	table.appendChild(rowNameDataset);
 	rowNameSelected.appendChild(uiNameSelected);
 	rowNameFocus.appendChild(uiNameFocus);
 	rowNameFocus.appendChild(tdNameSpacer);
+	rowNameDataset.appendChild(uiDatasetName);
+	rowNameDataset.appendChild(tdDatasetSpacer1);
+	rowNameDataset.appendChild(tdDatasetSpacer2);
 	
 	var count = 0;
 	
@@ -4303,11 +4335,6 @@ function createDetailsTable(elementsFocus, elementsSelected)
 		elementsFocus[i] = tdValueFocus;
 		elementsSelected[i] = tdValueSelected;
 		
-		if ( count == 0 )
-		{
-			tdName.style.borderTop = border;
-		}
-		
 		tdName.style.paddingRight = '3px';
 		tdName.style.fontWeight = 'bold';
 		tdName.style.textAlign = 'right';
@@ -4323,6 +4350,14 @@ function createDetailsTable(elementsFocus, elementsSelected)
 		tdValueSelected.style.minWidth = '25%';
 		tdValueSelected.style.paddingLeft = '2px';
 		tdValueSelected.style.paddingRight = '2px';
+		
+		if ( count == 0 )
+		{
+			//tdName.style.borderTop = border;
+			uiDetailsNameFirst = tdName;
+			uiDetailsValueFocusFirst = tdValueFocus;
+			uiDetailsValueSelectedFirst = tdValueSelected;
+		}
 		
 		count++
 	}
@@ -6402,16 +6437,16 @@ function setDatasetCharts()
 		if ( Number(uiDatasetChartsFocusSelected[i].clientWidth) > Number(uiDatasetChartsFocusRoot[i].clientWidth) )
 		{
 //			uiDatasetChartsFocusSelected[i].style.borderBottom = '1px solid black';
-			uiDatasetChartsFocusSelected[i].style.height = '10px';
+			uiDatasetChartsFocusSelected[i].style.height = '11px';
 			uiDatasetChartsFocusRoot[i].style.borderTop = 'none';
-			uiDatasetChartsFocusRoot[i].style.height = '5px';
+			uiDatasetChartsFocusRoot[i].style.height = '4px';
 		}
 		else
 		{
 			uiDatasetChartsFocusSelected[i].style.borderBottom = 'none';
-			uiDatasetChartsFocusSelected[i].style.height = '9px';
+			uiDatasetChartsFocusSelected[i].style.height = '10px';
 //			uiDatasetChartsFocusRoot[i].style.borderTop = '1px solid black';
-			uiDatasetChartsFocusRoot[i].style.height = '6px';
+			uiDatasetChartsFocusRoot[i].style.height = '5px';
 		}
 	}
 }
@@ -6475,7 +6510,7 @@ function setDetails(node, elements)
 		{
 			var index = node.attributes[i].length == 1 && attributes[i].mono ? 0 : focusTreeView.dataset;
 			
-			if ( node.attributes[i][index] != undefined && node.attributes[i][focusTreeView.dataset] != '' )
+			if ( node.attributes[i][index] != undefined && node.attributes[i][index] != '' )
 			{
 				var value = node.attributes[i][index];
 				var link = undefined;
@@ -6546,6 +6581,10 @@ function setDetails(node, elements)
 				elements[i].innerHTML = '';
 			}
 		}
+		else if ( attributes[i].displayName )
+		{
+			elements[i].innerHTML = '';
+		}
 	}
 }
 
@@ -6569,6 +6608,7 @@ function setFocus(node)
 		setDetails(node, uiDetailsFocusRows);
 	}
 	
+	uiDatasetName.innerHTML = datasetNames[focusTreeView.dataset];
 	setDatasetCharts();
 	
 	if ( node.href )
