@@ -742,11 +742,18 @@ function TreeView(dataset, treeView)
 		var angleStart = this.mapAngleStart.current() + rotationOffset;
 		var angleEnd = this.mapAngleEnd.current() + rotationOffset;
 		
+		var context = uiMap;
+		
+		context.clearRect(0, 0, uiMapCanvas.width, uiMapCanvas.height);
 		context.save();
+		
+		mapRadius = uiMapCanvas.width / 2 - 5;
+		mapPositionX = uiMapCanvas.width / 2;
+		mapPositionY = uiMapCanvas.height / 2;
 		
 		context.translate(mapPositionX, mapPositionY);
 		context.fillStyle = '#DDDDDD';
-		context.strokeStyle = '#DDDDDD';
+		context.strokeStyle = '#CCCCCC';
 		context.beginPath();
 		context.arc(0, 0, mapRadius, 0, Math.PI * 2, false);
 		context.stroke();
@@ -3695,6 +3702,8 @@ var uiDetailsSelectedRows = new Array();
 var uiDetailsFocus;
 var uiDetailsFocusName;
 var uiDetailsFocusRows = new Array();
+var uiMapCanvas;
+var uiMapContext;
 
 function addOptionElements(hueName, hueDefault)
 {
@@ -3722,6 +3731,38 @@ function addOptionElements(hueName, hueDefault)
 <span id="searchResults"></span>'
 	);
 	
+	var divMap = document.createElement('div');
+	panel.appendChild(divMap);
+	divMap.style.width = '50%';
+	divMap.style.float = 'left';
+	uiMapCanvas = document.createElement('canvas');
+	divMap.appendChild(uiMapCanvas);
+	uiMap = uiMapCanvas.getContext('2d');
+	uiMapCanvas.width = divMap.clientWidth;
+	uiMapCanvas.height = uiMapCanvas.width;
+	
+	var divLineage = document.createElement('div');
+	divLineage.style.height = uiMapCanvas.height + 'px';
+	divLineage.style.width = '50%';
+	divLineage.style.float = 'left';
+	divLineage.style.position = 'relative';
+	uiLineage = document.createElement('div');
+	uiLineage.style.position = 'absolute';
+	uiLineage.style.bottom = '0px';
+	uiLineage.style.right = '0px';
+	uiLineage.style.width = '100%';
+	
+	panel.appendChild(divLineage);
+	divLineage.appendChild(uiLineage);
+	
+	uiNameSelected = document.createElement('div');
+	uiNameFocus = document.createElement('div');
+	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
+	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
+	panel.appendChild(uiNameSelected);
+	panel.appendChild(uiDetailsSelected);
+	panel.appendChild(uiNameFocus);
+	panel.appendChild(uiDetailsFocus);
 //	uiNameSelected = document.createElement('div');
 //	uiNameFocus = document.createElement('div');
 	uiDetailsTable = createDetailsTable(uiDetailsFocusRows, uiDetailsSelectedRows);
@@ -3740,7 +3781,6 @@ function addOptionElements(hueName, hueDefault)
 	keyControl.style.visibility = 'hidden';
 	
 	document.body.insertBefore(keyControl, canvas);
-	
 //	document.getElementById('options').style.fontSize = '9pt';
 	
 	if ( datasets > 1 )
@@ -6675,6 +6715,35 @@ function setHighlightedNode(node)
 	}
 }
 
+function setLineage()
+{
+	var lineage = new Array();
+	var node = selectedNode;
+	
+	while (uiLineage.hasChildNodes())
+	{
+		uiLineage.removeChild(uiLineage.lastChild);
+	}
+	
+	while ( node = node.getParent() )
+	{
+		lineage.unshift(node);
+	}
+	
+	for ( var i = 0; i < lineage.length; i++ )
+	{
+		 var div = document.createElement('div');
+		 div.innerHTML = lineage[i].name;
+		 div.style.textAlign = 'right';
+		 div.style.width = '100%';
+		 div.kronaNode = lineage[i];
+		 div.onmouseover = function(){setHighlightedNode(this.kronaNode);};
+		 div.onmouseout = function(){setHighlightedNode(selectedNode);};
+		 div.onmousedown = mouseClick;
+		 uiLineage.appendChild(div);
+	}
+}
+
 function setSelectedNode(newNode)
 {
 	if ( selectedNode && selectedNode.hasParent(newNode) )
@@ -6691,6 +6760,7 @@ function setSelectedNode(newNode)
 	
 	uiNameSelected.innerHTML = selectedNode.name;
 	setDetails(selectedNode, uiDetailsSelectedRows);
+	setLineage();
 	
 	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
 	{
