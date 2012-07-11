@@ -367,11 +367,9 @@ sub addByLineage
 	if ( $options{'leafAdd'} )
 	{
 		# magnitudes are already summarized; instead of adding magnitude to
-		# ancestors, directly set it for the lowest level of the lineage and
-		# for any ancestors whose magnitude is undefined (in case they are
-		# never specified)
+		# ancestors, directly set it for the lowest level of the lineage.
 		
-		if ( ! defined $node->{'magnitude'}[$dataset] || $index == @$lineage )
+		if ( $index == @$lineage )
 		{
 			$node->{'magnitude'}[$dataset] = $magnitude;
 		}
@@ -436,15 +434,9 @@ sub addByLineage
 			if ( $options{'leafAdd'} )
 			{
 				# instead of averaging score for ancestors, directly set it
-				# for the lowest level of the lineage and for any ancestors
-				# whose score is undefined (in case they are never
-				# specified)
+				# for the lowest level of the lineage.
 				
-				if
-				(
-					! defined $child->{'scoreTotal'}[$dataset] ||
-					$index == @$lineage - 1
-				)
+				if ( $index == @$lineage - 1 )
 				{
 					$child->{'scoreTotal'}[$dataset] = $score;
 					$child->{'scoreCount'}[$dataset] = 1;
@@ -1326,6 +1318,11 @@ sub writeTree
 		$attributeHash{$$attributes[$i]} = $$attributeDisplayNames[$i];
 	}
 	
+	if ( $options{'leafAdd'} )
+	{
+		setInternalValues($tree);
+	}
+	
 	my ($valueStart, $valueEnd);
 	
 	if ( defined $hueStart && defined $hueEnd )
@@ -1654,6 +1651,59 @@ sub printHangingIndent
 	}
 	
 	print "\n";
+}
+
+sub setInternalValues
+{
+	my ($node) = @_;
+	
+	my @magnitudes;
+	my @scoreTotals;
+	my @scoreCounts;
+	
+	if ( defined $node->{'children'} )
+	{
+		foreach my $child (values %{$node->{'children'}})
+		{
+			setInternalValues($child);
+			
+			for ( my $i = 0; $i < @{$child->{'magnitude'}}; $i++ )
+			{
+				if ( ! defined $node->{'magnitude'}[$i] )
+				{
+					$magnitudes[$i] += $child->{'magnitude'}[$i];
+				}
+				
+				if ( ! defined $node->{'scoreTotal'}[$i] )
+				{
+					$scoreTotals[$i] += $child->{'scoreTotal'}[$i];
+				}
+				
+				if ( ! defined $node->{'scoreCount'}[$i] )
+				{
+					$scoreCounts[$i] += $child->{'scoreCount'}[$i];
+				}
+			}
+		}
+	}
+	
+	for ( my $i = 0; $i < @{$node->{'count'}}; $i++ )
+	{
+		if ( ! defined $node->{'magnitude'}[$i] )
+		{
+			$node->{'magnitude'}[$i] = $magnitudes[$i];
+		}
+		
+		if ( ! defined $node->{'scoreTotal'}[$i] )
+		{
+			$node->{'scoreTotal'}[$i] = $scoreTotals[$i];
+		}
+		
+		if ( ! defined $node->{'scoreCount'}[$i] )
+		{
+			$node->{'scoreCount'}[$i] = $scoreCounts[$i];
+		}
+	}
 }
 
 sub setScores
