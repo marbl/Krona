@@ -3720,9 +3720,9 @@ function addOptionElements(hueName, hueDefault)
 	
 	panel = document.createElement('div');
 	panel.style.position = 'absolute';
-	panel.style.maxWidth = '25%';
+	panel.style.maxWidth = '28%';
 //	details.style.right = '100%';
-	panel.style.left = '75%';
+	panel.style.left = '72%';
 	panel.style.height = '100%';
 	panel.style.borderLeft = '1px solid gray';
 	panel.padding = '0';
@@ -3793,8 +3793,13 @@ function addOptionElements(hueName, hueDefault)
 	
 	uiNameSelected = document.createElement('div');
 	uiNameFocus = document.createElement('div');
-	panel.appendChild(uiNameSelected);
-	panel.appendChild(uiNameFocus);
+//	panel.appendChild(uiNameSelected);
+//	panel.appendChild(uiNameFocus);
+	panel.appendChild(divFocus);
+	panel.appendChild(divLineageFocus);
+	panel.appendChild(divSelected);
+	panel.appendChild(divLineageSelected);
+	
 	uiDetailsTable = createDetailsTable(uiDetailsFocusRows, uiDetailsSelectedRows);
 	var div = document.createElement('div');
 	div.style.width = '100%';
@@ -3804,15 +3809,10 @@ function addOptionElements(hueName, hueDefault)
 	divLineageFocus.appendChild(uiLineageFocus);
 	divLineageSelected.appendChild(uiLineageSelected);
 	
-	panel.appendChild(divFocus);
-	panel.appendChild(divLineageFocus);
-	panel.appendChild(divSelected);
-	panel.appendChild(divLineageSelected);
-	
-	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
-	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
-	panel.appendChild(uiDetailsSelected);
-	panel.appendChild(uiDetailsFocus);
+//	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
+//	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
+//	panel.appendChild(uiDetailsSelected);
+//	panel.appendChild(uiDetailsFocus);
 	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -4376,9 +4376,9 @@ function createDetailsTable(elementsFocus, elementsSelected)
 	var tdNameSpacer = document.createElement('td');
 	tdNameSpacer.style.borderRight = border;
 	
-	table.appendChild(rowNameSelected);
-	table.appendChild(rowNameFocus);
-	table.appendChild(rowNameDataset);
+	//table.appendChild(rowNameSelected);
+	//table.appendChild(rowNameFocus);
+	//table.appendChild(rowNameDataset);
 	rowNameSelected.appendChild(uiNameSelected);
 	rowNameFocus.appendChild(uiNameFocus);
 	rowNameFocus.appendChild(tdNameSpacer);
@@ -6016,7 +6016,7 @@ function resize()
 {
 	var views = treeViewsActiveCount;
 	
-	imageWidth = window.innerWidth * .75;
+	imageWidth = window.innerWidth * .72;
 	imageHeight = window.innerHeight;
 	
 	if ( ! snapshotMode )
@@ -6867,7 +6867,7 @@ function setSelectedNode(newNode)
 	selectedNodeLast = selectedNode;
 	selectedNode = newNode;
 	
-	uiNameSelected.innerHTML = selectedNode.name;
+	//uiNameSelected.innerHTML = selectedNode.name;
 	setDetails(selectedNode, uiDetailsSelectedRows);
 	
 	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
