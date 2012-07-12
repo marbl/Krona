@@ -95,6 +95,8 @@ my %optionFormats =
 		'e=f',
 	'include' =>
 		'i',
+	'noRank' =>
+		'k',
 	'local' =>
 		'l',
 	'magCol' =>
@@ -158,6 +160,7 @@ my %optionDescriptions =
 	'minConfidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'name' => 'Name of the highest level.',
 	'noMag' => 'Files do not have a field for quantity.',
+	'noRank' => 'Allow taxa with ranks labeled "no rank".',
 	'out' => 'Output file name.',
 	'phymm' => 'Input is phymm only (no confidence scores).',
 	'queryCol' => 'Column of input files to use as query ID. Required if magnitude files are specified.',
@@ -523,7 +526,7 @@ sub addByTaxID
 	#
 	while
 	(
-		$taxID > 1 && $taxRanks[$taxID] eq 'no rank' ||
+		! $options{'noRank'} && $taxID > 1 && $taxRanks[$taxID] eq 'no rank' ||
 		$options{'depth'} && $taxDepths[$taxID] > $options{'depth'}
 	)
 	{
@@ -533,10 +536,11 @@ sub addByTaxID
 	# get parent recursively
 	#
 	my $parent;
+	my $parentID = getTaxParent($taxID);
 	#
-	if ( $taxParents[$taxID] != 1 )#$taxID )
+	if ( $parentID != 1 )#$taxID )
 	{
-		$parent = addByTaxID($node, $set, $taxParents[$taxID], undef, $magnitude, $score, 1);
+		$parent = addByTaxID($node, $set, $parentID, undef, $magnitude, $score, 1);
 	}
 	else
 	{
@@ -876,8 +880,16 @@ sub getTaxName
 sub getTaxParent
 {
 	my ($taxID) = @_;
+	
 	checkTaxonomy();
-	return $taxParents[$taxID];
+	
+	do
+	{
+		$taxID = $taxParents[$taxID];
+	}
+	while (! $options{'noRank'} && $taxID > 1 && $taxRanks[$taxID] eq 'no rank');
+	
+	return $taxID;
 }
 
 sub getTaxRank
@@ -1030,6 +1042,14 @@ sub loadTaxonomy
 		$taxNames[$id] = $name;
 	}
 	
+	if ( $taxParents[2] == 1 && $options{'noRank'} )
+	{
+		ktDie
+		(
+"Local taxonomy database is out of date and does not support the
+-$optionFormats{'noRank'} option. Update using updateTaxonomy.sh."
+		);
+	}
 	close INFO;
 }
 

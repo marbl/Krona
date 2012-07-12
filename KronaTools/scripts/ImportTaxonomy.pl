@@ -26,6 +26,7 @@ qw(
 	scoreCol
 	magCol
 	depth
+	noRank
 	hueBad
 	hueGood
 	local

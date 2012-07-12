@@ -89,14 +89,5 @@ sub depth
 sub getParent
 {
 	my ($id) = @_;
-	
-	my $parent = $id;
-	
-	do
-	{
-		$parent = $data{$parent}->{'parent'};
-	}
-	while ( $parent > 1 && $data{$parent}->{'rank'} eq 'no rank' );
-	
-	return $parent;
+	return $data{$id}->{'parent'};
 }

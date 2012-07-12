@@ -24,6 +24,7 @@ qw(
 	bitScore
 	combine
 	depth
+	noRank
 	hueBad
 	hueGood
 	local
