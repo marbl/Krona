@@ -206,7 +206,7 @@ my @attributeNames =
 my @attributeDisplayNames =
 (
 	$useMag ? 'Magnitude' : undef,
-	getOption('queryCol') ? 'Count' : undef,
+	(getOption('queryCol') || ! $useMag) ? 'Count' : undef,
 	getOption('queryCol') ? 'Unassigned' : undef,
 	'Taxon',
 	'Rank',
