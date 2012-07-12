@@ -738,6 +738,10 @@ function TreeView(dataset, treeView)
 	//		mapRadius = maxMapRadius;
 		}
 		
+		mapRadius = uiMapCanvas.width / 2 - 5;
+		mapPositionX = uiMapCanvas.width / 2;
+		mapPositionY = uiMapCanvas.height / 2;
+		
 		var radiusInner = this.mapRadiusInner.current() * mapRadius;
 		var angleStart = this.mapAngleStart.current() + rotationOffset;
 		var angleEnd = this.mapAngleEnd.current() + rotationOffset;
@@ -746,10 +750,6 @@ function TreeView(dataset, treeView)
 		
 		context.clearRect(0, 0, uiMapCanvas.width, uiMapCanvas.height);
 		context.save();
-		
-		mapRadius = uiMapCanvas.width / 2 - 5;
-		mapPositionX = uiMapCanvas.width / 2;
-		mapPositionY = uiMapCanvas.height / 2;
 		
 		context.translate(mapPositionX, mapPositionY);
 		context.fillStyle = '#DDDDDD';
@@ -3704,6 +3704,14 @@ var uiDetailsFocusName;
 var uiDetailsFocusRows = new Array();
 var uiMapCanvas;
 var uiMapContext;
+var uiLineageFocus;
+var uiLineageFocusRow;
+var uiLineageFocusName;
+var uiLineageFocusValue;
+var uiLineageSelected;
+var uiLineageSelectedRow;
+var uiLineageSelectedName;
+var uiLineageSelectedValue;
 
 function addOptionElements(hueName, hueDefault)
 {
@@ -3741,19 +3749,47 @@ function addOptionElements(hueName, hueDefault)
 	uiMapCanvas.width = divMap.clientWidth;
 	uiMapCanvas.height = uiMapCanvas.width;
 	
-	var divLineage = document.createElement('div');
-	divLineage.style.height = uiMapCanvas.height + 'px';
-	divLineage.style.width = '50%';
-	divLineage.style.float = 'left';
-	divLineage.style.position = 'relative';
-	uiLineage = document.createElement('div');
-	uiLineage.style.position = 'absolute';
-	uiLineage.style.bottom = '0px';
-	uiLineage.style.right = '0px';
-	uiLineage.style.width = '100%';
+	var divLineageFocus = document.createElement('div');
+	var divLineageSelected = document.createElement('div');
+//	divLineage.style.height = uiMapCanvas.height + 'px';
+	divLineageFocus.style.width = '100%';
+	divLineageSelected.style.width = '100%';
+	divLineageFocus.style.overflowY = 'scroll';
+	divLineageSelected.style.overflowY = 'scroll';
+	divLineageFocus.style.height = '40px';
+	divLineageSelected.style.height = '40px';
+//	divLineage.style.float = 'left';
+//	divLineage.style.position = 'relative';
+	uiLineageFocus = document.createElement('table');
+	uiLineageSelected = document.createElement('table');
+//	uiLineage.style.position = 'absolute';
+//	uiLineage.style.bottom = '0px';
+//	uiLineage.style.right = '0px';
+	uiLineageFocus.style.width = '100%';
+	uiLineageFocus.style.padding = '0px';
+	uiLineageSelected.style.width = '100%';
+	uiLineageSelected.style.padding = '0px';
 	
-	panel.appendChild(divLineage);
-	divLineage.appendChild(uiLineage);
+	var divFocus = document.createElement('div');
+	var tableLineageFocus = document.createElement('table');
+	uiLineageFocusRow = tableLineageFocus.insertRow(-1);
+	var divSelected = document.createElement('div');
+	var tableLineageSelected = document.createElement('table');
+	uiLineageSelectedRow = tableLineageSelected.insertRow(-1);
+	divFocus.style.width = '100%';
+	divFocus.style.overflowY = 'scroll';
+	divFocus.appendChild(tableLineageFocus);
+	divSelected.style.width = '100%';
+	divSelected.style.overflowY = 'scroll';
+	divSelected.appendChild(tableLineageSelected);
+	uiLineageFocusName = document.createElement('td');
+	uiLineageFocusValue = document.createElement('td');
+	uiLineageSelectedName = document.createElement('td');
+	uiLineageSelectedValue = document.createElement('td');
+	uiLineageFocusRow.appendChild(uiLineageFocusName);
+	uiLineageFocusRow.appendChild(uiLineageFocusValue);
+	uiLineageSelectedRow.appendChild(uiLineageSelectedName);
+	uiLineageSelectedRow.appendChild(uiLineageSelectedValue);
 	
 	uiNameSelected = document.createElement('div');
 	uiNameFocus = document.createElement('div');
@@ -3765,6 +3801,18 @@ function addOptionElements(hueName, hueDefault)
 	div.appendChild(uiDetailsTable);
 	panel.appendChild(div);
 	div.style.overflowY = 'scroll';
+	divLineageFocus.appendChild(uiLineageFocus);
+	divLineageSelected.appendChild(uiLineageSelected);
+	
+	panel.appendChild(divFocus);
+	panel.appendChild(divLineageFocus);
+	panel.appendChild(divSelected);
+	panel.appendChild(divLineageSelected);
+	
+	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
+	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
+	panel.appendChild(uiDetailsSelected);
+	panel.appendChild(uiDetailsFocus);
 	
 	keyControl = document.createElement('input');
 	keyControl.type = 'button';
@@ -4440,9 +4488,10 @@ function draw()
 	
 	//context.strokeStyle = 'rgba(0, 0, 0, 0.3)';
 	
+	focusTreeView.drawMap();
+	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		treeViews[i].drawMap();
 		treeViews[i].draw();
 	}
 	
@@ -6112,6 +6161,14 @@ function passClick(e)
 	mouseClick(e);
 }
 
+function removeChildren(element)
+{
+	while (element.hasChildNodes())
+	{
+		element.removeChild(element.lastChild);
+	}
+}
+
 function searchActivate()
 {
 	searchActive = true;
@@ -6632,17 +6689,18 @@ function setFocus(node)
 	
 	if ( focusNode == selectedNode )
 	{
-		uiNameFocus.innerHTML = '&nbsp;';
+//		uiNameFocus.innerHTML = '&nbsp;';
 		clearDetails(uiDetailsFocusRows);
 	}
 	else
 	{
-		uiNameFocus.innerHTML = node.name;
+//		uiNameFocus.innerHTML = node.name;
 		setDetails(node, uiDetailsFocusRows);
 	}
 	
 	uiDatasetName.innerHTML = datasetNames[focusTreeView.dataset];
 	setDatasetCharts();
+	setLineage();
 	
 	if ( node.href )
 	{
@@ -6711,29 +6769,87 @@ function setHighlightedNode(node)
 function setLineage()
 {
 	var lineage = new Array();
-	var node = selectedNode;
+	var node = focusNode;
 	
-	while (uiLineage.hasChildNodes())
-	{
-		uiLineage.removeChild(uiLineage.lastChild);
-	}
+	removeChildren(uiLineageFocus);
+	removeChildren(uiLineageSelected);
 	
-	while ( node = node.getParent() )
+	do
 	{
-		lineage.unshift(node);
+		lineage.push(node);
 	}
+	while ( node = node.getParent() );
+	
+	var selected;
 	
 	for ( var i = 0; i < lineage.length; i++ )
 	{
-		 var div = document.createElement('div');
-		 div.innerHTML = lineage[i].name;
-		 div.style.textAlign = 'right';
-		 div.style.width = '100%';
-		 div.kronaNode = lineage[i];
-		 div.onmouseover = function(){setHighlightedNode(this.kronaNode);};
-		 div.onmouseout = function(){setHighlightedNode(selectedNode);};
-		 div.onmousedown = mouseClick;
-		 uiLineage.appendChild(div);
+		var percentageFocus = getPercentage
+		(
+			focusNode.getMagnitude(focusTreeView.dataset) /
+			lineage[i].getMagnitude(focusTreeView.dataset)
+		);
+		var percentageSelected;
+		var uiLineage = selected ? uiLineageSelected : uiLineageFocus;
+		var row;
+		var tdName;
+		var tdValueFocus;
+		
+		if ( lineage[i] == focusNode )
+		{
+			row = uiLineageFocusRow;
+			tdName = uiLineageFocusName;
+			tdValueFocus = uiLineageFocusValue;
+		}
+		else if ( lineage[i] == selectedNode )
+		{
+			row = uiLineageSelectedRow;
+			tdName = uiLineageSelectedName;
+			tdValueFocus = uiLineageSelectedValue;
+		}
+		else
+		{
+//			row = uiLineage.insertRow(-1);
+			row = document.createElement('tr');
+			uiLineage.appendChild(row);
+			tdName = document.createElement('td');
+			tdValueFocus = document.createElement('td');
+			row.appendChild(tdName);
+			
+			if ( selected )
+			{
+				percentageSelected = getPercentage
+				(
+					selectedNode.getMagnitude(focusTreeView.dataset) /
+					lineage[i].getMagnitude(focusTreeView.dataset)
+				);
+				var tdValueSelected = document.createElement('td');
+				tdValueSelected.innerHTML = percentageSelected + '%';
+				row.appendChild(tdValueSelected);
+			}
+			else
+			{
+				tdName.colSpan = 2;
+			}
+			
+			row.appendChild(tdValueFocus);
+			uiLineage.appendChild(row);
+		}
+		
+		tdName.innerHTML = lineage[i].name;
+//		tdName.style.textAlign = 'right';
+//		div.style.width = '100%';
+//		tdName.style.overflow = 'hidden';
+		tdValueFocus.innerHTML = percentageFocus + '%';
+		row.kronaNode = lineage[i];
+		row.onmouseover = function(){setHighlightedNode(this.kronaNode);};
+		row.onmouseout = function(){setHighlightedNode(selectedNode);};
+		row.onmousedown = mouseClick;
+		
+		if ( lineage[i] == selectedNode )
+		{
+			selected = true;
+		}
 	}
 }
 
@@ -6753,7 +6869,6 @@ function setSelectedNode(newNode)
 	
 	uiNameSelected.innerHTML = selectedNode.name;
 	setDetails(selectedNode, uiDetailsSelectedRows);
-	setLineage();
 	
 	if ( ! focusNode || ! focusNode.hasParent(selectedNode) )
 	{
