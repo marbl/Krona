@@ -3742,7 +3742,7 @@ function addOptionElements(hueName, hueDefault)
 	var divMap = document.createElement('div');
 	panel.appendChild(divMap);
 	divMap.style.width = '50%';
-	divMap.style.float = 'left';
+//	divMap.style.float = 'left';
 	uiMapCanvas = document.createElement('canvas');
 	divMap.appendChild(uiMapCanvas);
 	uiMap = uiMapCanvas.getContext('2d');
@@ -3756,8 +3756,8 @@ function addOptionElements(hueName, hueDefault)
 	divLineageSelected.style.width = '100%';
 	divLineageFocus.style.overflowY = 'scroll';
 	divLineageSelected.style.overflowY = 'scroll';
-	divLineageFocus.style.height = '40px';
-	divLineageSelected.style.height = '40px';
+	divLineageFocus.style.maxHeight = '40px';
+	divLineageSelected.style.maxHeight = '40px';
 //	divLineage.style.float = 'left';
 //	divLineage.style.position = 'relative';
 	uiLineageFocus = document.createElement('table');
@@ -3795,10 +3795,20 @@ function addOptionElements(hueName, hueDefault)
 	uiNameFocus = document.createElement('div');
 //	panel.appendChild(uiNameSelected);
 //	panel.appendChild(uiNameFocus);
-	panel.appendChild(divFocus);
-	panel.appendChild(divLineageFocus);
-	panel.appendChild(divSelected);
-	panel.appendChild(divLineageSelected);
+	var divLineage = document.createElement('div');
+	var divLineageContainer = document.createElement('div');
+	divLineageContainer.style.position = 'relative';
+	divLineageContainer.style.height = '100px';
+	divLineageContainer.style.width = '100%';
+	divLineage.style.position = 'absolute';
+	divLineage.style.bottom = '0px';
+	divLineage.style.width = '100%';
+	divLineage.appendChild(divFocus);
+	divLineage.appendChild(divLineageFocus);
+	divLineage.appendChild(divSelected);
+	divLineage.appendChild(divLineageSelected);
+	divLineageContainer.appendChild(divLineage);
+	panel.appendChild(divLineageContainer);
 	
 	uiDetailsTable = createDetailsTable(uiDetailsFocusRows, uiDetailsSelectedRows);
 	var div = document.createElement('div');
