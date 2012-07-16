@@ -2130,7 +2130,7 @@ function NodeView(treeView, node)
 			! bubble &&
 			this != selectedNode &&
 			this.angleEnd.end != this.angleStart.end &&
-			nLabelOffsets[depth - 2] > 2 &&
+			nLabelOffsets[(this.hasChildren() ? depth : maxDisplayDepth) - 2] > 2 &&
 			this.labelWidth.current() > (this.angleEnd.end - this.angleStart.end) * Math.abs(radius) &&
 			! ( zoomOut && this.node == selectedNodeLast ) &&
 			this.labelRadius.end > 0
@@ -2798,7 +2798,7 @@ function NodeView(treeView, node)
 	this.setTargetLabelRadius = function(init)
 	{
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
-		var index = depth - 2;
+		var index = this.hasChildren() ? depth - 2 : maxDisplayDepth - 2;
 		var labelOffset = this.treeView.labelOffsets[index];
 		
 		if ( this.radial )
@@ -3447,7 +3447,7 @@ function NodeView(treeView, node)
 			{
 				if ( this.hideAlone )
 				{
-					this.radial = true;
+					this.radial = false;//true;
 				}
 				else if ( false && canDisplayChildLabels )
 				{
@@ -3455,7 +3455,7 @@ function NodeView(treeView, node)
 				}
 				else
 				{
-					this.radial = true;
+					this.radial = false;//true;
 					
 					if ( this.hasChildren() && depth < maxDisplayDepth )
 					{
@@ -3495,7 +3495,7 @@ function NodeView(treeView, node)
 			{
 				if
 				(
-					(this.radial || nLabelOffsets[depth - 2])
+					(this.radial || nLabelOffsets[(this.hasChildren() ? depth : maxDisplayDepth) - 2])
 				)
 				{
 					this.alphaLabel.setTarget(1, false);
@@ -4358,6 +4358,8 @@ function computeRadii(node)
 				1 - minRadiusOuter
 			)
 		}
+		
+		radii.push(Number(1));
 		
 		newMaxDepth = treeViewsActiveFirst.nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
 	}
@@ -7418,7 +7420,7 @@ function updateView()
 	}
 	
 	compressedRadii = computeRadii(selectedNode);
-	maxDisplayDepth = compressedRadii.length;//maxDepth;
+	maxDisplayDepth = compressedRadii.length - 1;//maxDepth;
 	
 	mapRadii = computeRadii(head);
 	
@@ -7438,7 +7440,7 @@ function updateView()
 	
 	for ( var i = 0; i < maxDisplayDepth - 1; i++ )
 	{
-		if ( i == maxDisplayDepth - 1 )
+		if ( false && i == maxDisplayDepth - 1 )
 		{
 			nLabelOffsets[i] = 0;
 		}
