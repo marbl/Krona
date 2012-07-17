@@ -3704,6 +3704,8 @@ var uiDetailsFocusName;
 var uiDetailsFocusRows = new Array();
 var uiMapCanvas;
 var uiMapContext;
+var uiuiDivLineageFocus;
+var uiuiDivLineageSelected;
 var uiLineageFocus;
 var uiLineageFocusRow;
 var uiLineageFocusName;
@@ -3720,7 +3722,7 @@ function addOptionElements(hueName, hueDefault)
 	
 	panel = document.createElement('div');
 	panel.style.position = 'absolute';
-	panel.style.maxWidth = '28%';
+	panel.style.width = '28%';
 //	details.style.right = '100%';
 	panel.style.left = '72%';
 	panel.style.height = '100%';
@@ -3730,37 +3732,65 @@ function addOptionElements(hueName, hueDefault)
 	document.body.insertBefore(panel, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
 	
-	position = addOptionElement
-	(
-'&nbsp;<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
-<input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
-&nbsp;<input style="width:auto;" type="text" id="search"/>\
-<input  type="button" value="x" onclick="searchClear()"/> \
-<span id="searchResults"></span>'
-	);
-	
 	var border = '2px solid #CCCCCC';
 	var shadeDark = '#EEEEEE';
 	var shadeLight = '#F5F5F5';
 	var divMap = document.createElement('div');
 	panel.appendChild(divMap);
 	divMap.style.width = '40%';
-//	divMap.style.float = 'left';
+	divMap.style.float = 'left';
 	uiMapCanvas = document.createElement('canvas');
 	divMap.appendChild(uiMapCanvas);
 	uiMap = uiMapCanvas.getContext('2d');
 	uiMapCanvas.width = divMap.clientWidth;
 	uiMapCanvas.height = uiMapCanvas.width;
 	
-	var divLineageFocus = document.createElement('div');
-	var divLineageSelected = document.createElement('div');
+	divNav = document.createElement('div');
+	divNav.style.width = '60%';
+	divNav.style.height = uiMapCanvas.height + 'px';
+	divNav.style.float = 'right';
+	var divNavButtons = document.createElement('div');
+	backButton = document.createElement('input');
+	backButton.type = 'button';
+	backButton.value = "←";
+	backButton.style.width = '40%';
+	backButton.style.height = '30px';
+	backButton.style.marginRight = '4px';
+	forwardButton = document.createElement('input');
+	forwardButton.type = 'button';
+	forwardButton.value = "→";
+	forwardButton.style.width = '40%';
+	forwardButton.style.height = '30px';
+	divNavButtons.appendChild(backButton);
+	divNavButtons.appendChild(forwardButton);
+	divNav.appendChild(divNavButtons);
+	
+	search = document.createElement('input');
+	search.type = 'text';
+	var divSearchResults = document.createElement('div');
+	searchResults = document.createElement('span');
+	divSearchResults.style.width = '100%';
+	var buttonSearchClear = document.createElement('input');
+	buttonSearchClear.type = 'button';
+	buttonSearchClear.value = '×';
+	buttonSearchClear.onclick = searchClear;
+	buttonSearchClear.width = '100%';
+	divSearchResults.appendChild(search); 
+	divSearchResults.appendChild(buttonSearchClear);
+	search.style.width = (divSearchResults.clientWidth - buttonSearchClear.clientWidth) + 'px';
+	divNav.appendChild(divSearchResults);
+	divNav.appendChild(searchResults);
+	panel.appendChild(divNav);
+	
+	uiDivLineageFocus = document.createElement('div');
+	uiDivLineageSelected = document.createElement('div');
 //	divLineage.style.height = uiMapCanvas.height + 'px';
-	divLineageFocus.style.width = '100%';
-	divLineageSelected.style.width = '100%';
-	divLineageFocus.style.overflowY = 'scroll';
-	divLineageSelected.style.overflowY = 'scroll';
-//	divLineageFocus.style.maxHeight = '40px';
-//	divLineageSelected.style.maxHeight = '40px';
+	uiDivLineageFocus.style.width = '100%';
+	uiDivLineageSelected.style.width = '100%';
+	uiDivLineageFocus.style.overflowY = 'scroll';
+	uiDivLineageSelected.style.overflowY = 'scroll';
+//	uiDivLineageFocus.style.maxHeight = '40px';
+//	uiDivLineageSelected.style.maxHeight = '40px';
 //	divLineage.style.float = 'left';
 //	divLineage.style.position = 'relative';
 	uiLineageFocus = document.createElement('table');
@@ -3816,13 +3846,14 @@ function addOptionElements(hueName, hueDefault)
 	divLineageContainer.style.position = 'relative';
 	divLineageContainer.style.height = '110px';
 	divLineageContainer.style.width = '100%';
+	divLineageContainer.style.float = 'left';
 	divLineage.style.position = 'absolute';
 	divLineage.style.bottom = '0px';
 	divLineage.style.width = '100%';
 	divLineage.appendChild(divFocus);
-	divLineage.appendChild(divLineageFocus);
+	divLineage.appendChild(uiDivLineageFocus);
 	divLineage.appendChild(divSelected);
-	divLineage.appendChild(divLineageSelected);
+	divLineage.appendChild(uiDivLineageSelected);
 	divLineageContainer.appendChild(divLineage);
 	panel.appendChild(divLineageContainer);
 	
@@ -3832,8 +3863,8 @@ function addOptionElements(hueName, hueDefault)
 	div.appendChild(uiDetailsTable);
 	panel.appendChild(div);
 	div.style.overflowY = 'scroll';
-	divLineageFocus.appendChild(uiLineageFocus);
-	divLineageSelected.appendChild(uiLineageSelected);
+	uiDivLineageFocus.appendChild(uiLineageFocus);
+	uiDivLineageSelected.appendChild(uiLineageSelected);
 	
 //	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
 //	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
@@ -6269,21 +6300,21 @@ function setCallBacks()
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
 	maxAbsoluteDepth = 0;
-	backButton = document.getElementById('back');
+//	backButton = document.getElementById('back');
 	backButton.onclick = navigateBack;
-	forwardButton = document.getElementById('forward');
+//	forwardButton = document.getElementById('forward');
 	forwardButton.onclick = navigateForward;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
 //	details = document.getElementById('details');
 	detailsName = document.getElementById('detailsName');
 	detailsInfo = document.getElementById('detailsInfo');
-	search = document.getElementById('search');
+//	search = document.getElementById('search');
 	search.onkeyup = onSearchChange;
 	search.onblur = searchBlur;
 	search.onfocus = searchFocus;
 	searchDeactivate();
-	searchResults = document.getElementById('searchResults');
+//	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
 	linkButton = document.getElementById('linkButton');
 	linkButton.onclick = showLink;
@@ -6814,6 +6845,9 @@ function setLineage()
 	var selected;
 	var firstRow;
 	
+	uiDivLineageFocus.style.maxHeight = 'none';//uiDivLineageFocus.clientHeight;
+	uiDivLineageSelected.style.maxHeight = 'none';//uiDivLineageSelected.clientHeight;
+	
 	for ( var i = 0; i < lineage.length; i++ )
 	{
 		var percentageSelected;
@@ -6917,10 +6951,31 @@ function setLineage()
 //		div.style.width = '100%';
 //		tdName.style.overflow = 'hidden';
 		
-		
 		if ( lineage[i] == selectedNode )
 		{
 			selected = true;
+		}
+	}
+	
+	var maxHeight = 40;
+	
+	if ( uiDivLineageFocus.clientHeight + uiDivLineageSelected.clientHeight > maxHeight * 2 )
+	{
+		if ( uiDivLineageFocus.clientHeight > maxHeight )
+		{
+			if ( uiLineageSelected.clientHeight > maxHeight )
+			{
+				uiDivLineageFocus.style.maxHeight = maxHeight + 'px';
+				uiDivLineageSelected.style.maxHeight = maxHeight + 'px';
+			}
+			else
+			{
+				uiDivLineageFocus.style.maxHeight = (maxHeight * 2 - uiDivLineageSelected.clientHeight) + 'px';
+			}
+		}
+		else
+		{
+			uiDivLineageSelected.style.maxHeight = (maxHeight * 2 - uiDivLineageFocus.clientHeight) + 'px';
 		}
 	}
 }
