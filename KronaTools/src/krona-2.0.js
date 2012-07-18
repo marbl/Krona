@@ -271,6 +271,10 @@ var datasetAlpha = new Tween(0, 0);
 var datasetWidths = new Array();
 var datasetChanged;
 var datasetSelectWidth = 120;
+var datasetChartWidthFocus;
+var datasetChartWidthSelected;
+var uiDatasetChartHeaderFocus;
+var uiDatasetChartHeaderSelected;
 
 window.onload = load;
 
@@ -3904,35 +3908,58 @@ function addOptionElements(hueName, hueDefault)
 		
 		var row = document.createElement('tr');
 		var tdName = document.createElement('td');
-		var tdCheckbox = document.createElement('td');
+		var divName = document.createElement('div');
 		var tdChartFocus = document.createElement('td');
 		var tdChartSelected = document.createElement('td');
-		tdCheckbox.style.borderRight = border;
-		tdChartFocus.width = '25px';
+		divName.style.float = 'left';
+		tdName.style.borderRight = border;
+		tdName.style.position = 'relative';
+		tdChartFocus.width = '25%';
 		tdChartFocus.style.borderRight = border;
-		tdChartSelected.width = '25px';
+		tdChartSelected.width = '25%';
 		tdChartSelected.style.borderRight = border;
 		uiDatasetCheckboxAll = document.createElement('input');
+		uiDatasetCheckboxAll.style.position = 'absolute';
+		uiDatasetCheckboxAll.style.right = '0px';
+		
+		uiDatasetChartHeaderFocus = tdChartFocus;
+		uiDatasetChartHeaderSelected = tdChartSelected;
 		
 		table.appendChild(row);
 		
 		row.appendChild(tdName);
-		row.appendChild(tdCheckbox);
+		tdName.appendChild(divName);
+		tdName.appendChild(uiDatasetCheckboxAll);
 		row.appendChild(tdChartFocus);
 		row.appendChild(tdChartSelected);
-		
-		tdCheckbox.appendChild(uiDatasetCheckboxAll);
 		
 		uiDatasetCheckboxAll.type = 'checkbox';
 		uiDatasetCheckboxAll.onclick = selectDatasetsAll;
 		
-		tdCheckbox.style.padding = '0px';
+		tdName.style.padding = '0px';
+		
+		datasetButtonLast = document.createElement('input');
+		datasetButtonPrev = document.createElement('input');
+		datasetButtonNext = document.createElement('input');
+		datasetButtonPrev.type = 'button';
+		datasetButtonNext.type = 'button';
+		datasetButtonLast.type = 'button';
+		datasetButtonPrev.value = '↑';
+		datasetButtonNext.value = '↓';
+		datasetButtonLast.value = '↕';
+		datasetButtonPrev.onclick = datasetPrev;
+		datasetButtonNext.onclick = datasetNext;
+		datasetButtonLast.onclick = selectLastDataset;
+		tdName.appendChild(datasetButtonPrev);
+		tdName.appendChild(datasetButtonNext);
+		//tdName.appendChild(datasetButtonLast);
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
 		{
 			var row = document.createElement('tr');
 			var tdName = document.createElement('td');
-			var tdCheckbox = document.createElement('td');
+			var divName = document.createElement('div');
+//			var tdCheckbox = document.createElement('td');
 			var tdChartFocus = document.createElement('td');
 			var tdChartSelected = document.createElement('td');
 			var checkbox = document.createElement('input');
@@ -3944,27 +3971,36 @@ function addOptionElements(hueName, hueDefault)
 			checkbox.type = 'checkbox';
 			table.appendChild(row);
 			row.appendChild(tdName);
-			row.appendChild(tdCheckbox);
+//			row.appendChild(tdCheckbox);
 			row.appendChild(tdChartSelected);
 			row.appendChild(tdChartFocus);
-			tdCheckbox.appendChild(checkbox);
-			tdName.kronaDataset = i;
+//			tdCheckbox.appendChild(checkbox);
+			divName.kronaDataset = i;
+			tdName.style.width = '50%';
 			spacer.style.height = '1px';
 			tdChartFocus.appendChild(chartFocusSelected);
 			//tdChartFocus.appendChild(spacer);
 			tdChartFocus.appendChild(chartFocusRoot);
 			tdChartSelected.appendChild(chartSelectedRoot);
+			tdName.appendChild(divName);
+			tdName.appendChild(checkbox);
+			tdName.style.position = 'relative';
+			divName.style.width = '100%';
+//			divName.style.height = '100%';
 			checkbox.kronaDataset = i;
+			checkbox.style.position = 'absolute';
+			checkbox.style.right = '0px';
+			divName.style.float = 'left';
 	//		row.onclick = mouseClick;
-			tdName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
-			uiDatasetRowsById[i] = tdName;
+			divName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
+			uiDatasetRowsById[i] = divName;
 			uiDatasetCheckboxes[i] = checkbox;
 			uiDatasetChartsFocusSelected[i] = chartFocusSelected;
 			uiDatasetChartsFocusRoot[i] = chartFocusRoot;
 			uiDatasetChartsSelectedRoot[i] = chartSelectedRoot;
-			tdName.onclick = function(){selectDataset(this.kronaDataset)};
+			divName.onclick = function(){selectDataset(this.kronaDataset)};
 			checkbox.onclick = function(){toggleDataset(this.kronaDataset)};
-			tdName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+			divName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
 //			row.kronaShortened = divName.innerHTML != keys[i].name;
 			tdName.style.overflowX = 'hidden';
 			tdName.style.maxWidth = (uiDatasets.clientWidth - 20) + 'px';
@@ -3972,8 +4008,8 @@ function addOptionElements(hueName, hueDefault)
 			chartFocusRoot.style.height = "8px";
 			chartSelectedRoot.style.height = "16px";
 			row.style.padding = '0px';
-			tdCheckbox.style.borderRight = border;
-			tdCheckbox.style.padding = '0px';
+			tdName.style.borderRight = border;
+			tdName.style.padding = '0px';
 			tdName.style.padding = '0px';
 			tdName.style.overflowX = 'hidden';
 			tdName.style.maxWidth = uiDetailsNameFirst.clientWidth + 'px';
@@ -3983,10 +4019,6 @@ function addOptionElements(hueName, hueDefault)
 			tdChartSelected.style.width = uiDetailsValueSelectedFirst.clientWidth + 'px';
 			//td2.style.backgroundImage = 'url("' + image.src + '")';
 		}
-		
-		datasetButtonLast = document.getElementById('lastDataset');
-		datasetButtonPrev = document.getElementById('prevDataset');
-		datasetButtonNext = document.getElementById('nextDataset');
 	}
 	
 	position = addOptionElement
@@ -4526,6 +4558,26 @@ function createSVG()
 	);
 	
 	return newSVG;
+}
+
+function datasetNext()
+{
+	var newDataset = treeViewsActiveFirst.dataset + 1;
+	if ( newDataset == datasets )
+	{
+		newDataset = 0;
+	}
+	selectDataset(newDataset);
+}
+
+function datasetPrev()
+{
+	var newDataset = treeViewsActiveFirst.dataset - 1;
+	if ( newDataset == -1 )
+	{
+		newDataset = datasets - 1;
+	}
+	selectDataset(newDataset);
 }
 
 function degrees(radians)
@@ -5906,26 +5958,6 @@ function navigateForward()
 	}
 }
 
-function nextDataset()
-{
-	var newDataset = currentDataset;
-	
-	do
-	{
-		if ( newDataset == datasets - 1 )
-		{
-			newDataset = 0;
-		}
-		else
-		{
-			newDataset++;
-		}
-	}
-	while ( datasetDropDown.options[newDataset].disabled )
-	
-	selectDataset(newDataset);
-}
-
 function onDatasetChange()
 {
 	selectDataset(datasetDropDown.selectedIndex);
@@ -6028,26 +6060,6 @@ function popTranslation()
 	{
 		context.restore();
 	}
-}
-
-function prevDataset()
-{
-	var newDataset = currentDataset;
-	
-	do
-	{
-		if ( newDataset == 0 )
-		{
-			newDataset = datasets - 1;
-		}
-		else
-		{
-			newDataset--;
-		}
-	}
-	while ( datasetDropDown.options[newDataset].disabled );
-	
-	selectDataset(newDataset);
 }
 
 function pushTranslation(x, y)
@@ -6522,6 +6534,8 @@ function updateDatasets()
 	
 	uiDatasetCheckboxAll.checked = treeViewsActiveCount == datasets;
 	uiDatasetCheckboxAll.disabled = uiDatasetCheckboxAll.checked;
+	datasetButtonNext.disabled = treeViewsActiveCount > 1;
+	datasetButtonPrev.disabled = treeViewsActiveCount > 1;
 	
 	head.setDepth(1, 1);
 	head.setMaxDepths();
@@ -6565,8 +6579,8 @@ function setDatasetCharts()
 		}
 		else
 		{
-			setDatasetChartsColumn(focusNode, selectedNode, uiDatasetChartsFocusSelected, true);
-			setDatasetChartsColumn(focusNode, head, uiDatasetChartsFocusRoot, false);
+			setDatasetChartsColumn(focusNode, selectedNode, uiDatasetChartsFocusSelected, Math.floor(uiDatasets.clientWidth / 4) - 6, true);
+			setDatasetChartsColumn(focusNode, head, uiDatasetChartsFocusRoot, Math.floor(uiDatasets.clientWidth / 4) - 6, false);
 		}
 		
 		if ( selectedNode == head )
@@ -6575,7 +6589,7 @@ function setDatasetCharts()
 		}
 		else
 		{
-			setDatasetChartsColumn(selectedNode, head, uiDatasetChartsSelectedRoot, false);
+			setDatasetChartsColumn(selectedNode, head, uiDatasetChartsSelectedRoot, uiDatasetChartHeaderSelected.clientWidth, false);
 		}
 	}
 	
@@ -6598,7 +6612,7 @@ function setDatasetCharts()
 	}
 }
 
-function setDatasetChartsColumn(nodeNum, nodeDen, charts, color)
+function setDatasetChartsColumn(nodeNum, nodeDen, charts, maxWidth, color)
 {
 	var max = 0;
 	
@@ -6614,7 +6628,7 @@ function setDatasetChartsColumn(nodeNum, nodeDen, charts, color)
 	
 	for ( var i = 0; i < charts.length; i++ )
 	{
-		var width = nodeNum.getMagnitude(i) / nodeDen.getMagnitude(i) / max * 25;
+		var width = nodeNum.getMagnitude(i) / nodeDen.getMagnitude(i) / max * maxWidth;
 		charts[i].style.width = Math.floor(width) + 'px';
 		
 		if ( width == 0 )
