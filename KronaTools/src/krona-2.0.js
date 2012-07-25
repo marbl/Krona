@@ -127,6 +127,7 @@ var focusNode = 0; // a node chosen for more info (single-click)
 var focusTreeView;
 var highlightedNode = 0; // mouse hover node
 var highlightedTreeView;
+var highlightedDataset;
 var highlightingHidden = false;
 var treeViews = new Array();
 var treeViewsActiveCount;
@@ -626,6 +627,34 @@ function TreeView(dataset, treeView)
 	
 	this.nodeViews = new Array();
 	
+	this.background = function()
+	{
+		return treeViewsActiveCount > 1 && this != focusTreeView;
+	}
+	
+	this.checkHighlight = function()
+	{
+		var radius = this.radius.end * 1.25;
+		
+		if
+		(
+			mouseX > this.centerX.end - radius &&
+			mouseX < this.centerX.end + radius &&
+			mouseY > this.centerY.end - radius &&
+			mouseY < this.centerY.end + radius
+		)
+		{
+			highlightedDataset = this.dataset;
+			
+			this.nodeViews[selectedNode.id].checkHighlight();
+			
+			if ( selectedNode.getParent() )
+			{
+				this.nodeViews[selectedNode.getParent().id].checkHighlightCenter();
+			}
+		}
+	}
+	
 	this.createNodeViews = function(node, treeView)
 	{
 		this.nodeViews[node.id] = new NodeView(this, node);
@@ -655,6 +684,34 @@ function TreeView(dataset, treeView)
 		pushTranslation(this.centerXCurrent, this.centerYCurrent);
 		
 		resetKeyOffset();
+		
+		if ( this == focusTreeView )
+		{
+			context.fillStyle = '#AAAAAA';
+			context.strokeStyle = '#000000';
+			context.lineWidth = highlightLineWidth * 2;
+//			context.fill();
+//			context.stroke();
+			context.beginPath();
+			context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+			context.fill();
+			context.stroke();
+			context.beginPath();
+			context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+			context.arc(0, 0, this.radiusCurrent * compressedRadii[0], Math.PI * 2, 0, true);
+			context.stroke();
+		}
+		else if ( this.dataset == highlightedDataset )
+		{
+			context.beginPath();
+			context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+//			context.arc(0, 0, this.radiusCurrent * 1.25, Math.PI * 2, 0, true);
+			context.fillStyle = '#CCCCCC';
+//			context.fill();
+			context.strokeStyle = '#000000';
+			context.lineWidth = highlightLineWidth * 2;
+			context.stroke();
+		}
 		
 		this.nodeViews[head.id].draw(false, false); // draw pie slices
 		this.nodeViews[head.id].draw(true, false); // draw labels
@@ -720,11 +777,35 @@ function TreeView(dataset, treeView)
 			}
 		}
 		
-		drawDatasetName();
+		this.drawDatasetName();
 		
 		//drawHistory();
 		
 		popTranslation();
+	}
+	
+	this.drawDatasetName = function()
+	{
+		var alpha = datasetAlpha.current();
+		
+		//if ( alpha > 0 )
+		{
+			var radius =  treeViewsActiveFirst.radiusCurrent * 1.12;
+			
+			//if ( alpha > 1 )
+			{
+				alpha = 1;
+			}
+			
+			context.globalAlpha = alpha;
+			
+			//if ( ! this.background() )
+			{
+				drawBubble(0, -radius, datasetWidths[this.dataset], false, false, this.background());
+			}
+			
+			drawText(datasetNames[this.dataset], 0, radius, 0, 'center', true, this.background());
+		}
 	}
 	
 	this.drawMap = function()
@@ -1242,7 +1323,7 @@ function NodeView(treeView, node)
 					)
 					{
 						var angle = (angleEndCurrent + angleStartCurrent) / 2;
-						this.drawLabel(angle, true, false, true, true);
+						this.drawLabel(angle, true, false, true, true, this.treeView.background());
 					}
 					
 					//this.drawHighlight(false);
@@ -1274,7 +1355,8 @@ function NodeView(treeView, node)
 						(this.node.isSearchResult || hiddenSearchResults) && selected,
 						this == selectedNode && ! this.radial,
 						selected,
-						this.radial
+						this.radial,
+						this.treeView.background()
 					);
 					
 					if ( this.radial != this.radialPrev && this.alphaLabel.start == 1 && progress < 1 )
@@ -1619,7 +1701,8 @@ function NodeView(treeView, node)
 			hiddenSearchResults, // bubble
 			this.node == highlightedNode || this.node == focusNode, // bold
 			false,
-			hiddenSearchResults
+			hiddenSearchResults,
+			this.treeView.background()
 		);
 	}
 	
@@ -1639,7 +1722,8 @@ function NodeView(treeView, node)
 				angleStartCurrent,
 				angleEndCurrent,
 				radiusInner,
-				this.getTreeRadius()
+				this.getTreeRadius(),
+				this.treeView.background()
 			);
 		}
 		else
@@ -1652,7 +1736,8 @@ function NodeView(treeView, node)
 				this.getTreeRadius(),
 				highlightFill,
 				0,
-				true
+				true,
+				this.treeView.background()
 			);
 		}
 		
@@ -1681,7 +1766,8 @@ function NodeView(treeView, node)
 					this.getTreeRadius(),
 					'rgba(255, 255, 255, .3)',
 					0,
-					true
+					true,
+					this.treeView.background()
 				);
 				
 				if ( ! this.node.searchResults )
@@ -1707,7 +1793,7 @@ function NodeView(treeView, node)
 		
 		if ( ! (this.keyed && showKeys) )
 		{
-			this.drawLabel(angle, true, bold, true, this.radial);
+			this.drawLabel(angle, true, bold, true, this.radial, this.treeView.background());
 		}
 	}
 	
@@ -2071,7 +2157,7 @@ function NodeView(treeView, node)
 		currentKey++;
 	}
 	
-	this.drawLabel = function(angle, bubble, bold, selected, radial)
+	this.drawLabel = function(angle, bubble, bold, selected, radial, light)
 	{
 		if ( context.globalAlpha == 0 )
 		{
@@ -2123,7 +2209,8 @@ function NodeView(treeView, node)
 			bold,
 //			this.isSearchResult && this.shouldAddSearchResultsString() && (!selected || this == selectedNode || highlight),
 			this.node.isSearchResult && (!selected || this.node == selectedNode || bubble),
-			(this.hideAlone || !selected || this.node == selectedNode ) ? this.node.searchResultChildren() : 0
+			(this.hideAlone || !selected || this.node == selectedNode ) ? this.node.searchResultChildren() : 0,
+			light
 		);
 		
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
@@ -3706,6 +3793,7 @@ var uiDetailsSelectedRows = new Array();
 var uiDetailsFocus;
 var uiDetailsFocusName;
 var uiDetailsFocusRows = new Array();
+var uiMapDiv;
 var uiMapCanvas;
 var uiMapContext;
 var uiuiDivLineageFocus;
@@ -3739,52 +3827,72 @@ function addOptionElements(hueName, hueDefault)
 	var border = '2px solid #CCCCCC';
 	var shadeDark = '#EEEEEE';
 	var shadeLight = '#F5F5F5';
-	var divMap = document.createElement('div');
-	panel.appendChild(divMap);
-	divMap.style.width = '40%';
-	divMap.style.float = 'left';
+	uiMapDiv = document.createElement('div');
+	panel.appendChild(uiMapDiv);
+	uiMapDiv.style.width = '40%';
+	uiMapDiv.style.float = 'left';
 	uiMapCanvas = document.createElement('canvas');
-	divMap.appendChild(uiMapCanvas);
+	uiMapDiv.appendChild(uiMapCanvas);
 	uiMap = uiMapCanvas.getContext('2d');
-	uiMapCanvas.width = divMap.clientWidth;
+	uiMapCanvas.width = uiMapDiv.clientWidth;
 	uiMapCanvas.height = uiMapCanvas.width;
 	
 	divNav = document.createElement('div');
 	divNav.style.width = '60%';
-	divNav.style.height = uiMapCanvas.height + 'px';
+//	divNav.style.height = uiMapCanvas.height + 'px';
 	divNav.style.float = 'right';
-	var divNavButtons = document.createElement('div');
+	var rowNavButtons = document.createElement('tr');
+	var divNavButtons = document.createElement('td');
 	backButton = document.createElement('input');
 	backButton.type = 'button';
 	backButton.value = "←";
-	backButton.style.width = '40%';
-	backButton.style.height = '30px';
 	backButton.style.marginRight = '4px';
 	forwardButton = document.createElement('input');
 	forwardButton.type = 'button';
 	forwardButton.value = "→";
-	forwardButton.style.width = '40%';
-	forwardButton.style.height = '30px';
+	rowNavButtons.appendChild(divNavButtons);
+	divNavButtons.colSpan = 2;
 	divNavButtons.appendChild(backButton);
 	divNavButtons.appendChild(forwardButton);
-	divNav.appendChild(divNavButtons);
+	//divNav.appendChild(divNavButtons);
 	
 	search = document.createElement('input');
 	search.type = 'text';
-	var divSearchResults = document.createElement('div');
-	searchResults = document.createElement('span');
-	divSearchResults.style.width = '100%';
+	searchResults = document.createElement('td');
+//	divSearchResults.style.width = '100%';
+	var tableSearch = document.createElement('table');
+	var rowSearch = document.createElement('row');
+	var tdSearch = document.createElement('td');
+	var tdSearchClear = document.createElement('td');
 	var buttonSearchClear = document.createElement('input');
+	var rowSearchResults = document.createElement('row');
 	buttonSearchClear.type = 'button';
 	buttonSearchClear.value = '×';
 	buttonSearchClear.onclick = searchClear;
-	buttonSearchClear.width = '100%';
-	divSearchResults.appendChild(search); 
-	divSearchResults.appendChild(buttonSearchClear);
-	search.style.width = (divSearchResults.clientWidth - buttonSearchClear.clientWidth) + 'px';
-	divNav.appendChild(divSearchResults);
-	divNav.appendChild(searchResults);
+//	buttonSearchClear.width = '100%';
+	tableSearch.width = '100%';
+	tdSearch.style.width = '100%';
+	search.style.width = '100%';
+	
+	tableSearch.appendChild(rowNavButtons);
+	tableSearch.appendChild(rowSearch);
+	tableSearch.appendChild(rowSearchResults);
+	rowSearch.appendChild(tdSearch);
+	rowSearch.appendChild(tdSearchClear);
+	rowSearchResults.appendChild(searchResults);
+	tdSearch.appendChild(search);
+	tdSearchClear.appendChild(buttonSearchClear);
+//	divSearchResults.appendChild(search); 
+//	divSearchResults.appendChild(buttonSearchClear);
+//	search.style.width = (divSearchResults.clientWidth - buttonSearchClear.clientWidth) + 'px';
+	divNav.appendChild(tableSearch);
+//	divNav.appendChild(searchResults);
 	panel.appendChild(divNav);
+	
+	uiDatasetName = document.createElement('div');
+	uiDatasetName.style.width = '100%';
+	uiDatasetName.style.float = 'left';
+	panel.appendChild(uiDatasetName);
 	
 	uiDivLineageFocus = document.createElement('div');
 	uiDivLineageSelected = document.createElement('div');
@@ -4110,7 +4218,7 @@ onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20c
 	uiKeys.appendChild(uiKeyTable);
 }
 
-function arrow(angleStart, angleEnd, radiusInner, radiusOuter)
+function arrow(angleStart, angleEnd, radiusInner, radiusOuter, light)
 {
 	if ( context.globalAlpha == 0 )
 	{
@@ -4123,6 +4231,7 @@ function arrow(angleStart, angleEnd, radiusInner, radiusOuter)
 	var radiusArrowCenter = (radiusArrowInner + radiusArrowOuter) / 2;
 	var pointLength = (radiusArrowOuter - radiusArrowInner) / 5;
 	
+	context.strokeStyle = light ? 'gray' : 'black';
 	context.fillStyle = highlightFill;
 	context.lineWidth = highlightLineWidth;
 	
@@ -4249,14 +4358,7 @@ function checkHighlight()
 	{
 		for ( var i = 0; i < treeViews.length; i++ )
 		{
-			treeViews[i].nodeViews[selectedNode.id].checkHighlight();
-			
-			if ( selectedNode.getParent() )
-			{
-				treeViews[i].nodeViews[selectedNode.getParent().id].checkHighlightCenter();
-			}
-			
-			//treeViews[i].nodeViews[focusNode.id].checkHighlightMap();
+			treeViews[i].checkHighlight();
 		}
 	}
 	
@@ -4452,11 +4554,11 @@ function createDetailsTable(elementsFocus, elementsSelected)
 	uiNameFocus.style.textAlign = 'right';
 	uiNameFocus.style.borderTop = border;
 	uiNameFocus.style.borderRight = border;
-	uiDatasetName = document.createElement('td');
-	uiDatasetName.style.borderRight = border;
-	uiDatasetName.style.borderTop = border;
-	uiDatasetName.style.overflow = 'hidden';
-	uiDatasetName.style.maxWidth = '50px';
+//	uiDatasetName = document.createElement('td');
+//	uiDatasetName.style.borderRight = border;
+//	uiDatasetName.style.borderTop = border;
+//	uiDatasetName.style.overflow = 'hidden';
+//	uiDatasetName.style.maxWidth = '50px';
 	var tdDatasetSpacer1 = document.createElement('td');
 	var tdDatasetSpacer2 = document.createElement('td');
 	tdDatasetSpacer1.style.borderRight = border;
@@ -4471,9 +4573,9 @@ function createDetailsTable(elementsFocus, elementsSelected)
 	rowNameSelected.appendChild(uiNameSelected);
 	rowNameFocus.appendChild(uiNameFocus);
 	rowNameFocus.appendChild(tdNameSpacer);
-	rowNameDataset.appendChild(uiDatasetName);
-	rowNameDataset.appendChild(tdDatasetSpacer1);
-	rowNameDataset.appendChild(tdDatasetSpacer2);
+//	rowNameDataset.appendChild(uiDatasetName);
+//	rowNameDataset.appendChild(tdDatasetSpacer1);
+//	rowNameDataset.appendChild(tdDatasetSpacer2);
 	
 	var count = 0;
 	
@@ -4612,7 +4714,7 @@ function draw()
 	}
 }
 
-function drawBubble(angle, radius, width, radial, flip)
+function drawBubble(angle, radius, width, radial, flip, light)
 {
 	var height = fontSize * 2;
 	var x;
@@ -4645,15 +4747,15 @@ function drawBubble(angle, radius, width, radial, flip)
 	}
 	else
 	{
-		drawBubbleCanvas(x, y, width, height, fontSize, angle);
+		drawBubbleCanvas(x, y, width, height, fontSize, angle, light);
 	}
 }
 
-function drawBubbleCanvas(x, y, width, height, radius, rotation)
+function drawBubbleCanvas(x, y, width, height, radius, rotation, light)
 {
-	context.strokeStyle = 'black';
+	context.strokeStyle = light ? 'gray' : 'black';
 	context.lineWidth = highlightLineWidth;
-	context.fillStyle = 'rgba(255, 255, 255, .75)';
+	context.fillStyle = light ? 'rgba(200, 200, 200, .75)' : 'rgba(255, 255, 255, .75)';
 	context.rotate(rotation);
 	roundedRectangle(x, y, width, fontSize * 2, fontSize);
 	context.fill();
@@ -4859,7 +4961,7 @@ function drawSearchHighlights(label, bubbleX, bubbleY, rotation, center)
 	while ( index != -1 && index < labelLength );
 }
 
-function drawText(text, x, y, angle, anchor, bold)
+function drawText(text, x, y, angle, anchor, bold, light)
 {
 	if ( snapshotMode )
 	{
@@ -4871,7 +4973,7 @@ function drawText(text, x, y, angle, anchor, bold)
 	}
 	else
 	{
-		context.fillStyle = 'black';
+		context.fillStyle = light ? 'black' : 'black';
 		context.textAlign = anchor;
 		context.font = bold ? fontBold : fontNormal;
 		context.rotate(angle);
@@ -4890,7 +4992,8 @@ function drawTextPolar
 	bubble,
 	bold, 
 	searchResult,
-	searchResults
+	searchResults,
+	light
 )
 {
 	var anchor;
@@ -4990,7 +5093,7 @@ function drawTextPolar
 			x -= textWidth / 2;
 		}
 		
-		drawBubble(angle, radius, textWidth, radial, flip);
+		drawBubble(angle, radius, textWidth, radial, flip, light);
 		
 		if ( searchResult )
 		{
@@ -5010,7 +5113,7 @@ function drawTextPolar
 		totalText = totalText + searchResultString(searchResults);
 	}
 	
-	drawText(totalText, textX, textY, angle, anchor, bold);
+	drawText(totalText, textX, textY, angle, anchor, bold, light);
 	
 	return flip;
 }
@@ -5048,7 +5151,8 @@ function drawWedge
 	radiusOuter,
 	color,
 	patternAlpha,
-	highlight
+	highlight,
+	light
 )
 { // TODO: radiusOuter for snapshot
 	if ( context.globalAlpha == 0 )
@@ -5126,7 +5230,7 @@ function drawWedge
 		if ( highlight )
 		{
 			context.lineWidth = highlight ? highlightLineWidth : thinLineWidth;
-			context.strokeStyle = 'black';
+			context.strokeStyle = light ? 'gray' : 'black';
 			context.stroke();
 		}
 	}
@@ -5454,8 +5558,6 @@ function load()
 		return;
 	}
 	
-	resize();
-	
 	var kronaElement = document.getElementsByTagName('krona')[0];
 	
 	var magnitudeName;
@@ -5663,6 +5765,8 @@ function load()
 	addOptionElements(hueName, hueDefault);
 	setCallBacks();
 	
+	resize();
+	
 	head.sort(datasetDefault);
 //	treeViews.push(new TreeView(datasetDefault));
 //	treeViews.push(new TreeView(1)); // TEMP
@@ -5673,8 +5777,8 @@ function load()
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 */	maxAbsoluteDepth = 0;
-	selectDataset(datasetDefault);
-	//selectDatasetsAll();
+	//selectDataset(datasetDefault);
+	selectDatasetsAll();
 	focusTreeView = treeViews[0];
 	selectNode(nodes[nodeDefault]);
 	updateDatasets();
@@ -5884,6 +5988,11 @@ function mouseClick(e)
 	}
 	else if ( progress == 1 )//( highlightedNode != selectedNode )
 	{
+		if ( treeViewsActiveCount > 1 )
+		{
+			focusTreeView = treeViews[highlightedDataset];
+		}
+		
 		focusTreeView = highlightedTreeView;
 		setFocus(highlightedNode);
 //		document.body.style.cursor='ew-resize';
@@ -6084,6 +6193,9 @@ function resetKeyOffset()
 function resize()
 {
 	var views = treeViewsActiveCount;
+	
+	uiMapCanvas.width = uiMapDiv.clientWidth;
+	uiMapCanvas.height = uiMapCanvas.width;
 	
 	imageWidth = window.innerWidth * .72;
 	imageHeight = window.innerHeight;
@@ -6971,7 +7083,7 @@ function setLineage()
 		}
 	}
 	
-	var maxHeight = 40;
+	var maxHeight = 36;
 	
 	if ( uiDivLineageFocus.clientHeight + uiDivLineageSelected.clientHeight > maxHeight * 2 )
 	{
