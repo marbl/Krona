@@ -3720,7 +3720,7 @@ function addOptionElements(hueName, hueDefault)
 	
 	panel = document.createElement('div');
 	panel.style.position = 'absolute';
-	panel.style.maxWidth = '28%';
+	panel.style.width = '28%';
 //	details.style.right = '100%';
 	panel.style.left = '72%';
 	panel.style.height = '100%';
