@@ -600,6 +600,7 @@ function TreeView(dataset, treeView)
 	this.centerX = new Tween(0, 0);
 	this.centerY = new Tween(0, 0);
 	this.radius = new Tween(0, 0);
+	this.alpha = new Tween(0, 0);
 	
 	this.mapAngleStart = new Tween(0, 0);
 	this.mapAngleEnd = new Tween(0, 0);
@@ -629,7 +630,7 @@ function TreeView(dataset, treeView)
 	
 	this.background = function()
 	{
-		return treeViewsActiveCount > 1 && this != focusTreeView;
+		return treeViews.length > 1 && this != focusTreeView;
 	}
 	
 	this.checkHighlight = function()
@@ -693,18 +694,18 @@ function TreeView(dataset, treeView)
 //			context.fill();
 //			context.stroke();
 			context.beginPath();
-			context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+		//	context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
 			context.fill();
 			context.stroke();
 			context.beginPath();
-			context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
-			context.arc(0, 0, this.radiusCurrent * compressedRadii[0], Math.PI * 2, 0, true);
+	//		context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+	//		context.arc(0, 0, this.radiusCurrent * compressedRadii[0], Math.PI * 2, 0, true);
 			context.stroke();
 		}
 		else if ( this.dataset == highlightedDataset )
 		{
 			context.beginPath();
-			context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+		//	context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
 //			context.arc(0, 0, this.radiusCurrent * 1.25, Math.PI * 2, 0, true);
 			context.fillStyle = '#CCCCCC';
 //			context.fill();
@@ -767,7 +768,7 @@ function TreeView(dataset, treeView)
 		{
 			if ( !zoomOut)//() )
 			{
-				context.globalAlpha = selectedNodeView.alphaLine.current();
+				context.globalAlpha = this.nodeViews[selectedNode.id].alphaLine.current();
 				selectedNodeView.drawHighlight(true);
 			}
 			else if ( selectedNodeLast && selectedNodeLast != focusNode )
@@ -790,16 +791,11 @@ function TreeView(dataset, treeView)
 		
 		//if ( alpha > 0 )
 		{
-			var radius =  treeViewsActiveFirst.radiusCurrent * 1.12;
+			var radius =  this.radiusCurrent * 1.12;
 			
-			//if ( alpha > 1 )
-			{
-				alpha = 1;
-			}
+			context.globalAlpha = this.alpha.current();
 			
-			context.globalAlpha = alpha;
-			
-			//if ( ! this.background() )
+			if ( ! this.background() )
 			{
 				drawBubble(0, -radius, datasetWidths[this.dataset], false, false, this.background());
 			}
@@ -916,11 +912,11 @@ function TreeView(dataset, treeView)
 	
 	this.resetLabelArrays = function()
 	{
-		this.labelOffsets = new Array(maxDisplayDepth - 1);
-		this.labelLastNodes = new Array(maxDisplayDepth - 1);
-		this.labelFirstNodes = new Array(maxDisplayDepth - 1);
+		this.labelOffsets = new Array(maxDisplayDepth);
+		this.labelLastNodes = new Array(maxDisplayDepth);
+		this.labelFirstNodes = new Array(maxDisplayDepth);
 		
-		for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+		for ( var i = 0; i < maxDisplayDepth; i++ )
 		{
 			this.labelOffsets[i] = Math.floor((nLabelOffsets[i] - 1) / 2);
 			this.labelLastNodes[i] = new Array(nLabelOffsets[i] + 1);
@@ -941,6 +937,11 @@ function TreeView(dataset, treeView)
 	{
 		this.centerX.setTarget(this.centerXTarget, ! this.initialized);
 		this.centerY.setTarget(this.centerYTarget, ! this.initialized);
+		
+		if ( ! this.initialized )
+		{
+		}
+		
 		this.radius.setTarget(this.radiusTarget, false);
 		
 		var mapArc = this.getMapArc(this.nodeViews[selectedNode.id]);
@@ -953,9 +954,11 @@ function TreeView(dataset, treeView)
 		{
 		//	this.radius.setTarget(0, false);
 			this.nodeViews[selectedNode.id].setTargetsFinish();
+			this.alpha.setTarget(0);
 		}
 		else
 		{
+			this.alpha.setTarget(1);
 			this.resetLabelArrays();
 			this.nodeViews[head.id].setTargets(! this.initialized);
 			this.initialized = true;
@@ -992,7 +995,7 @@ function NodeView(treeView, node)
 	this.b = new Tween(255, 255);
 	
 	this.alphaLabel = new Tween(0, 0);
-	this.alphaLine = new Tween(0, 1);
+	this.alphaLine = new Tween(0, 0);
 	this.alphaArc = new Tween(0, 0);
 	this.alphaWedge = new Tween(0, 1);
 	this.alphaOther = new Tween(0, 0);
@@ -1606,6 +1609,7 @@ function NodeView(treeView, node)
 			if
 			(
 				selected &&
+				treeViewsActiveCount == 1 &&
 				(angleEnd - angleStart) * 
 				(this.getTreeRadius() * 2) >=
 				minWidth() ||
@@ -1723,7 +1727,7 @@ function NodeView(treeView, node)
 				angleEndCurrent,
 				radiusInner,
 				this.getTreeRadius(),
-				this.treeView.background()
+				false//this.treeView.background()
 			);
 		}
 		else
@@ -1737,7 +1741,7 @@ function NodeView(treeView, node)
 				highlightFill,
 				0,
 				true,
-				this.treeView.background()
+				false//this.treeView.background()
 			);
 		}
 		
@@ -1747,7 +1751,7 @@ function NodeView(treeView, node)
 		{
 			if
 			(
-				this.node.children[i].getDepth() - selectedNode.getDepth() + 1 <=
+				this.node.children[i].getDepth() - selectedNode.getDepth() + 1 <
 				maxDisplayDepth &&
 				this.getChild(i).hiddenEnd != null
 			)
@@ -1767,7 +1771,7 @@ function NodeView(treeView, node)
 					'rgba(255, 255, 255, .3)',
 					0,
 					true,
-					this.treeView.background()
+					false//this.treeView.background()
 				);
 				
 				if ( ! this.node.searchResults )
@@ -1793,7 +1797,7 @@ function NodeView(treeView, node)
 		
 		if ( ! (this.keyed && showKeys) )
 		{
-			this.drawLabel(angle, true, bold, true, this.radial, this.treeView.background());
+			this.drawLabel(angle, true, bold, true, this.radial, false);//this.treeView.background());
 		}
 	}
 	
@@ -2221,7 +2225,7 @@ function NodeView(treeView, node)
 			! bubble &&
 			this != selectedNode &&
 			this.angleEnd.end != this.angleStart.end &&
-			nLabelOffsets[(this.hasChildren() ? depth : maxDisplayDepth) - 2] > 2 &&
+			nLabelOffsets[this.labelOffsetIndex()] > 1 &&
 			this.labelWidth.current() > (this.angleEnd.end - this.angleStart.end) * Math.abs(radius) &&
 			! ( zoomOut && this.node == selectedNodeLast ) &&
 			this.labelRadius.end > 0
@@ -2592,6 +2596,18 @@ function NodeView(treeView, node)
 		return this.node.children.length && this.node.depth < maxAbsoluteDepth;// && this.magnitude;
 	}
 	
+	this.labelOffsetIndex = function()
+	{
+		if ( this.hasChildren() && ! this.hideAlone )
+		{
+			return this.node.getDepth() - selectedNode.getDepth() - 1;
+		}
+		else
+		{
+			return maxDisplayDepth - 2;
+		}
+	}
+	
 	this.maxVisibleDepth = function(maxDepth, node, radii)
 	{
 		var childInnerRadius;
@@ -2755,7 +2771,7 @@ function NodeView(treeView, node)
 		}
 		else if
 		(
-			this.labelRadius.end == node.labelRadius.end &&
+			Math.abs(this.labelRadius.end - node.labelRadius.end) < .05 &&
 			a < Math.PI / 4
 		)
 		{
@@ -2889,7 +2905,7 @@ function NodeView(treeView, node)
 	this.setTargetLabelRadius = function(init)
 	{
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
-		var index = this.hasChildren() ? depth - 2 : maxDisplayDepth - 2;
+		var index = this.labelOffsetIndex();
 		var labelOffset = this.treeView.labelOffsets[index];
 		
 		if ( this.radial )
@@ -2907,20 +2923,44 @@ function NodeView(treeView, node)
 			var radiusCenter;
 			var width;
 			
-			if ( nLabelOffsets[index] > 1 )
+			if ( nLabelOffsets[index] > 1 && ! this.hide && ! this.keyed )
 			{
-				this.labelRadius.setTarget
-				(
-					lerp
+				var offset;
+				
+				if ( index == maxDisplayDepth - 2 )
+				{
+					do
+					{
+						offset = lerp
+						(
+							labelOffset + .75,
+							0,
+							nLabelOffsets[index] + .5,
+							compressedRadii[0],
+							compressedRadii[index + 1]
+						);
+						
+						labelOffset++;
+					}
+					while ( offset < compressedRadii[depth - 2] );
+					
+					labelOffset--;
+				}
+				else
+				{
+					offset = lerp
 					(
 						labelOffset + .75,
 						0,
 						nLabelOffsets[index] + .5,
 						compressedRadii[index],
 						compressedRadii[index + 1]
-					),
-					init
-				);
+					);
+					
+//					labelOffset++;
+				}
+				
+				this.labelRadius.setTarget(offset, init);
 			}
 			else
 			{
@@ -2936,7 +2976,7 @@ function NodeView(treeView, node)
 		{
 			// check last and first labels in each track for overlap
 			
-			for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+			for ( var i = 0; i < maxDisplayDepth; i++ )
 			{
 				for ( var j = 0; j <= nLabelOffsets[i]; j++ )
 				{
@@ -2992,7 +3032,9 @@ function NodeView(treeView, node)
 				
 				// update offset
 				
-				this.treeView.labelOffsets[index] += 1;
+//				this.treeView.labelOffsets[index] += 1;
+				labelOffset++;
+				this.treeView.labelOffsets[index] = labelOffset;
 				
 				if ( this.treeView.labelOffsets[index] > nLabelOffsets[index] )
 				{
@@ -3538,15 +3580,15 @@ function NodeView(treeView, node)
 			{
 				if ( this.hideAlone )
 				{
-					this.radial = false;//true;
+					this.radial = treeViewsActiveCount == 1;
 				}
-				else if ( false && canDisplayChildLabels )
+				else if ( canDisplayChildLabels )
 				{
 					this.radial = false;
 				}
 				else
 				{
-					this.radial = false;//true;
+					this.radial = treeViewsActiveCount == 1;
 					
 					if ( this.hasChildren() && depth < maxDisplayDepth )
 					{
@@ -3586,7 +3628,7 @@ function NodeView(treeView, node)
 			{
 				if
 				(
-					(this.radial || nLabelOffsets[(this.hasChildren() ? depth : maxDisplayDepth) - 2])
+					(this.radial || nLabelOffsets[this.labelOffsetIndex()])
 				)
 				{
 					this.alphaLabel.setTarget(1, false);
@@ -4488,7 +4530,7 @@ function computeRadii(node)
 	{
 		maxDepth = newMaxDepth;
 		
-		radii = new Array(maxDepth);
+		radii = new Array(maxDepth - 1);
 		
 		radii[0] = minRadiusInner;
 		
@@ -4512,7 +4554,7 @@ function computeRadii(node)
 		
 		offset--;
 		
-		for ( var i = 1; i < maxDepth; i++ )
+		for ( var i = 1; i < maxDepth - 1; i++ )
 		{
 			radii[i] = lerp
 			(
@@ -7601,7 +7643,7 @@ function updateView()
 	}
 	
 	compressedRadii = computeRadii(selectedNode);
-	maxDisplayDepth = compressedRadii.length - 1;//maxDepth;
+	maxDisplayDepth = compressedRadii.length;//maxDepth;
 	
 	mapRadii = computeRadii(head);
 	
@@ -7617,13 +7659,21 @@ function updateView()
 	var dim = context.measureText('...');
 	ellipsisWidth = dim.width;
 	
-	nLabelOffsets = new Array(maxDisplayDepth - 1);
+	nLabelOffsets = new Array(maxDisplayDepth);
 	
-	for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+	for ( var i = 0; i < maxDisplayDepth; i++ )
 	{
-		if ( false && i == maxDisplayDepth - 1 )
+		if ( i == maxDisplayDepth - 1 )
 		{
 			nLabelOffsets[i] = 0;
+		}
+		else if ( i == maxDisplayDepth - 2 )
+		{
+			var width =
+				(compressedRadii[i + 1] - compressedRadii[0]) *
+				treeViewsActiveFirst.radiusTarget;
+			
+			nLabelOffsets[i] = Math.floor(width / fontSize / 1.2);
 		}
 		else
 		{
