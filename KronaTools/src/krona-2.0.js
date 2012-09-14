@@ -90,6 +90,8 @@ var fontSizeText;
 var fontSizeButtonDecrease;
 var fontSizeButtonIncrease;
 var fontSizeLast;
+var radiusButtonDecrease;
+var radiusButtonIncrease;
 var shorten;
 var shortenCheckBox;
 var maxAbsoluteDepth;
@@ -160,7 +162,8 @@ var updateViewNeeded = false;
 //
 var rotationOffset = Math.PI / 2;
 
-var buffer = 100;
+var buffer;
+var bufferFactor = .1;
 
 // The maps are the small pie charts showing the current slice being viewed.
 //
@@ -319,7 +322,7 @@ function resize()
 		imageWidth - mapWidth - leftMargin;
 	
 	maxMapRadius = minDimension * .03;
-	buffer = minDimension * .1;
+	buffer = minDimension * bufferFactor;
 	margin = minDimension * .015;
 	centerX = (imageWidth - mapWidth - leftMargin) / 2 + leftMargin;
 	centerY = imageHeight / 2;
@@ -3481,6 +3484,13 @@ and including collapsed wedges.'
 &nbsp;<input type="button" id="fontSizeIncrease" value="+"/> Font size'
 	);
 	
+	position = addOptionElement
+	(
+		position,
+'&nbsp;<input type="button" id="radiusDecrease" value="-"/>\
+<input type="button" id="radiusIncrease" value="+"/> Chart size'
+	);
+	
 	if ( hueName )
 	{
 		hueDisplayName = attributes[attributeIndex(hueName)].displayName;
@@ -5345,6 +5355,24 @@ function prevDataset()
 	selectDataset(newDataset);
 }
 
+function radiusDecrease()
+{
+	if ( bufferFactor < .309 )
+	{
+		bufferFactor += .03;
+		updateViewNeeded = true;
+	}
+}
+
+function radiusIncrease()
+{
+	if ( bufferFactor > .041 )
+	{
+		bufferFactor -= .03;
+		updateViewNeeded = true;
+	}
+}
+
 function resetKeyOffset()
 {
 	currentKey = 1;
@@ -5445,6 +5473,10 @@ function setCallBacks()
 	fontSizeButtonIncrease = document.getElementById('fontSizeIncrease');
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
+	radiusButtonDecrease = document.getElementById('radiusDecrease');
+	radiusButtonIncrease = document.getElementById('radiusIncrease');
+	radiusButtonDecrease.onclick = radiusDecrease;
+	radiusButtonIncrease.onclick = radiusIncrease;
 	maxAbsoluteDepth = 0;
 	backButton = document.getElementById('back');
 	backButton.onclick = navigateBack;
