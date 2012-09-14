@@ -1030,6 +1030,7 @@ function Node()
 				(angleEnd - angleStart) * 
 				(gRadius + gRadius) >=
 				minWidth() ||
+				this == highlightedNode ||
 				hiddenSearchResults
 			)
 			{
@@ -1186,14 +1187,14 @@ function Node()
 					true
 				);
 				
-				if ( ! this.searchResults )
-				{/*
+				if ( false && ! this.searchResults )
+				{
 					this.drawHiddenLabel
 					(
 						hiddenAngleStart,
 						hiddenAngleEnd,
 						firstChild.hiddenEnd - i + 1
-					);*/
+					);
 				}
 				
 				i = firstChild.hiddenEnd;
