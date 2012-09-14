@@ -1014,6 +1014,11 @@ function Node()
 			for ( var i = firstHiddenChild; i <= firstChild.hiddenEnd; i++ )
 			{
 				hiddenSearchResults += this.children[i].searchResults;
+				
+				if ( this.children[i].magnitude == 0 )
+				{
+					hiddenChildren--;
+				}
 			}
 			
 			if
@@ -1179,13 +1184,13 @@ function Node()
 				);
 				
 				if ( ! this.searchResults )
-				{
+				{/*
 					this.drawHiddenLabel
 					(
 						hiddenAngleStart,
 						hiddenAngleEnd,
 						firstChild.hiddenEnd - i + 1
-					);
+					);*/
 				}
 				
 				i = firstChild.hiddenEnd;
@@ -1225,6 +1230,7 @@ function Node()
 	{
 		var offset = keyOffset();
 		var color;
+		var colorText = this.magnitude == 0 ? 'gray' : 'black';
 		var patternAlpha = this.alphaPattern.end;
 		var boxLeft = imageWidth - keySize - margin;
 		var textY = offset + keySize / 2;
@@ -1466,7 +1472,7 @@ function Node()
 				}
 			}
 			
-			svg += svgText(labelSVG, boxLeft - keyBuffer, textY, 'end', bold);
+			svg += svgText(labelSVG, boxLeft - keyBuffer, textY, 'end', bold, colorText);
 		}
 		else
 		{
@@ -1554,7 +1560,7 @@ function Node()
 				}
 			}
 			
-			drawText(label, boxLeft - keyBuffer, offset + keySize / 2, 0, 'end', bold);
+			drawText(label, boxLeft - keyBuffer, offset + keySize / 2, 0, 'end', bold, colorText);
 			
 			context.translate(centerX, centerY);
 		}
@@ -4112,19 +4118,24 @@ function drawSearchHighlights(label, bubbleX, bubbleY, rotation, center)
 	while ( index != -1 && index < labelLength );
 }
 
-function drawText(text, x, y, angle, anchor, bold)
+function drawText(text, x, y, angle, anchor, bold, color)
 {
+	if ( color == undefined )
+	{
+		color = 'black';
+	}
+	
 	if ( snapshotMode )
 	{
 		svg +=
 			'<text x="' + (centerX + x) + '" y="' + (centerY + y) +
-			'" text-anchor="' + anchor + '" style="font-weight:' + (bold ? 'bold' : 'normal') +
+			'" text-anchor="' + anchor + '" style="font-color:' + color + ';font-weight:' + (bold ? 'bold' : 'normal') +
 			'" transform="rotate(' + degrees(angle) + ',' + centerX + ',' + centerY + ')">' +
 			text + '</text>';
 	}
 	else
 	{
-		context.fillStyle = 'black';
+		context.fillStyle = color;
 		context.textAlign = anchor;
 		context.font = bold ? fontBold : fontNormal;
 		context.rotate(angle);
@@ -5550,7 +5561,7 @@ function setFocus(node)
 		{
 			var index = node.attributes[i].length == 1 && attributes[i].mono ? 0 : currentDataset;
 			
-			if ( node.attributes[i][index] != undefined && node.attributes[i][currentDataset] != '' )
+			if ( typeof node.attributes[i][currentDataset] == 'number' || node.attributes[i][index] != undefined && node.attributes[i][currentDataset] != '' )
 			{
 				var value = node.attributes[i][index];
 				
@@ -5839,15 +5850,20 @@ x="0" y="0" width="' + patternWidth + '" height="' + patternWidth + '">\
 ';
 }
 
-function svgText(text, x, y, anchor, bold)
+function svgText(text, x, y, anchor, bold, color)
 {
 	if ( typeof(anchor) == 'undefined' )
 	{
 		anchor = 'start';
 	}
 	
+	if ( color == undefined )
+	{
+		color = 'black';
+	}
+	
 	return '<text x="' + x + '" y="' + y +
-		'" style="font-weight:' + (bold ? 'bold' : 'normal') +
+		'" style="font-color:' + color + ';font-weight:' + (bold ? 'bold' : 'normal') +
 		'" text-anchor="' + anchor + '">' + text + '</text>';
 }
 
