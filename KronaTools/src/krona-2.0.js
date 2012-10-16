@@ -1030,7 +1030,8 @@ function Node()
 				(angleEnd - angleStart) * 
 				(gRadius + gRadius) >=
 				minWidth() ||
-				this == highlightedNode ||
+				this == highlightedNode &&
+				hiddenChildren ||
 				hiddenSearchResults
 			)
 			{
@@ -3390,6 +3391,7 @@ function addOptionElement(position, innerHTML, title)
 	var div = document.createElement("div");
 	div.style.position = 'absolute';
 	div.style.top = position + 'px';
+	div.style.width = '1000px';
 	div.innerHTML = innerHTML;
 	
 	if ( title )
@@ -3398,7 +3400,9 @@ function addOptionElement(position, innerHTML, title)
 	}
 	
 	document.body.insertBefore(div, canvas);
-	return position + div.clientHeight;
+	var height = div.clientHeight;
+	div.style.width = 'auto';
+	return position + height;
 }
 
 function addOptionElements(hueName, hueDefault)
