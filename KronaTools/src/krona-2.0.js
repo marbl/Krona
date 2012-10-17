@@ -3386,27 +3386,36 @@ function Node()
 	}
 }
 
+var options;
+
 function addOptionElement(position, innerHTML, title)
 {
 	var div = document.createElement("div");
-	div.style.position = 'absolute';
-	div.style.top = position + 'px';
-	div.style.width = '1000px';
+//	div.style.position = 'absolute';
+//	div.style.top = position + 'px';
 	div.innerHTML = innerHTML;
+//	div.style.display = 'block';
+	div.style.padding = '2px';
 	
 	if ( title )
 	{
 		div.title = title;
 	}
 	
-	document.body.insertBefore(div, canvas);
-	var height = div.clientHeight;
-	div.style.width = 'auto';
+	options.appendChild(div);
+	var height = 0;//div.clientHeight;
 	return position + height;
 }
 
 function addOptionElements(hueName, hueDefault)
 {
+	options = document.createElement('div');
+	options.style.position = 'absolute';
+	options.style.top = '0px';
+	options.addEventListener('mousedown', function(e) {mouseClick(e)}, false);
+//	options.onmouseup = function(e) {mouseUp(e)}
+	document.body.appendChild(options);
+	
 	document.body.style.font = '11px sans-serif';
 	var position = 5;
 	
@@ -3437,10 +3446,10 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	position = addOptionElement
 	(
 		position,
-'&nbsp;<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+'<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
-<input type="button" value="x" onclick="clearSearch()"/> \
+<input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
 <span id="searchResults"></span>'
 	);
 	
@@ -3449,7 +3458,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 		var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
 		
 		var select =
-			'<div style="float:left">&nbsp;</div><div style="float:left">' +
+			'<table style="border-collapse:collapse;padding:0px"><tr><td style="padding:0px">' +
 			'<select id="datasets" style="min-width:100px" size="' + size + '" onchange="onDatasetChange()">';
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
@@ -3458,10 +3467,10 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 		}
 		
 		select +=
-			'</select></div>' +
-			'<input title="Previous dataset (Shortcut: &uarr;)" id="prevDataset" type="button" value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
-			'<input title="Switch to the last dataset that was viewed (Shortcut: TAB)" id="lastDataset" type="button" style="font:11px Times new roman" value="last" onclick="selectLastDataset()"/>' +
-			'<br/><input title="Next dataset (Shortcut: &darr;)" id="nextDataset" type="button" value="&darr;" onclick="nextDataset()"/><br/>';
+			'</select></td><td style="vertical-align:top;padding:1px;">' +
+			'<input style="display:block" title="Previous dataset (Shortcut: &uarr;)" id="prevDataset" type="button" value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
+			'<input title="Next dataset (Shortcut: &darr;)" id="nextDataset" type="button" value="&darr;" onclick="nextDataset()"/><br/></td>' +
+			'<td style="padding-top:1px;vertical-align:top"><input title="Switch to the last dataset that was viewed (Shortcut: TAB)" id="lastDataset" type="button" style="font:11px Times new roman" value="last" onclick="selectLastDataset()"/></td></tr></table>';
 		
 		position = addOptionElement(position + 5, select);
 		
@@ -3469,12 +3478,14 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 		datasetButtonLast = document.getElementById('lastDataset');
 		datasetButtonPrev = document.getElementById('prevDataset');
 		datasetButtonNext = document.getElementById('nextDataset');
+		
+		position += datasetDropDown.clientHeight;
 	}
 	
 	position = addOptionElement
 	(
 		position + 5,
-'&nbsp;<input type="button" id="maxAbsoluteDepthDecrease" value="-"/>\
+'<input type="button" id="maxAbsoluteDepthDecrease" value="-"/>\
 <span id="maxAbsoluteDepth"></span>\
 &nbsp;<input type="button" id="maxAbsoluteDepthIncrease" value="+"/> Max depth',
 'Maximum depth to display, counted from the top level \
@@ -3484,7 +3495,7 @@ and including collapsed wedges.'
 	position = addOptionElement
 	(
 		position,
-'&nbsp;<input type="button" id="fontSizeDecrease" value="-"/>\
+'<input type="button" id="fontSizeDecrease" value="-"/>\
 <span id="fontSize"></span>\
 &nbsp;<input type="button" id="fontSizeIncrease" value="+"/> Font size'
 	);
@@ -3492,7 +3503,7 @@ and including collapsed wedges.'
 	position = addOptionElement
 	(
 		position,
-'&nbsp;<input type="button" id="radiusDecrease" value="-"/>\
+'<input type="button" id="radiusDecrease" value="-"/>\
 <input type="button" id="radiusIncrease" value="+"/> Chart size'
 	);
 	
@@ -3503,15 +3514,15 @@ and including collapsed wedges.'
 		position = addOptionElement
 		(
 			position + 5,
-			'<div style="float:left">&nbsp;</div>' +
 			'<input type="checkbox" id="useHue" style="float:left" ' +
-			'/><div style="float:left">Color by<br/>' + hueDisplayName +
+			'/><div>Color by<br/>' + hueDisplayName +
 			'</div>'
 		);
 		
 		useHueCheckBox = document.getElementById('useHue');
 		useHueCheckBox.checked = hueDefault;
 		useHueCheckBox.onclick = handleResize;
+		useHueCheckBox.onmousedown = suppressEvent;
 	}
 	/*
 	position = addOptionElement
@@ -3531,14 +3542,14 @@ and including collapsed wedges.'
 	position = addOptionElement
 	(
 		position,
-		'&nbsp;<input type="checkbox" id="collapse" checked="checked" />Collapse',
+		'<input type="checkbox" id="collapse" checked="checked" />Collapse',
 		'Collapse wedges that are redundant (entirely composed of another wedge)'
 	);
 	
 	position = addOptionElement
 	(
 		position + 5,
-		'&nbsp;<input type="button" id="snapshot" value="Snapshot"/>',
+		'<input type="button" id="snapshot" value="Snapshot"/>',
 'Render the current view as SVG (Scalable Vector Graphics), a publication-\
 quality format that can be printed and saved (see Help for browser compatibility)'
 	);
@@ -3546,7 +3557,7 @@ quality format that can be printed and saved (see Help for browser compatibility
 	position = addOptionElement
 	(
 		position + 5,
-'&nbsp;<input type="button" id="linkButton" value="Link"/>\
+'<input type="button" id="linkButton" value="Link"/>\
 <input type="text" size="30" id="linkText"/>',
 'Show a link to this view that can be copied for bookmarking or sharing'
 	);
@@ -3554,7 +3565,7 @@ quality format that can be printed and saved (see Help for browser compatibility
 	position = addOptionElement
 	(
 		position + 5,
-'&nbsp;<input type="button" id="help" value="?"\
+'<input type="button" id="help" value="?"\
 onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>',
 'Help'
 	);
@@ -3746,8 +3757,11 @@ function checkSelectedCollapse()
 
 function clearSearch()
 {
-	search.value = '';
-	onSearchChange();
+	if ( search.value != '' )
+	{
+		search.value = '';
+		onSearchChange();
+	}
 }
 
 function createSVG()
@@ -5313,12 +5327,52 @@ function onKeyDown(event)
 	}
 }
 
+function onKeyPress(event)
+{
+	if ( event.keyCode == 38 && datasets > 1 )
+	{
+//		prevDataset();
+		
+		//if ( document.activeElement.id == 'datasets' )
+		{
+			event.preventDefault();
+		}
+	}
+	else if ( event.keyCode == 40 && datasets > 1 )
+	{
+//		nextDataset();
+		
+		//if ( document.activeElement.id == 'datasets' )
+		{
+			event.preventDefault();
+		}
+	}
+}
+
 function onKeyUp(event)
 {
 	if ( event.keyCode == 27 && document.activeElement.id == 'search' )
 	{
 		search.value = '';
 		onSearchChange();
+	}
+	else if ( event.keyCode == 38 && datasets > 1 )
+	{
+//		prevDataset();
+		
+		//if ( document.activeElement.id == 'datasets' )
+		{
+			event.preventDefault();
+		}
+	}
+	else if ( event.keyCode == 40 && datasets > 1 )
+	{
+//		nextDataset();
+		
+		//if ( document.activeElement.id == 'datasets' )
+		{
+			event.preventDefault();
+		}
 	}
 }
 
@@ -5457,6 +5511,7 @@ function searchResultString(results)
 function setCallBacks()
 {
 	canvas.onselectstart = function(){return false;} // prevent unwanted highlighting
+	options.onselectstart = function(){return false;} // prevent unwanted highlighting
 	document.onmousemove = mouseMove;
 	window.onblur = focusLost;
 	window.onmouseout = focusLost;
@@ -5468,40 +5523,86 @@ function setCallBacks()
 	collapseCheckBox = document.getElementById('collapse');
 	collapseCheckBox.checked = collapse;
 	collapseCheckBox.onclick = handleResize;
+	collapseCheckBox.onmousedown = suppressEvent;
+//	collapseCheckBox.onmouseup = suppressEvent;
 	maxAbsoluteDepthText = document.getElementById('maxAbsoluteDepth');
 	maxAbsoluteDepthButtonDecrease = document.getElementById('maxAbsoluteDepthDecrease');
 	maxAbsoluteDepthButtonIncrease = document.getElementById('maxAbsoluteDepthIncrease');
 	maxAbsoluteDepthButtonDecrease.onclick = maxAbsoluteDepthDecrease;
 	maxAbsoluteDepthButtonIncrease.onclick = maxAbsoluteDepthIncrease;
+	maxAbsoluteDepthButtonDecrease.onmousedown = suppressEvent;
+//	maxAbsoluteDepthButtonDecrease.onmouseup = suppressEvent;
+	maxAbsoluteDepthButtonIncrease.onmousedown = suppressEvent;
+//	maxAbsoluteDepthButtonIncrease.onmouseup = suppressEvent;
 	fontSizeText = document.getElementById('fontSize');
 	fontSizeButtonDecrease = document.getElementById('fontSizeDecrease');
 	fontSizeButtonIncrease = document.getElementById('fontSizeIncrease');
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
+	fontSizeButtonDecrease.onmousedown = suppressEvent;
+//	fontSizeButtonDecrease.onmouseup = suppressEvent;
+	fontSizeButtonIncrease.onmousedown = suppressEvent;
+//	fontSizeButtonIncrease.onmouseup = suppressEvent;
 	radiusButtonDecrease = document.getElementById('radiusDecrease');
 	radiusButtonIncrease = document.getElementById('radiusIncrease');
 	radiusButtonDecrease.onclick = radiusDecrease;
 	radiusButtonIncrease.onclick = radiusIncrease;
+	radiusButtonDecrease.onmousedown = suppressEvent;
+//	radiusButtonDecrease.onmouseup = suppressEvent;
+	radiusButtonIncrease.onmousedown = suppressEvent;
+//	radiusButtonIncrease.onmouseup = suppressEvent;
 	maxAbsoluteDepth = 0;
 	backButton = document.getElementById('back');
 	backButton.onclick = navigateBack;
+	backButton.onmousedown = suppressEvent;
+//	backButton.onmouseup = suppressEvent;
 	forwardButton = document.getElementById('forward');
 	forwardButton.onclick = navigateForward;
+	forwardButton.onmousedown = suppressEvent;
+//	forwardButton.onmouseup = suppressEvent;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
+	snapshotButton.onmousedown = suppressEvent;
+//	snapshotButton.onmouseup = suppressEvent;
 //	details = document.getElementById('details');
 	detailsName = document.getElementById('detailsName');
 	detailsExpand = document.getElementById('detailsExpand');
 	detailsInfo = document.getElementById('detailsInfo');
 	search = document.getElementById('search');
 	search.onkeyup = onSearchChange;
+	search.onmousedown = suppressEvent;
+//	search.onmouseup = suppressEvent;
 	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
 	linkButton = document.getElementById('linkButton');
 	linkButton.onclick = showLink;
+	linkButton.onmousedown = suppressEvent;
+//	linkButton.onmouseup = suppressEvent;
 	linkText = document.getElementById('linkText');
 	linkText.onblur = hideLink;
+	linkText.onmousedown = suppressEvent;
+//	linkText.onmouseup = suppressEvent;
 	hide(linkText);
+	var helpButton = document.getElementById('help');
+	helpButton.onmousedown = suppressEvent;
+//	helpButton.onmouseup = suppressEvent;
+	var searchClear = document.getElementById('searchClear');
+	searchClear.onmousedown = suppressEvent;
+//	searchClear.onmouseup = suppressEvent;
+	if ( datasets > 1 )
+	{
+		datasetDropDown.onmousedown = suppressEvent;
+//		datasetDropDown.onmouseup = suppressEvent;
+		var prevDatasetButton = document.getElementById('prevDataset');
+		prevDatasetButton.onmousedown = suppressEvent;
+//		prevDatasetButton.onmouseup = suppressEvent;
+		var nextDatasetButton = document.getElementById('nextDataset');
+		nextDatasetButton.onmousedown = suppressEvent;
+//		nextDatasetButton.onmouseup = suppressEvent;
+		var lastDatasetButton = document.getElementById('lastDataset');
+		lastDatasetButton.onmousedown = suppressEvent;
+//		lastDatasetButton.onmouseup = suppressEvent;
+	}
 	
 	image = document.getElementById('hiddenImage');
 	
@@ -5843,6 +5944,12 @@ function spacer()
 	{
 		return '   ';
 	}
+}
+
+function suppressEvent(e)
+{
+	e.cancelBubble = true;
+	if (e.stopPropagation) e.stopPropagation();
 }
 
 function svgFooter()
