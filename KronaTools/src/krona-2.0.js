@@ -288,6 +288,7 @@ window.onload = load;
 var image;
 var hiddenPattern;
 var loadingImage;
+var logoImage;
 
 function resize()
 {
@@ -3442,11 +3443,22 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	
 	document.body.insertBefore(keyControl, canvas);
 	
+	var logoElement = document.getElementById('logo');
+	
+	if ( logoElement )
+	{
+		logoImage = logoElement.src;
+	}
+	else
+	{
+		logoImage = 'http://krona.sourceforge.net/img/logo.png';
+	}
+	
 //	document.getElementById('options').style.fontSize = '9pt';
 	position = addOptionElement
 	(
 		position,
-'<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+'<a style="margin:2px" target="_blank" href="http://krona.sourceforge.net"><div style="display:inline-block;vertical-align:middle;background-color:#EEEEEE;border:1px solid gray;padding:2px;font-size:18px"><img style="vertical-align:middle;" src="' + logoImage + '"/><span style="vertical-align:middle;color:#555555">Krona</span></div></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
@@ -5524,84 +5536,64 @@ function setCallBacks()
 	collapseCheckBox.checked = collapse;
 	collapseCheckBox.onclick = handleResize;
 	collapseCheckBox.onmousedown = suppressEvent;
-//	collapseCheckBox.onmouseup = suppressEvent;
 	maxAbsoluteDepthText = document.getElementById('maxAbsoluteDepth');
 	maxAbsoluteDepthButtonDecrease = document.getElementById('maxAbsoluteDepthDecrease');
 	maxAbsoluteDepthButtonIncrease = document.getElementById('maxAbsoluteDepthIncrease');
 	maxAbsoluteDepthButtonDecrease.onclick = maxAbsoluteDepthDecrease;
 	maxAbsoluteDepthButtonIncrease.onclick = maxAbsoluteDepthIncrease;
 	maxAbsoluteDepthButtonDecrease.onmousedown = suppressEvent;
-//	maxAbsoluteDepthButtonDecrease.onmouseup = suppressEvent;
 	maxAbsoluteDepthButtonIncrease.onmousedown = suppressEvent;
-//	maxAbsoluteDepthButtonIncrease.onmouseup = suppressEvent;
 	fontSizeText = document.getElementById('fontSize');
 	fontSizeButtonDecrease = document.getElementById('fontSizeDecrease');
 	fontSizeButtonIncrease = document.getElementById('fontSizeIncrease');
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
 	fontSizeButtonDecrease.onmousedown = suppressEvent;
-//	fontSizeButtonDecrease.onmouseup = suppressEvent;
 	fontSizeButtonIncrease.onmousedown = suppressEvent;
-//	fontSizeButtonIncrease.onmouseup = suppressEvent;
 	radiusButtonDecrease = document.getElementById('radiusDecrease');
 	radiusButtonIncrease = document.getElementById('radiusIncrease');
 	radiusButtonDecrease.onclick = radiusDecrease;
 	radiusButtonIncrease.onclick = radiusIncrease;
 	radiusButtonDecrease.onmousedown = suppressEvent;
-//	radiusButtonDecrease.onmouseup = suppressEvent;
 	radiusButtonIncrease.onmousedown = suppressEvent;
-//	radiusButtonIncrease.onmouseup = suppressEvent;
 	maxAbsoluteDepth = 0;
 	backButton = document.getElementById('back');
 	backButton.onclick = navigateBack;
 	backButton.onmousedown = suppressEvent;
-//	backButton.onmouseup = suppressEvent;
 	forwardButton = document.getElementById('forward');
 	forwardButton.onclick = navigateForward;
 	forwardButton.onmousedown = suppressEvent;
-//	forwardButton.onmouseup = suppressEvent;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
 	snapshotButton.onmousedown = suppressEvent;
-//	snapshotButton.onmouseup = suppressEvent;
-//	details = document.getElementById('details');
 	detailsName = document.getElementById('detailsName');
 	detailsExpand = document.getElementById('detailsExpand');
 	detailsInfo = document.getElementById('detailsInfo');
 	search = document.getElementById('search');
 	search.onkeyup = onSearchChange;
 	search.onmousedown = suppressEvent;
-//	search.onmouseup = suppressEvent;
 	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
 	linkButton = document.getElementById('linkButton');
 	linkButton.onclick = showLink;
 	linkButton.onmousedown = suppressEvent;
-//	linkButton.onmouseup = suppressEvent;
 	linkText = document.getElementById('linkText');
 	linkText.onblur = hideLink;
 	linkText.onmousedown = suppressEvent;
-//	linkText.onmouseup = suppressEvent;
 	hide(linkText);
 	var helpButton = document.getElementById('help');
 	helpButton.onmousedown = suppressEvent;
-//	helpButton.onmouseup = suppressEvent;
 	var searchClear = document.getElementById('searchClear');
 	searchClear.onmousedown = suppressEvent;
-//	searchClear.onmouseup = suppressEvent;
 	if ( datasets > 1 )
 	{
 		datasetDropDown.onmousedown = suppressEvent;
-//		datasetDropDown.onmouseup = suppressEvent;
 		var prevDatasetButton = document.getElementById('prevDataset');
 		prevDatasetButton.onmousedown = suppressEvent;
-//		prevDatasetButton.onmouseup = suppressEvent;
 		var nextDatasetButton = document.getElementById('nextDataset');
 		nextDatasetButton.onmousedown = suppressEvent;
-//		nextDatasetButton.onmouseup = suppressEvent;
 		var lastDatasetButton = document.getElementById('lastDataset');
 		lastDatasetButton.onmousedown = suppressEvent;
-//		lastDatasetButton.onmouseup = suppressEvent;
 	}
 	
 	image = document.getElementById('hiddenImage');
@@ -5763,7 +5755,7 @@ function setSelectedNode(newNode)
 	selectedNodeLast = selectedNode;
 	selectedNode = newNode;
 	
-	if ( focusNode != selectedNode )
+	//if ( focusNode != selectedNode )
 	{
 		setFocus(selectedNode);
 	}
