@@ -158,6 +158,8 @@ var quickLookHoldLength = 200;
 
 var imageWidth;
 var imageHeight;
+var chartWidth;
+var chartHeight;
 var updateViewNeeded = false;
 
 // Determines the angle that the pie chart starts at.  90 degrees makes the
@@ -675,9 +677,6 @@ function TreeView(dataset, treeView)
 	
 	this.draw = function()
 	{
-		var selectedNodeView = this.nodeViews[selectedNode.id];
-		var highlightedNodeView = this.nodeViews[highlightedNode.id];
-		
 		this.centerXCurrent = this.centerX.current();
 		this.centerYCurrent = this.centerY.current();
 		this.radiusCurrent = this.radius.current();
@@ -714,16 +713,43 @@ function TreeView(dataset, treeView)
 			context.stroke();
 		}
 		
+//		context.strokeRect(-chartWidth / 2, -chartHeight / 2, chartWidth, chartHeight);
 		this.nodeViews[head.id].draw(false, false); // draw pie slices
 		this.nodeViews[head.id].draw(true, false); // draw labels
 		
-		var pathRoot = selectedNode;
+		popTranslation();
+	}
+	
+	this.drawDatasetName = function()
+	{
+		var alpha = datasetAlpha.current();
+		
+		//if ( alpha > 0 )
+		{
+			var radius =  this.radiusCurrent * 1.12;
+			
+			context.globalAlpha = this.alpha.current();
+			
+			if ( ! this.background() )
+			{
+				drawBubble(0, -radius, datasetWidths[this.dataset], false, false, this.background());
+			}
+			
+			drawText(datasetNames[this.dataset], 0, radius, 0, 'center', true, this.background());
+		}
+	}
+	
+	this.drawHighlight = function()
+	{
+		var selectedNodeView = this.nodeViews[selectedNode.id];
+		var highlightedNodeView = this.nodeViews[highlightedNode.id];
+		
+		pushTranslation(this.centerXCurrent, this.centerYCurrent);
 		
 		if ( focusNode != 0 && focusNode != selectedNode )
 		{
 			context.globalAlpha = 1;
 			this.nodeViews[focusNode.id].drawHighlight(true);
-			pathRoot = focusNode;
 		}
 		
 		if
@@ -746,8 +772,6 @@ function TreeView(dataset, treeView)
 				context.globalAlpha = 1;
 				highlightedNodeView.drawHighlight(true);
 			}
-			
-			//pathRoot = highlightedNode;
 		}
 		else if
 		(
@@ -780,28 +804,7 @@ function TreeView(dataset, treeView)
 		
 		this.drawDatasetName();
 		
-		//drawHistory();
-		
 		popTranslation();
-	}
-	
-	this.drawDatasetName = function()
-	{
-		var alpha = datasetAlpha.current();
-		
-		//if ( alpha > 0 )
-		{
-			var radius =  this.radiusCurrent * 1.12;
-			
-			context.globalAlpha = this.alpha.current();
-			
-			if ( ! this.background() )
-			{
-				drawBubble(0, -radius, datasetWidths[this.dataset], false, false, this.background());
-			}
-			
-			drawText(datasetNames[this.dataset], 0, radius, 0, 'center', true, this.background());
-		}
 	}
 	
 	this.drawMap = function()
@@ -1073,35 +1076,31 @@ function NodeView(treeView, node)
 			return false;
 		}
 		
-		if ( this.radiusInner.end == 1 )
-		{
-			// compressed to the outside; don't check
-			
-			return false;
-		}
-		
-		for ( var i = 0; i < this.node.children.length; i++ )
-		{
-			if ( this.getChild(i).checkHighlight() )
-			{
-				return true;
-			}
-		}
-		
 		var highlighted = false;
+		var checkChildren;
 		
-		var angleStartCurrent = this.angleStart.current() + rotationOffset;
-		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
-		var radiusInner = this.radiusInner.current() * this.getTreeRadius();
-		
-		if ( this != selectedNode && ! this.node.getCollapse() )
+		if ( this == selectedNode || this.node.getCollapse() )
 		{
+			checkChildren = true;
+		}
+		else
+		{
+			var angleStartCurrent = this.angleStart.current() + rotationOffset;
+			var angleEndCurrent = this.angleEnd.current() + rotationOffset;
+			var radiusInner = this.radiusInner.current() * this.getTreeRadius();
+			
 			context.beginPath();
 			context.arc(0, 0, radiusInner, angleStartCurrent, angleEndCurrent, false);
 			context.arc(0, 0, this.getTreeRadius(), angleEndCurrent, angleStartCurrent, true);
 			context.closePath();
 			
-			if ( context.isPointInPath(mouseX - this.getTreeCenterX(), mouseY - this.getTreeCenterY()) )
+			checkChildren = context.isPointInPath
+			(
+				mouseX - this.getTreeCenterX(),
+				mouseY - this.getTreeCenterY()
+			);
+			
+			if ( checkChildren )
 			{
 				highlighted = true;
 			}
@@ -1118,6 +1117,17 @@ function NodeView(treeView, node)
 				if ( showKeys && this.checkHighlightKey() )
 				{
 					highlighted = true;
+				}
+			}
+		}
+		
+		if ( checkChildren )
+		{
+			for ( var i = 0; i < this.node.children.length; i++ )
+			{
+				if ( this.getChild(i).checkHighlight() )
+				{
+					return true;
 				}
 			}
 		}
@@ -1321,7 +1331,7 @@ function NodeView(treeView, node)
 						! showKeys &&
 						this.node.searchResults &&
 						! searchHighlighted &&
-						this != highlightedNode &&
+						this.node.id != highlightedNode.id &&
 						this != focusNode
 					)
 					{
@@ -1335,11 +1345,11 @@ function NodeView(treeView, node)
 				
 				if
 				(
-					this == selectedNode ||
+					this.node.id == selectedNode.id ||
 //					true
 					//(canDisplayLabelCurrent) &&
-					this != highlightedNode &&
-					this != focusNode
+					this.node.id != highlightedNode.id &&
+					this.node.id != focusNode.id
 				)
 				{
 					if ( this.radial != this.radialPrev && this.alphaLabel.end == 1 )
@@ -1356,7 +1366,7 @@ function NodeView(treeView, node)
 						(angleStartCurrent + angleEndCurrent) / 2,
 						this.hideAlone && this.node.searchResultChildren() ||
 						(this.node.isSearchResult || hiddenSearchResults) && selected,
-						this == selectedNode && ! this.radial,
+						this.id == selectedNode.id && ! this.radial,
 						selected,
 						this.radial,
 						this.treeView.background()
@@ -2181,7 +2191,7 @@ function NodeView(treeView, node)
 			radius = this.labelRadius.current() * this.getTreeRadius();
 		}
 		
-		if ( radial && (selected || bubble ) )
+		if ( radial && (selected || bubble ) && treeViewsActiveCount == 1 )
 		{
 			var percentage = this.getPercentage();
 			innerText = percentage + '%';
@@ -2189,8 +2199,8 @@ function NodeView(treeView, node)
 		
 		if
 		(
-			! radial &&
-			this.node != selectedNode &&
+			//! radial &&
+			//this.node != selectedNode &&
 			! bubble &&
 			( !zoomOut || this.node != selectedNodeLast)
 		)
@@ -2657,7 +2667,7 @@ function NodeView(treeView, node)
 	{
 		var nameWidthOld = this.nameWidth;
 		
-		if ( ! this.radial || this.keyed )//&& fontSize != fontSizeLast )
+		if ( true /*! this.radial*/ || this.keyed )//&& fontSize != fontSizeLast )
 		{
 			var dim = context.measureText(this.node.name);
 			this.nameWidth = dim.width;
@@ -2703,12 +2713,7 @@ function NodeView(treeView, node)
 	
 	this.setLabelWidth = function(node)
 	{
-		if ( ! shorten || this.radial )
-		{
-			return; // don't need to set width
-		}
-		
-		if ( node.hide )
+		if ( node.hide || this.radial )
 		{
 //			alert('wtf');
 			return;
@@ -2917,6 +2922,16 @@ function NodeView(treeView, node)
 				compressedRadii[index + 1];
 			
 			this.labelRadius.setTarget((compressedRadii[index] + max) / 2);
+			var angle = (this.angleStart.end + this.angleEnd.end) / 2 + rotationOffset;
+			
+			if ( Math.abs(Math.tan(angle)) > chartHeight / chartWidth )
+			{
+				this.restrictLabelWidth(chartHeight / (2 * Math.abs(Math.sin(angle))) - this.labelRadius.end * this.getTreeRadiusTarget());
+			}
+			else
+			{
+				this.restrictLabelWidth(chartWidth / (2 * Math.abs(Math.cos(angle))) - this.labelRadius.end * this.getTreeRadiusTarget());
+			}
 		}
 		else
 		{
@@ -3210,6 +3225,10 @@ function NodeView(treeView, node)
 			if ( alpha < 0 )
 			{
 				alpha = 0;
+			}
+			else
+			{
+				this.restrictLabelWidth(2 * this.getTreeRadiusTarget() * compressedRadii[0] * Math.sin(Math.acos(-this.labelRadius.end / (compressedRadii[0] - fontSize / 2 / this.getTreeRadiusTarget()))));
 			}
 			
 			this.alphaLabel.setTarget(alpha, false);
@@ -3536,7 +3555,7 @@ function NodeView(treeView, node)
 		if ( this.node == selectedNode )
 		{
 			this.resetLabelWidth();
-			this.labelWidth.setTarget(this.nameWidth * labelWidthFudge, init);
+			this.restrictLabelWidth(2 * this.getTreeRadiusTarget() * compressedRadii[0], init);
 			this.alphaWedge.setTarget(0, false);
 			this.alphaLabel.setTarget(1, false);
 			this.alphaOther.setTarget(1, false);
@@ -3580,7 +3599,7 @@ function NodeView(treeView, node)
 			{
 				if ( this.hideAlone )
 				{
-					this.radial = treeViewsActiveCount == 1;
+					this.radial = true;//treeViewsActiveCount == 1;
 				}
 				else if ( canDisplayChildLabels )
 				{
@@ -3588,7 +3607,7 @@ function NodeView(treeView, node)
 				}
 				else
 				{
-					this.radial = treeViewsActiveCount == 1;
+					this.radial = true;//treeViewsActiveCount == 1;
 					
 					if ( this.hasChildren() && depth < maxDisplayDepth )
 					{
@@ -4750,6 +4769,11 @@ function draw()
 		treeViews[i].draw();
 	}
 	
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		treeViews[i].drawHighlight();
+	}
+	
 	context.globalAlpha = 1;
 	
 	if ( hueDisplayName && useHue() )
@@ -5259,7 +5283,11 @@ function drawWedge
 		context.arc(0, 0, radiusInner, angleStart, angleEnd, false);
 		context.arc(0, 0, radiusOuter, angleEnd, angleStart, true);
 		context.closePath();
-		context.fill();
+		
+		if ( angleEnd - angleStart > .01 )
+		{
+			context.fill();
+		}
 		
 		if ( patternAlpha > 0 )
 		{
@@ -6294,6 +6322,8 @@ function resize()
 	//fontSize = bound(fontSize, (imageWidth + imageHeight) / 200, (imageWidth + imageHeight) / 200);
 	//fontSize = Math.floor(bound(fontSize, 6, 12));
 	
+	chartWidth = imageWidth / cols;
+	chartHeight = imageHeight / rows;
 	maxMapRadius = minDimension * .03;
 	buffer = minDimension * .1;
 	margin = minDimension * .015;
