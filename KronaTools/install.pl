@@ -39,7 +39,6 @@ foreach my $script qw
 	GetContigMagnitudes
 	GetLibPath
 	GetTaxIDFromGI
-	ImportAmphora
 	ImportBLAST
 	ImportDiskUsage
 	ImportEC
@@ -48,7 +47,6 @@ foreach my $script qw
 	ImportMETAREP-BLAST
 	ImportMETAREP-EC
 	ImportMGRAST
-	ImportPHMMER
 	ImportPhymmBL
 	ImportRDP
 	ImportRDPComparison
