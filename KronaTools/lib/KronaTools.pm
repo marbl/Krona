@@ -224,6 +224,7 @@ my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';
 my $favicon = 'img/favicon.ico';
 my $loadingImage = 'img/loading.gif';
+my $logo = 'img/logo.png';
 my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=info&id=';
 my $ecHrefBase = 'http://www.chem.qmul.ac.uk/iubmb/enzyme/EC';
 my $suppDirSuffix = '.files';
@@ -968,6 +969,7 @@ sub htmlHeader
 		indent(1) . "<body>\n" .
 			indent(2) . "<img id=\"hiddenImage\" src=\"$path$hiddenImage\" style=\"display:none\"/>\n" .
 			indent(2) . "<img id=\"loadingImage\" src=\"$path$loadingImage\" style=\"display:none\"/>\n" .
+			indent(2) . "<img id=\"logo\" src=\"$path$logo\" style=\"display:none\"/>\n" .
 			indent(2) . "<noscript>Javascript must be enabled to view this page.</noscript>\n" .
 			indent(2) . "<div style=\"display:none\">\n";
 }
