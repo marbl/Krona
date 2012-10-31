@@ -21,7 +21,7 @@ function clean
 {
 	aFile=$1
 	
-	if [ -e "$aFile" ]
+	if [ -e $aFile ]
 	then
 		rm $aFile
 	fi
@@ -123,7 +123,11 @@ fi
 echo
 echo ">>>>> Cleaning up..."
 
-clean taxonomy/*.dmp
+if [ -e taxonomy/names.dmp ]
+then
+	`rm taxonomy/*.dmp`
+fi
+
 clean taxonomy/gc.prt
 clean taxonomy/readme.txt
 
