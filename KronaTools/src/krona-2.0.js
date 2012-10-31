@@ -127,6 +127,7 @@ var focusNode = 0; // a node chosen for more info (single-click)
 var focusTreeView;
 var highlightedNode = 0; // mouse hover node
 var highlightedTreeView;
+var highlightedDataset;
 var highlightingHidden = false;
 var treeViews = new Array();
 var treeViewsActiveCount;
@@ -157,6 +158,8 @@ var quickLookHoldLength = 200;
 
 var imageWidth;
 var imageHeight;
+var chartWidth;
+var chartHeight;
 var updateViewNeeded = false;
 
 // Determines the angle that the pie chart starts at.  90 degrees makes the
@@ -271,6 +274,10 @@ var datasetAlpha = new Tween(0, 0);
 var datasetWidths = new Array();
 var datasetChanged;
 var datasetSelectWidth = 120;
+var datasetChartWidthFocus;
+var datasetChartWidthSelected;
+var uiDatasetChartHeaderFocus;
+var uiDatasetChartHeaderSelected;
 
 window.onload = load;
 
@@ -595,6 +602,7 @@ function TreeView(dataset, treeView)
 	this.centerX = new Tween(0, 0);
 	this.centerY = new Tween(0, 0);
 	this.radius = new Tween(0, 0);
+	this.alpha = new Tween(0, 0);
 	
 	this.mapAngleStart = new Tween(0, 0);
 	this.mapAngleEnd = new Tween(0, 0);
@@ -622,6 +630,34 @@ function TreeView(dataset, treeView)
 	
 	this.nodeViews = new Array();
 	
+	this.background = function()
+	{
+		return treeViews.length > 1 && this != focusTreeView;
+	}
+	
+	this.checkHighlight = function()
+	{
+		var radius = this.radius.end * 1.25;
+		
+		if
+		(
+			mouseX > this.centerX.end - radius &&
+			mouseX < this.centerX.end + radius &&
+			mouseY > this.centerY.end - radius &&
+			mouseY < this.centerY.end + radius
+		)
+		{
+			highlightedDataset = this.dataset;
+			
+			this.nodeViews[selectedNode.id].checkHighlight();
+			
+			if ( selectedNode.getParent() )
+			{
+				this.nodeViews[selectedNode.getParent().id].checkHighlightCenter();
+			}
+		}
+	}
+	
 	this.createNodeViews = function(node, treeView)
 	{
 		this.nodeViews[node.id] = new NodeView(this, node);
@@ -641,9 +677,6 @@ function TreeView(dataset, treeView)
 	
 	this.draw = function()
 	{
-		var selectedNodeView = this.nodeViews[selectedNode.id];
-		var highlightedNodeView = this.nodeViews[highlightedNode.id];
-		
 		this.centerXCurrent = this.centerX.current();
 		this.centerYCurrent = this.centerY.current();
 		this.radiusCurrent = this.radius.current();
@@ -652,16 +685,71 @@ function TreeView(dataset, treeView)
 		
 		resetKeyOffset();
 		
+		if ( this == focusTreeView )
+		{
+			context.fillStyle = '#AAAAAA';
+			context.strokeStyle = '#000000';
+			context.lineWidth = highlightLineWidth * 2;
+//			context.fill();
+//			context.stroke();
+			context.beginPath();
+		//	context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+			context.fill();
+			context.stroke();
+			context.beginPath();
+	//		context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+	//		context.arc(0, 0, this.radiusCurrent * compressedRadii[0], Math.PI * 2, 0, true);
+			context.stroke();
+		}
+		else if ( this.dataset == highlightedDataset )
+		{
+			context.beginPath();
+		//	context.arc(0, 0, this.radiusCurrent, 0, Math.PI * 2, false);
+//			context.arc(0, 0, this.radiusCurrent * 1.25, Math.PI * 2, 0, true);
+			context.fillStyle = '#CCCCCC';
+//			context.fill();
+			context.strokeStyle = '#000000';
+			context.lineWidth = highlightLineWidth * 2;
+			context.stroke();
+		}
+		
+//		context.strokeRect(-chartWidth / 2, -chartHeight / 2, chartWidth, chartHeight);
 		this.nodeViews[head.id].draw(false, false); // draw pie slices
 		this.nodeViews[head.id].draw(true, false); // draw labels
 		
-		var pathRoot = selectedNode;
+		popTranslation();
+	}
+	
+	this.drawDatasetName = function()
+	{
+		var alpha = datasetAlpha.current();
+		
+		//if ( alpha > 0 )
+		{
+			var radius =  this.radiusCurrent * 1.12;
+			
+			context.globalAlpha = this.alpha.current();
+			
+			if ( ! this.background() )
+			{
+				drawBubble(0, -radius, datasetWidths[this.dataset], false, false, this.background());
+			}
+			
+			drawText(datasetNames[this.dataset], 0, radius, 0, 'center', true, this.background());
+		}
+	}
+	
+	this.drawHighlight = function()
+	{
+		var selectedNodeView = this.nodeViews[selectedNode.id];
+		var highlightedNodeView = this.nodeViews[highlightedNode.id];
+		
+		pushTranslation(this.centerXCurrent, this.centerYCurrent);
 		
 		if ( focusNode != 0 && focusNode != selectedNode )
 		{
 			context.globalAlpha = 1;
 			this.nodeViews[focusNode.id].drawHighlight(true);
-			pathRoot = focusNode;
 		}
 		
 		if
@@ -684,8 +772,6 @@ function TreeView(dataset, treeView)
 				context.globalAlpha = 1;
 				highlightedNodeView.drawHighlight(true);
 			}
-			
-			//pathRoot = highlightedNode;
 		}
 		else if
 		(
@@ -706,7 +792,7 @@ function TreeView(dataset, treeView)
 		{
 			if ( !zoomOut)//() )
 			{
-				context.globalAlpha = selectedNodeView.alphaLine.current();
+				context.globalAlpha = this.nodeViews[selectedNode.id].alphaLine.current();
 				selectedNodeView.drawHighlight(true);
 			}
 			else if ( selectedNodeLast && selectedNodeLast != focusNode )
@@ -716,9 +802,7 @@ function TreeView(dataset, treeView)
 			}
 		}
 		
-		drawDatasetName();
-		
-		//drawHistory();
+		this.drawDatasetName();
 		
 		popTranslation();
 	}
@@ -831,11 +915,11 @@ function TreeView(dataset, treeView)
 	
 	this.resetLabelArrays = function()
 	{
-		this.labelOffsets = new Array(maxDisplayDepth - 1);
-		this.labelLastNodes = new Array(maxDisplayDepth - 1);
-		this.labelFirstNodes = new Array(maxDisplayDepth - 1);
+		this.labelOffsets = new Array(maxDisplayDepth);
+		this.labelLastNodes = new Array(maxDisplayDepth);
+		this.labelFirstNodes = new Array(maxDisplayDepth);
 		
-		for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+		for ( var i = 0; i < maxDisplayDepth; i++ )
 		{
 			this.labelOffsets[i] = Math.floor((nLabelOffsets[i] - 1) / 2);
 			this.labelLastNodes[i] = new Array(nLabelOffsets[i] + 1);
@@ -856,6 +940,11 @@ function TreeView(dataset, treeView)
 	{
 		this.centerX.setTarget(this.centerXTarget, ! this.initialized);
 		this.centerY.setTarget(this.centerYTarget, ! this.initialized);
+		
+		if ( ! this.initialized )
+		{
+		}
+		
 		this.radius.setTarget(this.radiusTarget, false);
 		
 		var mapArc = this.getMapArc(this.nodeViews[selectedNode.id]);
@@ -868,9 +957,11 @@ function TreeView(dataset, treeView)
 		{
 		//	this.radius.setTarget(0, false);
 			this.nodeViews[selectedNode.id].setTargetsFinish();
+			this.alpha.setTarget(0);
 		}
 		else
 		{
+			this.alpha.setTarget(1);
 			this.resetLabelArrays();
 			this.nodeViews[head.id].setTargets(! this.initialized);
 			this.initialized = true;
@@ -907,7 +998,7 @@ function NodeView(treeView, node)
 	this.b = new Tween(255, 255);
 	
 	this.alphaLabel = new Tween(0, 0);
-	this.alphaLine = new Tween(0, 1);
+	this.alphaLine = new Tween(0, 0);
 	this.alphaArc = new Tween(0, 0);
 	this.alphaWedge = new Tween(0, 1);
 	this.alphaOther = new Tween(0, 0);
@@ -985,35 +1076,31 @@ function NodeView(treeView, node)
 			return false;
 		}
 		
-		if ( this.radiusInner.end == 1 )
-		{
-			// compressed to the outside; don't check
-			
-			return false;
-		}
-		
-		for ( var i = 0; i < this.node.children.length; i++ )
-		{
-			if ( this.getChild(i).checkHighlight() )
-			{
-				return true;
-			}
-		}
-		
 		var highlighted = false;
+		var checkChildren;
 		
-		var angleStartCurrent = this.angleStart.current() + rotationOffset;
-		var angleEndCurrent = this.angleEnd.current() + rotationOffset;
-		var radiusInner = this.radiusInner.current() * this.getTreeRadius();
-		
-		if ( this != selectedNode && ! this.node.getCollapse() )
+		if ( this == selectedNode || this.node.getCollapse() )
 		{
+			checkChildren = true;
+		}
+		else
+		{
+			var angleStartCurrent = this.angleStart.current() + rotationOffset;
+			var angleEndCurrent = this.angleEnd.current() + rotationOffset;
+			var radiusInner = this.radiusInner.current() * this.getTreeRadius();
+			
 			context.beginPath();
 			context.arc(0, 0, radiusInner, angleStartCurrent, angleEndCurrent, false);
 			context.arc(0, 0, this.getTreeRadius(), angleEndCurrent, angleStartCurrent, true);
 			context.closePath();
 			
-			if ( context.isPointInPath(mouseX - this.getTreeCenterX(), mouseY - this.getTreeCenterY()) )
+			checkChildren = context.isPointInPath
+			(
+				mouseX - this.getTreeCenterX(),
+				mouseY - this.getTreeCenterY()
+			);
+			
+			if ( checkChildren )
 			{
 				highlighted = true;
 			}
@@ -1030,6 +1117,17 @@ function NodeView(treeView, node)
 				if ( showKeys && this.checkHighlightKey() )
 				{
 					highlighted = true;
+				}
+			}
+		}
+		
+		if ( checkChildren )
+		{
+			for ( var i = 0; i < this.node.children.length; i++ )
+			{
+				if ( this.getChild(i).checkHighlight() )
+				{
+					return true;
 				}
 			}
 		}
@@ -1233,12 +1331,12 @@ function NodeView(treeView, node)
 						! showKeys &&
 						this.node.searchResults &&
 						! searchHighlighted &&
-						this != highlightedNode &&
+						this.node.id != highlightedNode.id &&
 						this != focusNode
 					)
 					{
 						var angle = (angleEndCurrent + angleStartCurrent) / 2;
-						this.drawLabel(angle, true, false, true, true);
+						this.drawLabel(angle, true, false, true, true, this.treeView.background());
 					}
 					
 					//this.drawHighlight(false);
@@ -1247,11 +1345,11 @@ function NodeView(treeView, node)
 				
 				if
 				(
-					this == selectedNode ||
+					this.node.id == selectedNode.id ||
 //					true
 					//(canDisplayLabelCurrent) &&
-					this != highlightedNode &&
-					this != focusNode
+					this.node.id != highlightedNode.id &&
+					this.node.id != focusNode.id
 				)
 				{
 					if ( this.radial != this.radialPrev && this.alphaLabel.end == 1 )
@@ -1268,9 +1366,10 @@ function NodeView(treeView, node)
 						(angleStartCurrent + angleEndCurrent) / 2,
 						this.hideAlone && this.node.searchResultChildren() ||
 						(this.node.isSearchResult || hiddenSearchResults) && selected,
-						this == selectedNode && ! this.radial,
+						this.id == selectedNode.id && ! this.radial,
 						selected,
-						this.radial
+						this.radial,
+						this.treeView.background()
 					);
 					
 					if ( this.radial != this.radialPrev && this.alphaLabel.start == 1 && progress < 1 )
@@ -1520,6 +1619,7 @@ function NodeView(treeView, node)
 			if
 			(
 				selected &&
+				treeViewsActiveCount == 1 &&
 				(angleEnd - angleStart) * 
 				(this.getTreeRadius() * 2) >=
 				minWidth() ||
@@ -1615,7 +1715,8 @@ function NodeView(treeView, node)
 			hiddenSearchResults, // bubble
 			this.node == highlightedNode || this.node == focusNode, // bold
 			false,
-			hiddenSearchResults
+			hiddenSearchResults,
+			this.treeView.background()
 		);
 	}
 	
@@ -1635,7 +1736,8 @@ function NodeView(treeView, node)
 				angleStartCurrent,
 				angleEndCurrent,
 				radiusInner,
-				this.getTreeRadius()
+				this.getTreeRadius(),
+				false//this.treeView.background()
 			);
 		}
 		else
@@ -1648,7 +1750,8 @@ function NodeView(treeView, node)
 				this.getTreeRadius(),
 				highlightFill,
 				0,
-				true
+				true,
+				false//this.treeView.background()
 			);
 		}
 		
@@ -1658,7 +1761,7 @@ function NodeView(treeView, node)
 		{
 			if
 			(
-				this.node.children[i].getDepth() - selectedNode.getDepth() + 1 <=
+				this.node.children[i].getDepth() - selectedNode.getDepth() + 1 <
 				maxDisplayDepth &&
 				this.getChild(i).hiddenEnd != null
 			)
@@ -1677,7 +1780,8 @@ function NodeView(treeView, node)
 					this.getTreeRadius(),
 					'rgba(255, 255, 255, .3)',
 					0,
-					true
+					true,
+					false//this.treeView.background()
 				);
 				
 				if ( ! this.node.searchResults )
@@ -1703,7 +1807,7 @@ function NodeView(treeView, node)
 		
 		if ( ! (this.keyed && showKeys) )
 		{
-			this.drawLabel(angle, true, bold, true, this.radial);
+			this.drawLabel(angle, true, bold, true, this.radial, false);//this.treeView.background());
 		}
 	}
 	
@@ -2067,7 +2171,7 @@ function NodeView(treeView, node)
 		currentKey++;
 	}
 	
-	this.drawLabel = function(angle, bubble, bold, selected, radial)
+	this.drawLabel = function(angle, bubble, bold, selected, radial, light)
 	{
 		if ( context.globalAlpha == 0 )
 		{
@@ -2087,7 +2191,7 @@ function NodeView(treeView, node)
 			radius = this.labelRadius.current() * this.getTreeRadius();
 		}
 		
-		if ( radial && (selected || bubble ) )
+		if ( radial && (selected || bubble ) && treeViewsActiveCount == 1 )
 		{
 			var percentage = this.getPercentage();
 			innerText = percentage + '%';
@@ -2095,8 +2199,8 @@ function NodeView(treeView, node)
 		
 		if
 		(
-			! radial &&
-			this.node != selectedNode &&
+			//! radial &&
+			//this.node != selectedNode &&
 			! bubble &&
 			( !zoomOut || this.node != selectedNodeLast)
 		)
@@ -2119,7 +2223,8 @@ function NodeView(treeView, node)
 			bold,
 //			this.isSearchResult && this.shouldAddSearchResultsString() && (!selected || this == selectedNode || highlight),
 			this.node.isSearchResult && (!selected || this.node == selectedNode || bubble),
-			(this.hideAlone || !selected || this.node == selectedNode ) ? this.node.searchResultChildren() : 0
+			(this.hideAlone || !selected || this.node == selectedNode ) ? this.node.searchResultChildren() : 0,
+			light
 		);
 		
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
@@ -2130,7 +2235,7 @@ function NodeView(treeView, node)
 			! bubble &&
 			this != selectedNode &&
 			this.angleEnd.end != this.angleStart.end &&
-			nLabelOffsets[depth - 2] > 2 &&
+			nLabelOffsets[this.labelOffsetIndex()] > 1 &&
 			this.labelWidth.current() > (this.angleEnd.end - this.angleStart.end) * Math.abs(radius) &&
 			! ( zoomOut && this.node == selectedNodeLast ) &&
 			this.labelRadius.end > 0
@@ -2501,6 +2606,18 @@ function NodeView(treeView, node)
 		return this.node.children.length && this.node.depth < maxAbsoluteDepth;// && this.magnitude;
 	}
 	
+	this.labelOffsetIndex = function()
+	{
+		if ( this.hasChildren() && ! this.hideAlone )
+		{
+			return this.node.getDepth() - selectedNode.getDepth() - 1;
+		}
+		else
+		{
+			return maxDisplayDepth - 2;
+		}
+	}
+	
 	this.maxVisibleDepth = function(maxDepth, node, radii)
 	{
 		var childInnerRadius;
@@ -2550,7 +2667,7 @@ function NodeView(treeView, node)
 	{
 		var nameWidthOld = this.nameWidth;
 		
-		if ( ! this.radial || this.keyed )//&& fontSize != fontSizeLast )
+		if ( true /*! this.radial*/ || this.keyed )//&& fontSize != fontSizeLast )
 		{
 			var dim = context.measureText(this.node.name);
 			this.nameWidth = dim.width;
@@ -2596,12 +2713,7 @@ function NodeView(treeView, node)
 	
 	this.setLabelWidth = function(node)
 	{
-		if ( ! shorten || this.radial )
-		{
-			return; // don't need to set width
-		}
-		
-		if ( node.hide )
+		if ( node.hide || this.radial )
 		{
 //			alert('wtf');
 			return;
@@ -2664,7 +2776,7 @@ function NodeView(treeView, node)
 		}
 		else if
 		(
-			this.labelRadius.end == node.labelRadius.end &&
+			Math.abs(this.labelRadius.end - node.labelRadius.end) < .05 &&
 			a < Math.PI / 4
 		)
 		{
@@ -2798,7 +2910,7 @@ function NodeView(treeView, node)
 	this.setTargetLabelRadius = function(init)
 	{
 		var depth = this.node.getDepth() - selectedNode.getDepth() + 1;
-		var index = depth - 2;
+		var index = this.labelOffsetIndex();
 		var labelOffset = this.treeView.labelOffsets[index];
 		
 		if ( this.radial )
@@ -2810,26 +2922,60 @@ function NodeView(treeView, node)
 				compressedRadii[index + 1];
 			
 			this.labelRadius.setTarget((compressedRadii[index] + max) / 2);
+			var angle = (this.angleStart.end + this.angleEnd.end) / 2 + rotationOffset;
+			
+			if ( Math.abs(Math.tan(angle)) > chartHeight / chartWidth )
+			{
+				this.restrictLabelWidth(chartHeight / (2 * Math.abs(Math.sin(angle))) - this.labelRadius.end * this.getTreeRadiusTarget());
+			}
+			else
+			{
+				this.restrictLabelWidth(chartWidth / (2 * Math.abs(Math.cos(angle))) - this.labelRadius.end * this.getTreeRadiusTarget());
+			}
 		}
 		else
 		{
 			var radiusCenter;
 			var width;
 			
-			if ( nLabelOffsets[index] > 1 )
+			if ( nLabelOffsets[index] > 1 && ! this.hide && ! this.keyed )
 			{
-				this.labelRadius.setTarget
-				(
-					lerp
+				var offset;
+				
+				if ( index == maxDisplayDepth - 2 )
+				{
+					do
+					{
+						offset = lerp
+						(
+							labelOffset + .75,
+							0,
+							nLabelOffsets[index] + .5,
+							compressedRadii[0],
+							compressedRadii[index + 1]
+						);
+						
+						labelOffset++;
+					}
+					while ( offset < compressedRadii[depth - 2] );
+					
+					labelOffset--;
+				}
+				else
+				{
+					offset = lerp
 					(
 						labelOffset + .75,
 						0,
 						nLabelOffsets[index] + .5,
 						compressedRadii[index],
 						compressedRadii[index + 1]
-					),
-					init
-				);
+					);
+					
+//					labelOffset++;
+				}
+				
+				this.labelRadius.setTarget(offset, init);
 			}
 			else
 			{
@@ -2845,7 +2991,7 @@ function NodeView(treeView, node)
 		{
 			// check last and first labels in each track for overlap
 			
-			for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+			for ( var i = 0; i < maxDisplayDepth; i++ )
 			{
 				for ( var j = 0; j <= nLabelOffsets[i]; j++ )
 				{
@@ -2901,7 +3047,9 @@ function NodeView(treeView, node)
 				
 				// update offset
 				
-				this.treeView.labelOffsets[index] += 1;
+//				this.treeView.labelOffsets[index] += 1;
+				labelOffset++;
+				this.treeView.labelOffsets[index] = labelOffset;
 				
 				if ( this.treeView.labelOffsets[index] > nLabelOffsets[index] )
 				{
@@ -3077,6 +3225,10 @@ function NodeView(treeView, node)
 			if ( alpha < 0 )
 			{
 				alpha = 0;
+			}
+			else
+			{
+				this.restrictLabelWidth(2 * this.getTreeRadiusTarget() * compressedRadii[0] * Math.sin(Math.acos(-this.labelRadius.end / (compressedRadii[0] - fontSize / 2 / this.getTreeRadiusTarget()))));
 			}
 			
 			this.alphaLabel.setTarget(alpha, false);
@@ -3403,7 +3555,7 @@ function NodeView(treeView, node)
 		if ( this.node == selectedNode )
 		{
 			this.resetLabelWidth();
-			this.labelWidth.setTarget(this.nameWidth * labelWidthFudge, init);
+			this.restrictLabelWidth(2 * this.getTreeRadiusTarget() * compressedRadii[0], init);
 			this.alphaWedge.setTarget(0, false);
 			this.alphaLabel.setTarget(1, false);
 			this.alphaOther.setTarget(1, false);
@@ -3447,15 +3599,15 @@ function NodeView(treeView, node)
 			{
 				if ( this.hideAlone )
 				{
-					this.radial = true;
+					this.radial = true;//treeViewsActiveCount == 1;
 				}
-				else if ( false && canDisplayChildLabels )
+				else if ( canDisplayChildLabels )
 				{
 					this.radial = false;
 				}
 				else
 				{
-					this.radial = true;
+					this.radial = true;//treeViewsActiveCount == 1;
 					
 					if ( this.hasChildren() && depth < maxDisplayDepth )
 					{
@@ -3495,7 +3647,7 @@ function NodeView(treeView, node)
 			{
 				if
 				(
-					(this.radial || nLabelOffsets[depth - 2])
+					(this.radial || nLabelOffsets[this.labelOffsetIndex()])
 				)
 				{
 					this.alphaLabel.setTarget(1, false);
@@ -3702,8 +3854,11 @@ var uiDetailsSelectedRows = new Array();
 var uiDetailsFocus;
 var uiDetailsFocusName;
 var uiDetailsFocusRows = new Array();
+var uiMapDiv;
 var uiMapCanvas;
 var uiMapContext;
+var uiuiDivLineageFocus;
+var uiuiDivLineageSelected;
 var uiLineageFocus;
 var uiLineageFocusRow;
 var uiLineageFocusName;
@@ -3730,37 +3885,85 @@ function addOptionElements(hueName, hueDefault)
 	document.body.insertBefore(panel, canvas);
 //		<div id="details" style="position:absolute;top:1%;right:2%;text-align:right;">
 	
-	position = addOptionElement
-	(
-'&nbsp;<input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
-<input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
-&nbsp;<input style="width:auto;" type="text" id="search"/>\
-<input  type="button" value="x" onclick="searchClear()"/> \
-<span id="searchResults"></span>'
-	);
-	
 	var border = '2px solid #CCCCCC';
 	var shadeDark = '#EEEEEE';
 	var shadeLight = '#F5F5F5';
-	var divMap = document.createElement('div');
-	panel.appendChild(divMap);
-	divMap.style.width = '40%';
-//	divMap.style.float = 'left';
+	uiMapDiv = document.createElement('div');
+	panel.appendChild(uiMapDiv);
+	uiMapDiv.style.width = '40%';
+	uiMapDiv.style.float = 'left';
 	uiMapCanvas = document.createElement('canvas');
-	divMap.appendChild(uiMapCanvas);
+	uiMapDiv.appendChild(uiMapCanvas);
 	uiMap = uiMapCanvas.getContext('2d');
-	uiMapCanvas.width = divMap.clientWidth;
+	uiMapCanvas.width = uiMapDiv.clientWidth;
 	uiMapCanvas.height = uiMapCanvas.width;
 	
-	var divLineageFocus = document.createElement('div');
-	var divLineageSelected = document.createElement('div');
+	divNav = document.createElement('div');
+	divNav.style.width = '60%';
+//	divNav.style.height = uiMapCanvas.height + 'px';
+	divNav.style.float = 'right';
+	var rowNavButtons = document.createElement('tr');
+	var divNavButtons = document.createElement('td');
+	backButton = document.createElement('input');
+	backButton.type = 'button';
+	backButton.value = "←";
+	backButton.style.marginRight = '4px';
+	forwardButton = document.createElement('input');
+	forwardButton.type = 'button';
+	forwardButton.value = "→";
+	rowNavButtons.appendChild(divNavButtons);
+	divNavButtons.colSpan = 2;
+	divNavButtons.appendChild(backButton);
+	divNavButtons.appendChild(forwardButton);
+	//divNav.appendChild(divNavButtons);
+	
+	search = document.createElement('input');
+	search.type = 'text';
+	searchResults = document.createElement('td');
+//	divSearchResults.style.width = '100%';
+	var tableSearch = document.createElement('table');
+	var rowSearch = document.createElement('row');
+	var tdSearch = document.createElement('td');
+	var tdSearchClear = document.createElement('td');
+	var buttonSearchClear = document.createElement('input');
+	var rowSearchResults = document.createElement('row');
+	buttonSearchClear.type = 'button';
+	buttonSearchClear.value = '×';
+	buttonSearchClear.onclick = searchClear;
+//	buttonSearchClear.width = '100%';
+	tableSearch.width = '100%';
+	tdSearch.style.width = '100%';
+	search.style.width = '100%';
+	
+	tableSearch.appendChild(rowNavButtons);
+	tableSearch.appendChild(rowSearch);
+	tableSearch.appendChild(rowSearchResults);
+	rowSearch.appendChild(tdSearch);
+	rowSearch.appendChild(tdSearchClear);
+	rowSearchResults.appendChild(searchResults);
+	tdSearch.appendChild(search);
+	tdSearchClear.appendChild(buttonSearchClear);
+//	divSearchResults.appendChild(search); 
+//	divSearchResults.appendChild(buttonSearchClear);
+//	search.style.width = (divSearchResults.clientWidth - buttonSearchClear.clientWidth) + 'px';
+	divNav.appendChild(tableSearch);
+//	divNav.appendChild(searchResults);
+	panel.appendChild(divNav);
+	
+	uiDatasetName = document.createElement('div');
+	uiDatasetName.style.width = '100%';
+	uiDatasetName.style.float = 'left';
+	panel.appendChild(uiDatasetName);
+	
+	uiDivLineageFocus = document.createElement('div');
+	uiDivLineageSelected = document.createElement('div');
 //	divLineage.style.height = uiMapCanvas.height + 'px';
-	divLineageFocus.style.width = '100%';
-	divLineageSelected.style.width = '100%';
-	divLineageFocus.style.overflowY = 'scroll';
-	divLineageSelected.style.overflowY = 'scroll';
-//	divLineageFocus.style.maxHeight = '40px';
-//	divLineageSelected.style.maxHeight = '40px';
+	uiDivLineageFocus.style.width = '100%';
+	uiDivLineageSelected.style.width = '100%';
+	uiDivLineageFocus.style.overflowY = 'scroll';
+	uiDivLineageSelected.style.overflowY = 'scroll';
+//	uiDivLineageFocus.style.maxHeight = '40px';
+//	uiDivLineageSelected.style.maxHeight = '40px';
 //	divLineage.style.float = 'left';
 //	divLineage.style.position = 'relative';
 	uiLineageFocus = document.createElement('table');
@@ -3816,13 +4019,14 @@ function addOptionElements(hueName, hueDefault)
 	divLineageContainer.style.position = 'relative';
 	divLineageContainer.style.height = '110px';
 	divLineageContainer.style.width = '100%';
+	divLineageContainer.style.float = 'left';
 	divLineage.style.position = 'absolute';
 	divLineage.style.bottom = '0px';
 	divLineage.style.width = '100%';
 	divLineage.appendChild(divFocus);
-	divLineage.appendChild(divLineageFocus);
+	divLineage.appendChild(uiDivLineageFocus);
 	divLineage.appendChild(divSelected);
-	divLineage.appendChild(divLineageSelected);
+	divLineage.appendChild(uiDivLineageSelected);
 	divLineageContainer.appendChild(divLineage);
 	panel.appendChild(divLineageContainer);
 	
@@ -3832,8 +4036,8 @@ function addOptionElements(hueName, hueDefault)
 	div.appendChild(uiDetailsTable);
 	panel.appendChild(div);
 	div.style.overflowY = 'scroll';
-	divLineageFocus.appendChild(uiLineageFocus);
-	divLineageSelected.appendChild(uiLineageSelected);
+	uiDivLineageFocus.appendChild(uiLineageFocus);
+	uiDivLineageSelected.appendChild(uiLineageSelected);
 	
 //	uiDetailsSelected = createDetailsTable(uiDetailsSelectedRows);
 //	uiDetailsFocus = createDetailsTable(uiDetailsFocusRows);
@@ -3873,35 +4077,58 @@ function addOptionElements(hueName, hueDefault)
 		
 		var row = document.createElement('tr');
 		var tdName = document.createElement('td');
-		var tdCheckbox = document.createElement('td');
+		var divName = document.createElement('div');
 		var tdChartFocus = document.createElement('td');
 		var tdChartSelected = document.createElement('td');
-		tdCheckbox.style.borderRight = border;
-		tdChartFocus.width = '25px';
+		divName.style.float = 'left';
+		tdName.style.borderRight = border;
+		tdName.style.position = 'relative';
+		tdChartFocus.width = '25%';
 		tdChartFocus.style.borderRight = border;
-		tdChartSelected.width = '25px';
+		tdChartSelected.width = '25%';
 		tdChartSelected.style.borderRight = border;
 		uiDatasetCheckboxAll = document.createElement('input');
+		uiDatasetCheckboxAll.style.position = 'absolute';
+		uiDatasetCheckboxAll.style.right = '0px';
+		
+		uiDatasetChartHeaderFocus = tdChartFocus;
+		uiDatasetChartHeaderSelected = tdChartSelected;
 		
 		table.appendChild(row);
 		
 		row.appendChild(tdName);
-		row.appendChild(tdCheckbox);
+		tdName.appendChild(divName);
+		tdName.appendChild(uiDatasetCheckboxAll);
 		row.appendChild(tdChartFocus);
 		row.appendChild(tdChartSelected);
-		
-		tdCheckbox.appendChild(uiDatasetCheckboxAll);
 		
 		uiDatasetCheckboxAll.type = 'checkbox';
 		uiDatasetCheckboxAll.onclick = selectDatasetsAll;
 		
-		tdCheckbox.style.padding = '0px';
+		tdName.style.padding = '0px';
+		
+		datasetButtonLast = document.createElement('input');
+		datasetButtonPrev = document.createElement('input');
+		datasetButtonNext = document.createElement('input');
+		datasetButtonPrev.type = 'button';
+		datasetButtonNext.type = 'button';
+		datasetButtonLast.type = 'button';
+		datasetButtonPrev.value = '↑';
+		datasetButtonNext.value = '↓';
+		datasetButtonLast.value = '↕';
+		datasetButtonPrev.onclick = datasetPrev;
+		datasetButtonNext.onclick = datasetNext;
+		datasetButtonLast.onclick = selectLastDataset;
+		tdName.appendChild(datasetButtonPrev);
+		tdName.appendChild(datasetButtonNext);
+		//tdName.appendChild(datasetButtonLast);
 		
 		for ( var i = 0; i < datasetNames.length; i++ )
 		{
 			var row = document.createElement('tr');
 			var tdName = document.createElement('td');
-			var tdCheckbox = document.createElement('td');
+			var divName = document.createElement('div');
+//			var tdCheckbox = document.createElement('td');
 			var tdChartFocus = document.createElement('td');
 			var tdChartSelected = document.createElement('td');
 			var checkbox = document.createElement('input');
@@ -3913,27 +4140,36 @@ function addOptionElements(hueName, hueDefault)
 			checkbox.type = 'checkbox';
 			table.appendChild(row);
 			row.appendChild(tdName);
-			row.appendChild(tdCheckbox);
+//			row.appendChild(tdCheckbox);
 			row.appendChild(tdChartSelected);
 			row.appendChild(tdChartFocus);
-			tdCheckbox.appendChild(checkbox);
-			tdName.kronaDataset = i;
+//			tdCheckbox.appendChild(checkbox);
+			divName.kronaDataset = i;
+			tdName.style.width = '50%';
 			spacer.style.height = '1px';
 			tdChartFocus.appendChild(chartFocusSelected);
 			//tdChartFocus.appendChild(spacer);
 			tdChartFocus.appendChild(chartFocusRoot);
 			tdChartSelected.appendChild(chartSelectedRoot);
+			tdName.appendChild(divName);
+			tdName.appendChild(checkbox);
+			tdName.style.position = 'relative';
+			divName.style.width = '100%';
+//			divName.style.height = '100%';
 			checkbox.kronaDataset = i;
+			checkbox.style.position = 'absolute';
+			checkbox.style.right = '0px';
+			divName.style.float = 'left';
 	//		row.onclick = mouseClick;
-			tdName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
-			uiDatasetRowsById[i] = tdName;
+			divName.onmouseover = function(){setHighlightedDataset(this.kronaDataset)};
+			uiDatasetRowsById[i] = divName;
 			uiDatasetCheckboxes[i] = checkbox;
 			uiDatasetChartsFocusSelected[i] = chartFocusSelected;
 			uiDatasetChartsFocusRoot[i] = chartFocusRoot;
 			uiDatasetChartsSelectedRoot[i] = chartSelectedRoot;
-			tdName.onclick = function(){selectDataset(this.kronaDataset)};
+			divName.onclick = function(){selectDataset(this.kronaDataset)};
 			checkbox.onclick = function(){toggleDataset(this.kronaDataset)};
-			tdName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
+			divName.innerHTML = datasetNames[i];//treeViews[0].nodeViews[keys[i].id].shortenLabel(uiKeys.clientWidth - 22);
 //			row.kronaShortened = divName.innerHTML != keys[i].name;
 			tdName.style.overflowX = 'hidden';
 			tdName.style.maxWidth = (uiDatasets.clientWidth - 20) + 'px';
@@ -3941,8 +4177,8 @@ function addOptionElements(hueName, hueDefault)
 			chartFocusRoot.style.height = "8px";
 			chartSelectedRoot.style.height = "16px";
 			row.style.padding = '0px';
-			tdCheckbox.style.borderRight = border;
-			tdCheckbox.style.padding = '0px';
+			tdName.style.borderRight = border;
+			tdName.style.padding = '0px';
 			tdName.style.padding = '0px';
 			tdName.style.overflowX = 'hidden';
 			tdName.style.maxWidth = uiDetailsNameFirst.clientWidth + 'px';
@@ -3952,10 +4188,6 @@ function addOptionElements(hueName, hueDefault)
 			tdChartSelected.style.width = uiDetailsValueSelectedFirst.clientWidth + 'px';
 			//td2.style.backgroundImage = 'url("' + image.src + '")';
 		}
-		
-		datasetButtonLast = document.getElementById('lastDataset');
-		datasetButtonPrev = document.getElementById('prevDataset');
-		datasetButtonNext = document.getElementById('nextDataset');
 	}
 	
 	position = addOptionElement
@@ -4047,7 +4279,7 @@ onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20c
 	uiKeys.appendChild(uiKeyTable);
 }
 
-function arrow(angleStart, angleEnd, radiusInner, radiusOuter)
+function arrow(angleStart, angleEnd, radiusInner, radiusOuter, light)
 {
 	if ( context.globalAlpha == 0 )
 	{
@@ -4060,6 +4292,7 @@ function arrow(angleStart, angleEnd, radiusInner, radiusOuter)
 	var radiusArrowCenter = (radiusArrowInner + radiusArrowOuter) / 2;
 	var pointLength = (radiusArrowOuter - radiusArrowInner) / 5;
 	
+	context.strokeStyle = light ? 'gray' : 'black';
 	context.fillStyle = highlightFill;
 	context.lineWidth = highlightLineWidth;
 	
@@ -4186,14 +4419,7 @@ function checkHighlight()
 	{
 		for ( var i = 0; i < treeViews.length; i++ )
 		{
-			treeViews[i].nodeViews[selectedNode.id].checkHighlight();
-			
-			if ( selectedNode.getParent() )
-			{
-				treeViews[i].nodeViews[selectedNode.getParent().id].checkHighlightCenter();
-			}
-			
-			//treeViews[i].nodeViews[focusNode.id].checkHighlightMap();
+			treeViews[i].checkHighlight();
 		}
 	}
 	
@@ -4323,7 +4549,7 @@ function computeRadii(node)
 	{
 		maxDepth = newMaxDepth;
 		
-		radii = new Array(maxDepth);
+		radii = new Array(maxDepth - 1);
 		
 		radii[0] = minRadiusInner;
 		
@@ -4347,7 +4573,7 @@ function computeRadii(node)
 		
 		offset--;
 		
-		for ( var i = 1; i < maxDepth; i++ )
+		for ( var i = 1; i < maxDepth - 1; i++ )
 		{
 			radii[i] = lerp
 			(
@@ -4358,6 +4584,8 @@ function computeRadii(node)
 				1 - minRadiusOuter
 			)
 		}
+		
+		radii.push(Number(1));
 		
 		newMaxDepth = treeViewsActiveFirst.nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
 	}
@@ -4389,11 +4617,11 @@ function createDetailsTable(elementsFocus, elementsSelected)
 	uiNameFocus.style.textAlign = 'right';
 	uiNameFocus.style.borderTop = border;
 	uiNameFocus.style.borderRight = border;
-	uiDatasetName = document.createElement('td');
-	uiDatasetName.style.borderRight = border;
-	uiDatasetName.style.borderTop = border;
-	uiDatasetName.style.overflow = 'hidden';
-	uiDatasetName.style.maxWidth = '50px';
+//	uiDatasetName = document.createElement('td');
+//	uiDatasetName.style.borderRight = border;
+//	uiDatasetName.style.borderTop = border;
+//	uiDatasetName.style.overflow = 'hidden';
+//	uiDatasetName.style.maxWidth = '50px';
 	var tdDatasetSpacer1 = document.createElement('td');
 	var tdDatasetSpacer2 = document.createElement('td');
 	tdDatasetSpacer1.style.borderRight = border;
@@ -4408,9 +4636,9 @@ function createDetailsTable(elementsFocus, elementsSelected)
 	rowNameSelected.appendChild(uiNameSelected);
 	rowNameFocus.appendChild(uiNameFocus);
 	rowNameFocus.appendChild(tdNameSpacer);
-	rowNameDataset.appendChild(uiDatasetName);
-	rowNameDataset.appendChild(tdDatasetSpacer1);
-	rowNameDataset.appendChild(tdDatasetSpacer2);
+//	rowNameDataset.appendChild(uiDatasetName);
+//	rowNameDataset.appendChild(tdDatasetSpacer1);
+//	rowNameDataset.appendChild(tdDatasetSpacer2);
 	
 	var count = 0;
 	
@@ -4497,6 +4725,26 @@ function createSVG()
 	return newSVG;
 }
 
+function datasetNext()
+{
+	var newDataset = treeViewsActiveFirst.dataset + 1;
+	if ( newDataset == datasets )
+	{
+		newDataset = 0;
+	}
+	selectDataset(newDataset);
+}
+
+function datasetPrev()
+{
+	var newDataset = treeViewsActiveFirst.dataset - 1;
+	if ( newDataset == -1 )
+	{
+		newDataset = datasets - 1;
+	}
+	selectDataset(newDataset);
+}
+
 function degrees(radians)
 {
 	return radians * 180 / Math.PI;
@@ -4521,6 +4769,11 @@ function draw()
 		treeViews[i].draw();
 	}
 	
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		treeViews[i].drawHighlight();
+	}
+	
 	context.globalAlpha = 1;
 	
 	if ( hueDisplayName && useHue() )
@@ -4529,7 +4782,7 @@ function draw()
 	}
 }
 
-function drawBubble(angle, radius, width, radial, flip)
+function drawBubble(angle, radius, width, radial, flip, light)
 {
 	var height = fontSize * 2;
 	var x;
@@ -4562,15 +4815,15 @@ function drawBubble(angle, radius, width, radial, flip)
 	}
 	else
 	{
-		drawBubbleCanvas(x, y, width, height, fontSize, angle);
+		drawBubbleCanvas(x, y, width, height, fontSize, angle, light);
 	}
 }
 
-function drawBubbleCanvas(x, y, width, height, radius, rotation)
+function drawBubbleCanvas(x, y, width, height, radius, rotation, light)
 {
-	context.strokeStyle = 'black';
+	context.strokeStyle = light ? 'gray' : 'black';
 	context.lineWidth = highlightLineWidth;
-	context.fillStyle = 'rgba(255, 255, 255, .75)';
+	context.fillStyle = light ? 'rgba(200, 200, 200, .75)' : 'rgba(255, 255, 255, .75)';
 	context.rotate(rotation);
 	roundedRectangle(x, y, width, fontSize * 2, fontSize);
 	context.fill();
@@ -4776,7 +5029,7 @@ function drawSearchHighlights(label, bubbleX, bubbleY, rotation, center)
 	while ( index != -1 && index < labelLength );
 }
 
-function drawText(text, x, y, angle, anchor, bold)
+function drawText(text, x, y, angle, anchor, bold, light)
 {
 	if ( snapshotMode )
 	{
@@ -4788,7 +5041,7 @@ function drawText(text, x, y, angle, anchor, bold)
 	}
 	else
 	{
-		context.fillStyle = 'black';
+		context.fillStyle = light ? 'black' : 'black';
 		context.textAlign = anchor;
 		context.font = bold ? fontBold : fontNormal;
 		context.rotate(angle);
@@ -4807,7 +5060,8 @@ function drawTextPolar
 	bubble,
 	bold, 
 	searchResult,
-	searchResults
+	searchResults,
+	light
 )
 {
 	var anchor;
@@ -4907,7 +5161,7 @@ function drawTextPolar
 			x -= textWidth / 2;
 		}
 		
-		drawBubble(angle, radius, textWidth, radial, flip);
+		drawBubble(angle, radius, textWidth, radial, flip, light);
 		
 		if ( searchResult )
 		{
@@ -4927,7 +5181,7 @@ function drawTextPolar
 		totalText = totalText + searchResultString(searchResults);
 	}
 	
-	drawText(totalText, textX, textY, angle, anchor, bold);
+	drawText(totalText, textX, textY, angle, anchor, bold, light);
 	
 	return flip;
 }
@@ -4965,7 +5219,8 @@ function drawWedge
 	radiusOuter,
 	color,
 	patternAlpha,
-	highlight
+	highlight,
+	light
 )
 { // TODO: radiusOuter for snapshot
 	if ( context.globalAlpha == 0 )
@@ -5028,7 +5283,11 @@ function drawWedge
 		context.arc(0, 0, radiusInner, angleStart, angleEnd, false);
 		context.arc(0, 0, radiusOuter, angleEnd, angleStart, true);
 		context.closePath();
-		context.fill();
+		
+		if ( angleEnd - angleStart > .01 )
+		{
+			context.fill();
+		}
 		
 		if ( patternAlpha > 0 )
 		{
@@ -5043,7 +5302,7 @@ function drawWedge
 		if ( highlight )
 		{
 			context.lineWidth = highlight ? highlightLineWidth : thinLineWidth;
-			context.strokeStyle = 'black';
+			context.strokeStyle = light ? 'gray' : 'black';
 			context.stroke();
 		}
 	}
@@ -5371,8 +5630,6 @@ function load()
 		return;
 	}
 	
-	resize();
-	
 	var kronaElement = document.getElementsByTagName('krona')[0];
 	
 	var magnitudeName;
@@ -5580,6 +5837,8 @@ function load()
 	addOptionElements(hueName, hueDefault);
 	setCallBacks();
 	
+	resize();
+	
 	head.sort(datasetDefault);
 //	treeViews.push(new TreeView(datasetDefault));
 //	treeViews.push(new TreeView(1)); // TEMP
@@ -5590,8 +5849,8 @@ function load()
 	treeViews.push(new TreeView(1)); // TEMP
 	treeViews.push(new TreeView(2)); // TEMP
 */	maxAbsoluteDepth = 0;
-	selectDataset(datasetDefault);
-	//selectDatasetsAll();
+	//selectDataset(datasetDefault);
+	selectDatasetsAll();
 	focusTreeView = treeViews[0];
 	selectNode(nodes[nodeDefault]);
 	updateDatasets();
@@ -5801,6 +6060,11 @@ function mouseClick(e)
 	}
 	else if ( progress == 1 )//( highlightedNode != selectedNode )
 	{
+		if ( treeViewsActiveCount > 1 )
+		{
+			focusTreeView = treeViews[highlightedDataset];
+		}
+		
 		focusTreeView = highlightedTreeView;
 		setFocus(highlightedNode);
 //		document.body.style.cursor='ew-resize';
@@ -5873,26 +6137,6 @@ function navigateForward()
 		updateDatasetButtons();
 		updateView();
 	}
-}
-
-function nextDataset()
-{
-	var newDataset = currentDataset;
-	
-	do
-	{
-		if ( newDataset == datasets - 1 )
-		{
-			newDataset = 0;
-		}
-		else
-		{
-			newDataset++;
-		}
-	}
-	while ( datasetDropDown.options[newDataset].disabled )
-	
-	selectDataset(newDataset);
 }
 
 function onDatasetChange()
@@ -5999,26 +6243,6 @@ function popTranslation()
 	}
 }
 
-function prevDataset()
-{
-	var newDataset = currentDataset;
-	
-	do
-	{
-		if ( newDataset == 0 )
-		{
-			newDataset = datasets - 1;
-		}
-		else
-		{
-			newDataset--;
-		}
-	}
-	while ( datasetDropDown.options[newDataset].disabled );
-	
-	selectDataset(newDataset);
-}
-
 function pushTranslation(x, y)
 {
 	if ( snapshotMode )
@@ -6041,6 +6265,9 @@ function resetKeyOffset()
 function resize()
 {
 	var views = treeViewsActiveCount;
+	
+	uiMapCanvas.width = uiMapDiv.clientWidth;
+	uiMapCanvas.height = uiMapCanvas.width;
 	
 	imageWidth = window.innerWidth * .72;
 	imageHeight = window.innerHeight;
@@ -6095,6 +6322,8 @@ function resize()
 	//fontSize = bound(fontSize, (imageWidth + imageHeight) / 200, (imageWidth + imageHeight) / 200);
 	//fontSize = Math.floor(bound(fontSize, 6, 12));
 	
+	chartWidth = imageWidth / cols;
+	chartHeight = imageHeight / rows;
 	maxMapRadius = minDimension * .03;
 	buffer = minDimension * .1;
 	margin = minDimension * .015;
@@ -6269,21 +6498,21 @@ function setCallBacks()
 	fontSizeButtonDecrease.onclick = fontSizeDecrease;
 	fontSizeButtonIncrease.onclick = fontSizeIncrease;
 	maxAbsoluteDepth = 0;
-	backButton = document.getElementById('back');
+//	backButton = document.getElementById('back');
 	backButton.onclick = navigateBack;
-	forwardButton = document.getElementById('forward');
+//	forwardButton = document.getElementById('forward');
 	forwardButton.onclick = navigateForward;
 	snapshotButton = document.getElementById('snapshot');
 	snapshotButton.onclick = snapshot;
 //	details = document.getElementById('details');
 	detailsName = document.getElementById('detailsName');
 	detailsInfo = document.getElementById('detailsInfo');
-	search = document.getElementById('search');
+//	search = document.getElementById('search');
 	search.onkeyup = onSearchChange;
 	search.onblur = searchBlur;
 	search.onfocus = searchFocus;
 	searchDeactivate();
-	searchResults = document.getElementById('searchResults');
+//	searchResults = document.getElementById('searchResults');
 	useHueDiv = document.getElementById('useHueDiv');
 	linkButton = document.getElementById('linkButton');
 	linkButton.onclick = showLink;
@@ -6491,6 +6720,8 @@ function updateDatasets()
 	
 	uiDatasetCheckboxAll.checked = treeViewsActiveCount == datasets;
 	uiDatasetCheckboxAll.disabled = uiDatasetCheckboxAll.checked;
+	datasetButtonNext.disabled = treeViewsActiveCount > 1;
+	datasetButtonPrev.disabled = treeViewsActiveCount > 1;
 	
 	head.setDepth(1, 1);
 	head.setMaxDepths();
@@ -6534,8 +6765,8 @@ function setDatasetCharts()
 		}
 		else
 		{
-			setDatasetChartsColumn(focusNode, selectedNode, uiDatasetChartsFocusSelected, true);
-			setDatasetChartsColumn(focusNode, head, uiDatasetChartsFocusRoot, false);
+			setDatasetChartsColumn(focusNode, selectedNode, uiDatasetChartsFocusSelected, Math.floor(uiDatasets.clientWidth / 4) - 6, true);
+			setDatasetChartsColumn(focusNode, head, uiDatasetChartsFocusRoot, Math.floor(uiDatasets.clientWidth / 4) - 6, false);
 		}
 		
 		if ( selectedNode == head )
@@ -6544,7 +6775,7 @@ function setDatasetCharts()
 		}
 		else
 		{
-			setDatasetChartsColumn(selectedNode, head, uiDatasetChartsSelectedRoot, false);
+			setDatasetChartsColumn(selectedNode, head, uiDatasetChartsSelectedRoot, uiDatasetChartHeaderSelected.clientWidth, false);
 		}
 	}
 	
@@ -6567,7 +6798,7 @@ function setDatasetCharts()
 	}
 }
 
-function setDatasetChartsColumn(nodeNum, nodeDen, charts, color)
+function setDatasetChartsColumn(nodeNum, nodeDen, charts, maxWidth, color)
 {
 	var max = 0;
 	
@@ -6583,7 +6814,7 @@ function setDatasetChartsColumn(nodeNum, nodeDen, charts, color)
 	
 	for ( var i = 0; i < charts.length; i++ )
 	{
-		var width = nodeNum.getMagnitude(i) / nodeDen.getMagnitude(i) / max * 25;
+		var width = nodeNum.getMagnitude(i) / nodeDen.getMagnitude(i) / max * maxWidth;
 		charts[i].style.width = Math.floor(width) + 'px';
 		
 		if ( width == 0 )
@@ -6814,6 +7045,9 @@ function setLineage()
 	var selected;
 	var firstRow;
 	
+	uiDivLineageFocus.style.maxHeight = 'none';//uiDivLineageFocus.clientHeight;
+	uiDivLineageSelected.style.maxHeight = 'none';//uiDivLineageSelected.clientHeight;
+	
 	for ( var i = 0; i < lineage.length; i++ )
 	{
 		var percentageSelected;
@@ -6917,10 +7151,31 @@ function setLineage()
 //		div.style.width = '100%';
 //		tdName.style.overflow = 'hidden';
 		
-		
 		if ( lineage[i] == selectedNode )
 		{
 			selected = true;
+		}
+	}
+	
+	var maxHeight = 36;
+	
+	if ( uiDivLineageFocus.clientHeight + uiDivLineageSelected.clientHeight > maxHeight * 2 )
+	{
+		if ( uiDivLineageFocus.clientHeight > maxHeight )
+		{
+			if ( uiLineageSelected.clientHeight > maxHeight )
+			{
+				uiDivLineageFocus.style.maxHeight = maxHeight + 'px';
+				uiDivLineageSelected.style.maxHeight = maxHeight + 'px';
+			}
+			else
+			{
+				uiDivLineageFocus.style.maxHeight = (maxHeight * 2 - uiDivLineageSelected.clientHeight) + 'px';
+			}
+		}
+		else
+		{
+			uiDivLineageSelected.style.maxHeight = (maxHeight * 2 - uiDivLineageFocus.clientHeight) + 'px';
 		}
 	}
 }
@@ -7434,13 +7689,21 @@ function updateView()
 	var dim = context.measureText('...');
 	ellipsisWidth = dim.width;
 	
-	nLabelOffsets = new Array(maxDisplayDepth - 1);
+	nLabelOffsets = new Array(maxDisplayDepth);
 	
-	for ( var i = 0; i < maxDisplayDepth - 1; i++ )
+	for ( var i = 0; i < maxDisplayDepth; i++ )
 	{
 		if ( i == maxDisplayDepth - 1 )
 		{
 			nLabelOffsets[i] = 0;
+		}
+		else if ( i == maxDisplayDepth - 2 )
+		{
+			var width =
+				(compressedRadii[i + 1] - compressedRadii[0]) *
+				treeViewsActiveFirst.radiusTarget;
+			
+			nLabelOffsets[i] = Math.floor(width / fontSize / 1.2);
 		}
 		else
 		{
