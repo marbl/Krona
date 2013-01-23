@@ -4840,6 +4840,16 @@ function load()
 							attribute.dataNode = attributeElement.getAttribute('dataNode').toLowerCase();
 						}
 						
+						if ( attributeElement.getAttribute('postUrl') )
+						{
+							attribute.postUrl = attributeElement.getAttribute('postUrl');
+						}
+						
+						if ( attributeElement.getAttribute('postVar') )
+						{
+							attribute.postVar = attributeElement.getAttribute('postVar');
+						}
+						
 						if ( attributeElement.getAttribute('mono') )
 						{
 							attribute.mono = true;
@@ -5327,11 +5337,11 @@ function onKeyDown(event)
 	}
 	else if ( event.keyCode == 83 )
 	{
-		progress += .01;
+		progress += .2;
 	}
 	else if ( event.keyCode == 66 )
 	{
-		progress -= .01;
+		progress -= .2;
 	}
 	else if ( event.keyCode == 70 )
 	{
@@ -5404,6 +5414,30 @@ function onSearchChange()
 	
 	setFocus(selectedNode);
 	draw();
+}
+
+function post(url, variable, value, postWindow)
+{
+	var form = document.createElement('form');
+	var input = document.createElement('input');
+	
+	form.appendChild(input);
+	
+	form.method = "POST";
+	form.action = url;
+	
+	if ( postWindow == undefined )
+	{
+		form.target = '_blank';
+		postWindow = window;
+	}
+	
+	input.type = 'hidden';
+	input.name = variable;
+	input.value = value;
+	
+	postWindow.document.body.appendChild(form);
+	form.submit();
 }
 
 function prevDataset()
@@ -5761,26 +5795,30 @@ function setSelectedNode(newNode)
 	}
 }
 
-function waitForData(dataWindow, target, title, time)
+function waitForData(dataWindow, target, title, time, postUrl, postVar)
 {
 	if ( nodeData.length == target )
 	{
-		var data = nodeData.join('');
-		
-		dataWindow.document.body.removeChild(dataWindow.document.getElementById('loading'));
-		document.body.removeChild(document.getElementById('data'));
-		
-		if ( true || navigator.appName == 'Microsoft Internet Explorer' ) // :(
+		if ( postUrl != undefined )
 		{
-			dataWindow.document.open();
-			dataWindow.document.write('<pre>' + data + '</pre>');
-			dataWindow.document.close();
+			for ( var i = 0; i < nodeData.length; i++ )
+			{
+				nodeData[i] = nodeData[i].replace(/\n/g, ',');
+			}
+			
+			dataWindow.document.body.removeChild(dataWindow.document.getElementById('loading'));
+			document.body.removeChild(document.getElementById('data'));
+			
+			post(postUrl, postVar, nodeData.join(','), dataWindow);
 		}
 		else
 		{
-			var pre = document.createElement('pre');
-			dataWindow.document.body.appendChild(pre);
-			pre.innerHTML = data;
+			//dataWindow.document.body.removeChild(dataWindow.document.getElementById('loading'));
+			//document.body.removeChild(document.getElementById('data'));
+			
+			dataWindow.document.open();
+			dataWindow.document.write('<pre>' + nodeData.join('') + '</pre>');
+			dataWindow.document.close();
 		}
 		
 		dataWindow.document.title = title; // replace after document.write()
@@ -5798,7 +5836,7 @@ function waitForData(dataWindow, target, title, time)
 		}
 		else
 		{
-			setTimeout(function() {waitForData(dataWindow, target, title, time);}, 100);
+			setTimeout(function() {waitForData(dataWindow, target, title, time, postUrl, postVar);}, 100);
 		}
 	}
 }
@@ -5848,31 +5886,38 @@ function showData(indexData, indexAttribute, summary)
 		scripts.appendChild(script);
 	}
 	
-	waitForData(dataWindow, files.length, title, time);
+	waitForData(dataWindow, files.length, title, time, attributes[indexAttribute].postUrl, attributes[indexAttribute].postVar);
 	
 	return false;
 }
 
 function showList(indexList, indexAttribute, summary)
 {
-	var list = focusNode.getList(indexList, summary).join('\n');
+	var list = focusNode.getList(indexList, summary);
 	
-	var dataWindow = window.open('', '_blank');
-	
-	if ( true || navigator.appName == 'Microsoft Internet Explorer' ) // :(
+	if ( attributes[indexAttribute].postUrl != undefined )
 	{
-		dataWindow.document.open();
-		dataWindow.document.write('<pre>' + list + '</pre>');
-		dataWindow.document.close();
+		post(attributes[indexAttribute].postUrl, attributes[indexAttribute].postVar, list.join(','));
 	}
 	else
 	{
-		var pre = document.createElement('pre');
-		dataWindow.document.body.appendChild(pre);
-		pre.innerHTML = list;
+		var dataWindow = window.open('', '_blank');
+		
+		if ( true || navigator.appName == 'Microsoft Internet Explorer' ) // :(
+		{
+			dataWindow.document.open();
+			dataWindow.document.write('<pre>' + list.join('\n') + '</pre>');
+			dataWindow.document.close();
+		}
+		else
+		{
+			var pre = document.createElement('pre');
+			dataWindow.document.body.appendChild(pre);
+			pre.innerHTML = list;
+		}
+		
+		dataWindow.document.title = 'Krona - ' + attributes[indexAttribute].displayName + ' - ' + focusNode.name;
 	}
-	
-	dataWindow.document.title = 'Krona - ' + attributes[indexAttribute].displayName + ' - ' + focusNode.name;
 }
 
 function snapshot()
@@ -6083,7 +6128,7 @@ function update()
 	
 	if ( progress != progressLast )
 	{
-		tweenFactor =
+		tweenFactor =// progress;
 			(1 / (1 + Math.exp(-tweenCurvature * (progress - .5))) - .5) /
 			(tweenMax - .5) / 2 + .5;
 		

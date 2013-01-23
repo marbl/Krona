@@ -111,6 +111,8 @@ my %optionFormats =
 		'p',
 	'phymm' =>
 		'p',
+	'postUrl' =>
+		'post=s',
 	'noMag' =>
 		'q',
 	'queryCol' =>
@@ -163,6 +165,7 @@ my %optionDescriptions =
 	'noRank' => 'Allow taxa with ranks labeled "no rank".',
 	'out' => 'Output file name.',
 	'phymm' => 'Input is phymm only (no confidence scores).',
+	'postUrl' => 'Url to send queries to as the POST variable "queries" (comma separated).',
 	'queryCol' => 'Column of input files to use as query ID. Required if magnitude files are specified.',
 	'random' => 'Pick from the best hits randomly instead of finding the lowest common ancestor.',
 	'scoreCol' => 'Column of input files to use as score.',
@@ -1524,6 +1527,12 @@ sub dataHeader
 		$header .= indent(4) . "<$memberTag$enableText>members</$memberTag>\n";
 		$assignedText = " ${memberTag}Node=\"members\"";
 		$summaryText = " ${memberTag}\All=\"members\"";
+		
+		if ( $options{'postUrl'} )
+		{
+			$assignedText .= " postUrl=\"$options{'postUrl'}\" postVar=\"queries\"";
+			$summaryText .= " postUrl=\"$options{'postUrl'}\" postVar=\"queries\"";
+		}
 	}
 	
 	# attributes
