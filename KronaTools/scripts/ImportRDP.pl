@@ -26,6 +26,7 @@ qw(
 	hueGood
 	local
 	url
+	postUrl
 );
 
 getKronaOptions(@options);
@@ -80,41 +81,21 @@ foreach my $input ( @ARGV )
 	my $webFormat;
 	my $line = <INFILE>;
 	
-	if ( $line =~ /^\s*$/ || $line =~ /^Classifier:/ || $line =~ /;;/ )
+	if ( $line =~ /^\s*$/ || $line =~ /^Classifier:/ || $line =~ /;( +|[+-]?);/ )
 	{
 		$webFormat = 1;
 		
-		if ( $line !~ /;;/ )
-		{
-			# old web format
-			
-			while ( $line =~ /^\s*$/ )
-			{
-				$line = <INFILE>;
-			}
-			
-			while ( $line !~ /^Details:|^\s*$/ )
-			{
-				$line = <INFILE>;
-				
-				if ( ! $line )
-				{
-					ktDie("\"$fileName\" is not RDP classification file.");
-				}
-			}
-			
-			if ( $line !~ /Details:/ )
-			{
-				ktDie("$fileName looks like a hierarchy file. Assignment detail required.");
-			}
-			
-			$line = <INFILE>;
-		}
-	}
-	
-	if ( $webFormat )
-	{
 		print "   Web portal format detected.\n";
+		
+		while ( $line !~ /;( +|[+-]?);/ )
+		{
+			$line = <INFILE>;
+			
+			if ( ! $line )
+			{
+				ktDie("Classifications not found in \"$fileName\". Is it an \"Assignment detail\" file?");
+			}
+		}
 	}
 	else
 	{
@@ -127,6 +108,7 @@ foreach my $input ( @ARGV )
 		my @lineage;
 		my @ranks;
 		my @scores;
+		my $allRanks;
 		
 		chomp $line;
 		
@@ -144,6 +126,7 @@ foreach my $input ( @ARGV )
 			{
 				if ( $fields[$i] eq 'Root' )
 				{
+					$allRanks = 1;
 					next;
 				}
 				
@@ -178,7 +161,7 @@ foreach my $input ( @ARGV )
 			$queryID,
 			undef,
 			\@scores,
-			$webFormat ? \@webRanks : \@ranks
+			$webFormat ? ($allRanks ? undef : \@webRanks) : \@ranks
 		);
 		
 		$line = <INFILE>;
