@@ -30,6 +30,7 @@ qw(
 	hueGood
 	local
 	url
+	postUrl
 );
 
 getKronaOptions(@options);

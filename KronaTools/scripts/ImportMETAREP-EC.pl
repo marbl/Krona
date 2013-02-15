@@ -24,6 +24,7 @@ qw(
 	depth
 	local
 	url
+	postUrl
 	verbose
 );
 

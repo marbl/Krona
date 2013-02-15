@@ -29,7 +29,9 @@ qw(
 	hueGood
 	local
 	url
+	postUrl
 	verbose
+	
 );
 
 getKronaOptions(@options);

@@ -23,6 +23,7 @@ qw(
 	depth
 	local
 	url
+	postUrl
 );
 
 getKronaOptions(@options);

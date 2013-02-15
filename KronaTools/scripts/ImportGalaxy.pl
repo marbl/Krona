@@ -20,6 +20,7 @@ qw(
 	depth
 	local
 	url
+	postUrl
 );
 
 # set defaults

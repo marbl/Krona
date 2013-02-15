@@ -117,6 +117,8 @@ my %optionFormats =
 		'q',
 	'queryCol' =>
 		'q=i',
+	'postUrl' =>
+		'qp=s',
 	'random' =>
 		'r',
 	'scoreCol' =>
@@ -165,7 +167,7 @@ my %optionDescriptions =
 	'noRank' => 'Allow taxa with ranks labeled "no rank".',
 	'out' => 'Output file name.',
 	'phymm' => 'Input is phymm only (no confidence scores).',
-	'postUrl' => 'Url to send queries to as the POST variable "queries" (comma separated).',
+	'postUrl' => 'Url to send query IDs to (instead of listing them) for each wedge. The query IDs will sent as a comma separated list in the POST variable "queries". The url can include additional variables encoded via GET.',
 	'queryCol' => 'Column of input files to use as query ID. Required if magnitude files are specified.',
 	'random' => 'Pick from the best hits randomly instead of finding the lowest common ancestor.',
 	'scoreCol' => 'Column of input files to use as score.',
@@ -1377,7 +1379,7 @@ sub writeTree
 	{
 		my $suppDir = $options{'out'} . $suppDirSuffix;
 		
-		ktWarn("Too many members to store in chart; storing supplemental files in '$suppDir'.");
+		ktWarn("Too many query IDs to store in chart; storing supplemental files in '$suppDir'.");
 		
 		if ( -e $suppDir )
 		{

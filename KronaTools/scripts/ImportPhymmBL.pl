@@ -27,6 +27,7 @@ qw(
 	phymm
 	local
 	url
+	postUrl
 );
 
 getKronaOptions(@options);
