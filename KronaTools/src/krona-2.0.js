@@ -5806,10 +5806,13 @@ function waitForData(dataWindow, target, title, time, postUrl, postVar)
 				nodeData[i] = nodeData[i].replace(/\n/g, ',');
 			}
 			
+			var postString = nodeData.join('');
+			postString = postString.slice(0, -1);
+			
 			dataWindow.document.body.removeChild(dataWindow.document.getElementById('loading'));
 			document.body.removeChild(document.getElementById('data'));
 			
-			post(postUrl, postVar, nodeData.join(','), dataWindow);
+			post(postUrl, postVar, postString, dataWindow);
 		}
 		else
 		{
