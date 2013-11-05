@@ -6,6 +6,9 @@
 #
 # See the LICENSE.txt file included with this software for license information.
 
+command -v curl >/dev/null 2>&1 || \
+	{ echo >&2 "ERROR: Curl (http://curl.haxx.se) is required."; exit 1; }
+
 local=$1
 
 function die
