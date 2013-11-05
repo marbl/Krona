@@ -70,10 +70,10 @@ my %options =
 	'hueBad' => 0,
 	'hueGood' => 120,
 	'queryCol' => 1,
-	'factor' => 10,
 	'scoreCol' => 3,
 	'key' => 1,
 	'taxCol' => 2,
+	'threshold' => 3,
 	'url' => 'http://krona.sourceforge.net'
 );
 
@@ -83,6 +83,8 @@ my %options =
 #
 my %optionFormats =
 (
+	'standalone' =>
+		'a',
 	'bitScore' =>
 		'b',
 	'combine' =>
@@ -127,6 +129,8 @@ my %optionFormats =
 		's',
 	'taxCol' =>
 		't=i',
+	'threshold' =>
+		't=f',
 	'url' =>
 		'u=s',
 	'verbose' =>
@@ -154,25 +158,27 @@ my %optionDescriptions =
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
 	'depth' => 'Maximum depth of wedges to include in the chart.',
 	'ecCol' => 'Column of input files to use as EC number.',
-	'factor' => 'E-value factor for determining "best" hits. Hits with e-values that are within this factor of the highest scoring hit will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
+	'factor' => 'E-value factor for determining "best" hits. A bit score difference threshold (-t) is recommended instead to avoid comparing e-values that BLAST reports as 0 due to floating point underflow. However, an e-value factor should be used if the input is a concatination of BLASTs against different databases. ',
 	'hueBad' => 'Hue (0-360) for "bad" scores.',
 	'hueGood' => 'Hue (0-360) for "good" scores.',
 	'percentIdentity' => 'Use percent identity for average scores instead of log[10] e-value.',
 	'include' => 'Include a wedge for queries with no hits.',
-	'local' => 'Create a local chart, which does not require an internet connection to view (but will only work on this computer).',
+	'local' => 'Create a local chart, which does not require an Internet connection to view (but will only work on this computer).',
 	'magCol' => 'Column of input files to use as magnitude. If magnitude files are specified, their magnitudes will override those in this column.',
 	'minConfidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'name' => 'Name of the highest level.',
 	'noMag' => 'Files do not have a field for quantity.',
-	'noRank' => 'Allow taxa with ranks labeled "no rank".',
+	'noRank' => 'Allow assignments to taxa with ranks labeled "no rank" (instead of moving up to parent).',
 	'out' => 'Output file name.',
 	'phymm' => 'Input is phymm only (no confidence scores).',
-	'postUrl' => 'Url to send query IDs to (instead of listing them) for each wedge. The query IDs will sent as a comma separated list in the POST variable "queries". The url can include additional variables encoded via GET.',
+	'postUrl' => 'Url to send query IDs to (instead of listing them) for each wedge. The query IDs will be sent as a comma separated list in the POST variable "queries", with the current dataset index (from 0) in the POST variable "dataset". The url can include additional variables encoded via GET.',
 	'queryCol' => 'Column of input files to use as query ID. Required if magnitude files are specified.',
 	'random' => 'Pick from the best hits randomly instead of finding the lowest common ancestor.',
 	'scoreCol' => 'Column of input files to use as score.',
+	'standalone' => 'Create a standalone chart, which includes Krona resources and does not require an Internet connection or KronaTools installation to view.',
 	'summarize' => 'Summarize counts and average scores by taxonomy ID.',
 	'taxCol' => 'Column of input files to use as taxonomy ID.',
+	'threshold' => 'Threshold for bit score differences when determining "best" hits. Hits with scores that are within this distance of the highest score will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
 	'url' => 'URL of Krona resources.',
 	'verbose' => 'Verbose.'
 );
@@ -223,7 +229,7 @@ my $libPath = `ktGetLibPath`;
 my $taxonomyDir = "$libPath/../taxonomy";
 my $ecFile = "$libPath/../data/ec.tsv";
 
-my $version = '2.2';
+my $version = '2.4';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';
@@ -717,7 +723,8 @@ sub classifyBlast
 		if # this is a 'best' hit if...
 		(
 			$queryID ne $lastQueryID || # new query ID (including null at EOF)
-			$eVal <= $options{'factor'} * $topEVal # within e-val factor
+			$bitScore > $topScore - $options{'threshold'} || # within score threshold
+			$options{'factor'} && $eVal <= $options{'factor'} * $topEVal # within e-val factor
 		)
 		{
 			# add score for average
@@ -949,16 +956,34 @@ sub htmlHeader
 {
 	my $path;
 	my $notFound;
+	my $script;
 	
-	if ( $options{'local'} )
+	if ( $options{'standalone'} )
 	{
-		$path = "$libPath/../";
-		$notFound = "This is a local chart and must be viewed on the computer it was created with.";
+		$script =
+			indent(2) . "<script language=\"javascript\" type=\"text/javascript\">\n" .
+			slurp("$libPath/../$javascript") . "\n" .
+			indent(2) . "</script>\n";
+		
+		$hiddenImage = slurp("$libPath/../img/hidden.uri");
+		$loadingImage = slurp("$libPath/../img/loading.uri");
+		$favicon = slurp("$libPath/../img/favicon.uri");
+		$logo = slurp("$libPath/../img/logo.uri");
 	}
 	else
 	{
-		$path = "$options{'url'}/";
-		$notFound = "Could not get resources from \\\"$options{'url'}\\\".";
+		if ( $options{'local'} )
+		{
+			$path = "$libPath/../";
+			$notFound = "This is a local chart and must be viewed on the computer it was created with.";
+		}
+		else
+		{
+			$path = "$options{'url'}/";
+			$notFound = "Could not get resources from \\\"$options{'url'}\\\".";
+		}
+		
+		$script = indent(2) . "<script src=\"$path$javascript\"></script>\n";
 	}
 	
 	return
@@ -969,7 +994,7 @@ sub htmlHeader
 #			indent(2) . "<base href=\"$path\" target=\"_blank\"/>\n" .
 			indent(2) . "<link rel=\"shortcut icon\" href=\"$path$favicon\"/>\n" .
 			indent(2) . "<script id=\"notfound\">window.onload=function(){document.body.innerHTML=\"$notFound\"}</script>\n" .
-			indent(2) . "<script src=\"$path$javascript\"></script>\n" .
+			$script .
 		indent(1) . "</head>\n" .
 		indent(1) . "<body>\n" .
 			indent(2) . "<img id=\"hiddenImage\" src=\"$path$hiddenImage\" style=\"display:none\"/>\n" .
@@ -1813,6 +1838,17 @@ sub setScores
 	return ($min, $max);
 }
 
+sub slurp
+{
+	my ($fileName) = @_;
+	
+	local $/;
+	open FILE, $fileName or die "Can't read file '$fileName' [$!]\n";
+	my $file = <FILE>;
+	close (FILE);
+	return $file;
+}
+
 sub taxonLink
 {
 	my ($taxID) = @_;
@@ -1941,7 +1977,7 @@ sub toStringXML
 
 sub validateOptions
 {
-	if ( $options{'factor'} < 1 )
+	if ( defined $options{'factor'} && $options{'factor'} < 1 )
 	{
 		my $factor = getOptionString('factor');
 		ktDie("E-value factor ($factor) must be at least 1.");

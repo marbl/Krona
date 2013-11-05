@@ -26,6 +26,7 @@ qw(
 	hueGood
 	phymm
 	local
+	standalone
 	url
 	postUrl
 );

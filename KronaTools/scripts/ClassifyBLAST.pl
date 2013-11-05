@@ -15,11 +15,12 @@ use KronaTools;
 my @options =
 qw(
 	out
-	factor
+	threshold
 	random
 	percentIdentity
 	bitScore
 	summarize
+	factor
 );
 
 setOption('out', 'blast.taxonomy.tab');
@@ -59,7 +60,7 @@ output (with taxonomy IDs of -1 for consistency with MEGAN).',
 'The NCBI taxonomy ID the query was assigned to (or -1 if it has no hits).',
 		'   score',
 'The score of the assignment(s); by default, the average E-value of "best" hits
-(see -e, -p, -b).',
+(see -p, -b).',
 		'   count',
 		'The number of assignments.'
 	);

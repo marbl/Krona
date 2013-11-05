@@ -18,6 +18,7 @@ my @options =
 qw(
 	out
 	local
+	standalone
 	url
 );
 

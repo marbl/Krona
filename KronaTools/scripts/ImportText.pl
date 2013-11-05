@@ -22,6 +22,7 @@ qw(
 	noMag
 	combine
 	local
+	standalone
 	url
 );
 

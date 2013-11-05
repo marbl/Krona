@@ -21,7 +21,7 @@ my @options =
 qw(
 	out
 	name
-	factor
+	threshold
 	include
 	random
 	percentIdentity
@@ -32,8 +32,10 @@ qw(
 	hueBad
 	hueGood
 	local
+	standalone
 	url
 	postUrl
+	factor
 );
 
 getKronaOptions(@options);
