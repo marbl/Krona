@@ -33,8 +33,8 @@ createDir("$path/bin");
 
 print "Creating links...\n";
 
-foreach my $script qw
-(
+foreach my $script
+(qw(
 	ClassifyBLAST
 	GetContigMagnitudes
 	GetLibPath
@@ -53,7 +53,7 @@ foreach my $script qw
 	ImportTaxonomy
 	ImportText
 	ImportXML
-)
+))
 {
 	if ( system('ln', '-sf', "$scriptPath/$script.pl", "$path/bin/kt$script") )
 	{
