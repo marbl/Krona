@@ -74,6 +74,7 @@
 //-----------------------------------------------------------------------------
 }
 
+
 var canvas;
 var context;
 var svg; // for snapshot mode
@@ -5420,8 +5421,10 @@ function post(url, variable, value, postWindow)
 {
 	var form = document.createElement('form');
 	var input = document.createElement('input');
+	var inputDataset = document.createElement('input');
 	
 	form.appendChild(input);
+	form.appendChild(inputDataset);
 	
 	form.method = "POST";
 	form.action = url;
@@ -5435,6 +5438,10 @@ function post(url, variable, value, postWindow)
 	input.type = 'hidden';
 	input.name = variable;
 	input.value = value;
+	
+	inputDataset.type = 'hidden';
+	inputDataset.name = 'dataset';
+	inputDataset.value = currentDataset;
 	
 	postWindow.document.body.appendChild(form);
 	form.submit();
