@@ -34,8 +34,13 @@ tar -cnf $release.tar \
 	$release/lib/KronaTools.pm \
 	$release/src/krona-$2.js \
 	$release/img/hidden.png \
+	$release/img/hidden.uri \
 	$release/img/favicon.ico \
+	$release/img/favicon.uri \
 	$release/img/loading.gif \
+	$release/img/loading.uri \
+	$release/img/logo.png \
+	$release/img/logo.uri \
 	$release/taxonomy \
 	$release/install.pl \
 	$release/updateTaxonomy.sh \
