@@ -200,8 +200,8 @@ my @attributeNames =
 
 my @attributeDisplayNames =
 (
-	$useMag ? 'Magnitude' : undef,
-	'Count',
+	$useMag ? 'Magnitude' : (getOption('queryCol') ? undef : 'Count'),
+	getOption('queryCol') ? 'Count' : undef,
 	'Unassigned',
 	'EC'
 );

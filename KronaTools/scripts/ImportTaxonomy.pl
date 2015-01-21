@@ -210,7 +210,7 @@ my @attributeDisplayNames =
 (
 	$useMag ? 'Magnitude' : (getOption('queryCol') ? undef : 'Count'),
 	getOption('queryCol') ? 'Count' : undef,
-	getOption('queryCol') ? 'Unassigned' : undef,
+	'Unassigned',
 	'Taxon',
 	'Rank',
 );

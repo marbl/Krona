@@ -229,7 +229,7 @@ my $libPath = `ktGetLibPath`;
 my $taxonomyDir = "$libPath/../taxonomy";
 my $ecFile = "$libPath/../data/ec.tsv";
 
-my $version = '2.4';
+my $version = '2.5';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';
@@ -256,6 +256,7 @@ my @taxRanks;
 my @taxNames;
 my %taxIDByGI;
 my %ecNames;
+my %missingTaxIDs;
 
 
 ############
@@ -510,6 +511,12 @@ sub addByTaxID
 	) = @_;
 	
 	$magnitude = default($magnitude, 1);
+	
+	if ( ! defined $taxDepths[$taxID] )
+	{
+		$missingTaxIDs{$taxID} = 1;
+		$taxID = 1; # unknown tax ID; set to root
+	}
 	
 	if ( $taxID == 0 )
 	{
@@ -880,7 +887,7 @@ sub getTaxDepth
 {
 	my ($taxID) = @_;
 	checkTaxonomy();
-	return taxDepths[$taxID];
+	return $taxDepths[$taxID];
 }
 
 sub getTaxName
@@ -1061,7 +1068,7 @@ sub loadMagnitudes
 sub loadTaxonomy
 {
 	open INFO, "<$taxonomyDir/taxonomy.tab" or die
-		"Taxonomy not found.  Was updateTaxonomy.sh run?";
+		"Taxonomy not found in $taxonomyDir. Was updateTaxonomy.sh run?";
 	
 	while ( my $line = <INFO> )
 	{
@@ -1363,6 +1370,17 @@ sub writeTree
 		$hueEnd # (optional) hue at the end of the gradient for score
 	) = @_;
 	
+	if ( %missingTaxIDs )
+	{
+		ktWarn
+		(
+			"The following taxonomy IDs were not found in the local database (if it is out of date, use updateTaxonomy.sh to update):\n" .
+			join ',', (keys %missingTaxIDs)
+		);
+		
+		%missingTaxIDs = ();
+	}
+	
 	my %attributeHash;
 	
 	for ( my $i = 0; $i < @$attributes; $i++ )
@@ -1427,7 +1445,7 @@ sub writeTree
 		$attributes,
 		$attributeDisplayNames,
 		$datasetNames,
-		'unassigned',
+		defined $tree->{'members'} ? 'unassigned' : undef,
 		'count',
 		defined $hueStart ? 'score' : undef,
 		$hueStart,
