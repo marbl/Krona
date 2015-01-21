@@ -129,6 +129,7 @@ foreach my $input ( @ARGV )
 my @attributeNames =
 (
 	'magnitude',
+	'magnitudeUnassigned',
 	'score',
 	'rank'
 );
@@ -136,6 +137,7 @@ my @attributeNames =
 my @attributeDisplayNames =
 (
 	'Abundance',
+	'Unassigned',
 	getScoreName(),
 	'Rank'
 );

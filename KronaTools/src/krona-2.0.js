@@ -4806,7 +4806,7 @@ function load()
 					if ( tag == 'attribute' )
 					{
 						var attribute = new Attribute();
-						attribute.name = attributeElement.firstChild.nodeValue;
+						attribute.name = attributeElement.firstChild.nodeValue.toLowerCase();
 						attribute.displayName = attributeElement.getAttribute('display');
 						
 						if ( attributeElement.getAttribute('hrefBase') )

@@ -200,6 +200,7 @@ foreach my $input (@ARGV)
 my @attributeNames =
 (
 	'magnitude',
+	'magnitudeUnassigned',
 	'count',
 	'unassigned',
 	'taxon',
@@ -209,8 +210,9 @@ my @attributeNames =
 my @attributeDisplayNames =
 (
 	$useMag ? 'Magnitude' : (getOption('queryCol') ? undef : 'Count'),
+	$useMag ? 'Unassigned magnitude' : (getOption('queryCol') ? undef : 'Unassigned'),
 	getOption('queryCol') ? 'Count' : undef,
-	'Unassigned',
+	getOption('queryCol') ? 'Unassigned' : undef,
 	'Taxon',
 	'Rank',
 );

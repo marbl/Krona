@@ -352,6 +352,7 @@ sub addByEC
 		}
 		
 		$node->{'unassigned'}[$set]++;
+		$node->{'magnitudeUnassigned'}[$set] += $magnitude;
 	}
 }
 
@@ -478,7 +479,7 @@ sub addByLineage
 			$depth + 1
 		);
 	}
-	else
+	elsif ( ! $options{'leafAdd'} )
 	{
 		if ( $queryID )
 		{
@@ -486,6 +487,7 @@ sub addByLineage
 		}
 		
 		$node->{'unassigned'}[$dataset]++;
+		$node->{'magnitudeUnassigned'}[$dataset] += $magnitude;
 	}
 }
 
@@ -578,6 +580,7 @@ sub addByTaxID
 		}
 		
 		$parent->{'unassigned'}[$set]++;
+		$parent->{'magnitudeUnassigned'}[$set] += $magnitude;
 	}
 	else
 	{
@@ -610,6 +613,7 @@ sub addByTaxID
 		if ( ! $assigned )
 		{
 			$child->{'unassigned'}[$set]++;
+			$child->{'magnitudeUnassigned'}[$set] += $magnitude;
 		}
 		
 		${$child->{'magnitude'}}[$set] += $magnitude;
@@ -1374,7 +1378,7 @@ sub writeTree
 	{
 		ktWarn
 		(
-			"The following taxonomy IDs were not found in the local database (if it is out of date, use updateTaxonomy.sh to update):\n" .
+			"The following taxonomy IDs were not found in the local database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
 			join ',', (keys %missingTaxIDs)
 		);
 		
@@ -1445,7 +1449,7 @@ sub writeTree
 		$attributes,
 		$attributeDisplayNames,
 		$datasetNames,
-		defined $tree->{'members'} ? 'unassigned' : undef,
+		'unassigned',
 		'count',
 		defined $hueStart ? 'score' : undef,
 		$hueStart,
@@ -1896,7 +1900,7 @@ sub toStringXML
 			$key ne 'scoreCount' &&
 			$key ne 'scoreTotal' &&
 			$key ne 'href' &&
-			( keys %{$node->{'children'}} || $key ne 'unassigned' ) &&
+			( keys %{$node->{'children'}} || ($key ne 'unassigned' && $key ne 'magnitudeUnassigned') ) &&
 			( $key eq 'members' || defined $$attributeHash{$key} )
 		)
 		{

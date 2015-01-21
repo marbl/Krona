@@ -137,6 +137,7 @@ foreach my $input (@ARGV)
 my @attributeNames =
 (
 	'magnitude',
+	'magnitudeUnassigned',
 	'count',
 	'unassigned',
 	'taxon',
@@ -147,6 +148,7 @@ my @attributeNames =
 my @attributeDisplayNames =
 (
 	$useMag ? 'Magnitude' : undef,
+	$useMag ? 'Unassigned magnitude' : undef,
 	'Count',
 	'Unassigned',
 	'Tax ID',

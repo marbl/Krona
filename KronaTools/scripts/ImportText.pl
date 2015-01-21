@@ -102,11 +102,13 @@ foreach my $input ( @ARGV )
 my @attributeNames =
 (
 	'magnitude',
+	'magnitudeUnassigned'
 );
 
 my @attributeDisplayNames =
 (
 	'Total',
+	'Unassigned'
 );
 
 writeTree

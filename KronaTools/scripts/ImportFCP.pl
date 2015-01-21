@@ -112,13 +112,17 @@ foreach my $input ( @ARGV )
 my @attributeNames =
 (
 	'magnitude',
+	'magnitudeUnassigned',
 	'count',
+	'unassigned'
 );
 
 my @attributeDisplayNames =
 (
 	$useMag ? 'Magnitude' : undef,
+	$useMag ? 'Unassigned magnitude' : undef,
 	'Count',
+	'Unassigned'
 );
 
 writeTree
