@@ -256,6 +256,7 @@ my @taxRanks;
 my @taxNames;
 my %taxIDByGI;
 my %ecNames;
+my %missingGIs;
 my %missingTaxIDs;
 
 
@@ -772,8 +773,9 @@ sub classifyBlast
 			{
 				my $newTaxID = getTaxIDFromGI($gi);
 				
-				if ( ! $newTaxID )
+				if ( ! $newTaxID || ! defined $taxParents[$newTaxID] )
 				{
+				    $missingGIs{$gi} = 1;
 					$newTaxID = 1;
 				}
 				
@@ -1343,6 +1345,12 @@ sub taxLowestCommonAncestor
 		{
 			for ( my $i = 0; $i < @nodes; $i++ )
 			{
+				if ( ! defined $taxParents[$nodes[$i]] )
+				{
+				    ktDie("Undefined parent for taxID $nodes[$i]");
+				    return;
+				}
+				
 				$nodes[$i] = $taxParents[$nodes[$i]];
 			}
 		}
@@ -1373,6 +1381,17 @@ sub writeTree
 		$hueStart, # (optional) hue at the start of the gradient for score
 		$hueEnd # (optional) hue at the end of the gradient for score
 	) = @_;
+	
+	if ( %missingGIs )
+	{
+		ktWarn
+		(
+			"The following GIs were not found in the local taxonomy database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
+			join ',', (keys %missingGIs)
+		);
+		
+		%missingGIs = ();
+	}
 	
 	if ( %missingTaxIDs )
 	{
