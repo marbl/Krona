@@ -775,7 +775,7 @@ sub classifyBlast
 				
 				if ( ! $newTaxID || ! defined $taxParents[$newTaxID] )
 				{
-				    $missingGIs{$gi} = 1;
+					$missingGIs{$gi} = 1;
 					$newTaxID = 1;
 				}
 				
@@ -1347,8 +1347,8 @@ sub taxLowestCommonAncestor
 			{
 				if ( ! defined $taxParents[$nodes[$i]] )
 				{
-				    ktDie("Undefined parent for taxID $nodes[$i]");
-				    return;
+					ktDie("Undefined parent for taxID $nodes[$i]");
+					return;
 				}
 				
 				$nodes[$i] = $taxParents[$nodes[$i]];
