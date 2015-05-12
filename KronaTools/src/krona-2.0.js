@@ -489,7 +489,77 @@ function Node()
 			}
 		}
 		
-		if ( this != selectedNode && ! this.getCollapse() )
+		if ( this.radial )
+		{
+			var angleText = (angleStartCurrent + angleEndCurrent) / 2;
+			var radiusText = (gRadius + radiusInner) / 2;
+			
+			context.rotate(angleText);
+			context.beginPath();
+			context.moveTo(radiusText, -fontSize);
+			context.lineTo(radiusText, fontSize);
+			context.lineTo(radiusText + centerX, fontSize);
+			context.lineTo(radiusText + centerX, -fontSize);
+			context.closePath();
+			context.rotate(-angleText);
+			
+			if ( context.isPointInPath(mouseX - centerX, mouseY - centerY) )
+			{
+				var label = String(this.getPercentage()) + '%' + '   ' + this.name;
+				
+				if ( this.searchResultChildren() )
+			    {
+					label += searchResultString(this.searchResultChildren());
+				}
+				
+				if
+				(
+					Math.sqrt((mouseX - centerX) * (mouseX - centerX) + (mouseY - centerY) * (mouseY - centerY)) <
+					radiusText + measureText(label)
+				)
+				{
+					highlighted = true;
+				}
+			}
+		}
+		else
+		{
+		    for ( var i = 0; i < this.hiddenLabels.length; i++ )
+		    {
+		        var hiddenLabel = this.hiddenLabels[i];
+		        
+				context.rotate(hiddenLabel.angle);
+				context.beginPath();
+				context.moveTo(gRadius, -fontSize);
+				context.lineTo(gRadius, fontSize);
+				context.lineTo(gRadius + centerX, fontSize);
+				context.lineTo(gRadius + centerX, -fontSize);
+				context.closePath();
+				context.rotate(-hiddenLabel.angle);
+				
+				if ( context.isPointInPath(mouseX - centerX, mouseY - centerY) )
+				{
+					var label = String(hiddenLabel.value) + ' more';
+					
+					if ( hiddenLabel.search )
+				    {
+						label += searchResultString(hiddenLabel.search);
+					}
+					
+					if
+					(
+						Math.sqrt((mouseX - centerX) * (mouseX - centerX) + (mouseY - centerY) * (mouseY - centerY)) <
+						gRadius + fontSize + measureText(label)
+					)
+					{
+						highlighted = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		if ( ! highlighted && this != selectedNode && ! this.getCollapse() )
 		{
 			context.beginPath();
 			context.arc(0, 0, radiusInner, angleStartCurrent, angleEndCurrent, false);
@@ -965,6 +1035,8 @@ function Node()
 			}
 		}
 		
+		this.hiddenLabels = Array();
+		
 		if ( drawChildren )
 		{
 			// draw children
@@ -1114,6 +1186,14 @@ function Node()
 	{
 		var textAngle = (angleStart + angleEnd) / 2;
 		var labelRadius = gRadius + fontSize;//(radiusInner + radius) / 2;
+		
+		var hiddenLabel = Array();
+		
+		hiddenLabel.value = value;
+		hiddenLabel.angle = textAngle;
+		hiddenLabel.search = hiddenSearchResults;
+		
+		this.hiddenLabels.push(hiddenLabel);
 		
 		drawTick(gRadius - fontSize * .75, fontSize * 1.5, textAngle);
 		drawTextPolar
@@ -2165,7 +2245,7 @@ function Node()
 	{
 		var nameWidthOld = this.nameWidth;
 		
-		if ( ! this.radial )//&& fontSize != fontSizeLast )
+		if ( true || ! this.radial )//&& fontSize != fontSizeLast )
 		{
 			var dim = context.measureText(this.name);
 			this.nameWidth = dim.width;
