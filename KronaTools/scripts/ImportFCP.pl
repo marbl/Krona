@@ -22,7 +22,6 @@ qw(
 	combine
 	depth
 	local
-	standalone
 	url
 	postUrl
 );

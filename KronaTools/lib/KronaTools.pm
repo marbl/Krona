@@ -69,12 +69,12 @@ my %options =
 	'ecCol' => 2,
 	'hueBad' => 0,
 	'hueGood' => 120,
+	'key' => 1,
 	'queryCol' => 1,
 	'scoreCol' => 3,
-	'key' => 1,
+	'standalone' => 1,
 	'taxCol' => 2,
-	'threshold' => 3,
-	'url' => 'http://krona.sourceforge.net'
+	'threshold' => 3
 );
 
 # Option format codes to pass to GetOptions (and to be parsed for display).
@@ -163,7 +163,7 @@ my %optionDescriptions =
 	'hueGood' => 'Hue (0-360) for "good" scores.',
 	'percentIdentity' => 'Use percent identity for average scores instead of log[10] e-value.',
 	'include' => 'Include a wedge for queries with no hits.',
-	'local' => 'Create a local chart, which does not require an Internet connection to view (but will only work on this computer).',
+	'local' => 'Use resources from the local KronaTools installation instead of bundling them with charts (charts will be smaller but will only work on this computer).',
 	'magCol' => 'Column of input files to use as magnitude. If magnitude files are specified, their magnitudes will override those in this column.',
 	'minConfidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'name' => 'Name of the highest level.',
@@ -179,7 +179,7 @@ my %optionDescriptions =
 	'summarize' => 'Summarize counts and average scores by taxonomy ID.',
 	'taxCol' => 'Column of input files to use as taxonomy ID.',
 	'threshold' => 'Threshold for bit score differences when determining "best" hits. Hits with scores that are within this distance of the highest score will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
-	'url' => 'URL of Krona resources.',
+	'url' => 'URL of Krona resources to use instead of bundling them with the chart (e.g. "http://krona.sourceforge.net"). Reduces size of charts and allows updates, though charts will not work without access to this URL.',
 	'verbose' => 'Verbose.'
 );
 
@@ -971,7 +971,7 @@ sub htmlHeader
 	my $notFound;
 	my $script;
 	
-	if ( $options{'standalone'} )
+	if ( $options{'standalone'} && ! $options{'local'} &&  ! $options{'url'} )
 	{
 		$script =
 			indent(2) . "<script language=\"javascript\" type=\"text/javascript\">\n" .

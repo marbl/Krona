@@ -23,7 +23,6 @@ qw(
 	include
 	depth
 	local
-	standalone
 	url
 	postUrl
 	verbose

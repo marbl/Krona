@@ -25,7 +25,6 @@ qw(
 	hueGood
 	percentIdentity
 	local
-	standalone
 	url
 );
 

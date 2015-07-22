@@ -32,7 +32,6 @@ qw(
 	hueBad
 	hueGood
 	local
-	standalone
 	url
 	postUrl
 	factor
