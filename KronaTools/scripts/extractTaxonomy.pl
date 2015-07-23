@@ -10,11 +10,13 @@
 use strict;
 
 
+my ($taxonomy) = @ARGV;
+
 my %data;
 
 # load scientific names for each tax ID
 
-open NAMES, "<taxonomy/names.dmp" or die "Couldn't open names.dmp";
+open NAMES, "<$taxonomy/names.dmp" or die "Couldn't open names.dmp";
 
 while ( my $line = <NAMES> )
 {
@@ -35,7 +37,7 @@ close NAMES;
 
 # load parents and ranks for each tax ID
 
-open NODES, "<taxonomy/nodes.dmp" or die "Couldn't open nodes.dmp";
+open NODES, "<$taxonomy/nodes.dmp" or die "Couldn't open nodes.dmp";
 
 while ( my $line = <NODES> )
 {
@@ -54,7 +56,7 @@ while ( my $line = <NODES> )
 
 close NODES;
 
-open OUT, ">taxonomy/taxonomy.tab" or die "Couldn't write to taxonomy.tab";
+open OUT, ">$taxonomy/taxonomy.tab" or die "Couldn't write to taxonomy.tab";
 
 foreach my $id ( sort {$a <=> $b} keys %data )
 {

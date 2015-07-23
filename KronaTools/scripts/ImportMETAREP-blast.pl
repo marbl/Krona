@@ -30,6 +30,7 @@ qw(
 	local
 	url
 	postUrl
+	taxonomy
 	verbose
 	
 );

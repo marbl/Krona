@@ -44,7 +44,7 @@ function update
 	then
 		if [ ! -e $zipped ]
 		then
-			die "Could not find $oldPath/taxonomy/$zipped.  Was it transfered?"
+			die "Could not find $taxonomyPath/$zipped.  Was it transfered?"
 		fi
 	else
         if [ -e $timestamp ]
@@ -57,7 +57,7 @@ function update
 		
 		if [ $return == "23" ]
 		then
-			die "Could not write '$oldPath/taxonomy/$zipped'. Do you have permission?"
+			die "Could not write '$taxonomyPath/$zipped'. Do you have permission?"
 		fi
 		
 		if [ $return != "0" ]
@@ -73,7 +73,7 @@ function update
 		
 		if [ $? != "0" ]
 		then
-			die "Could not unzip $oldPath/taxonomy/$zipped. Do you have permission?"
+			die "Could not unzip $taxonomyPath/$zipped. Do you have permission?"
 		fi
 	else
 		echo ">>>>> $description is up to date."
@@ -82,13 +82,28 @@ function update
 	echo ""
 }
 
-oldPath=$(pwd)
-taxonomyPath=./taxonomy;
+oldPath=`ktGetLibPath`/..
+taxonomyPath=$1
+
+if [ "$taxonomyPath" == "" ]
+then
+	taxonomyPath="$oldPath/taxonomy";
+else
+	if [ ! -d "$taxonomyPath" ]
+	then
+		echo ""
+		echo "Creating $taxonomyPath..."
+		echo ""
+		
+		mkdir -p "$taxonomyPath"
+	fi
+fi
+
 cd $taxonomyPath;
 
 if [ "$?" != "0" ]
 then
-	die "Could not enter '$oldPath/taxonomy'.  Did you run install.pl?"
+	die "Could not enter '$oldPath/taxonomy'. Did you run install.pl?"
 fi
 
 update gi_taxid_nucl.dmp gi_taxid.dat "GI to taxID dump (nucleotide)"
@@ -101,24 +116,22 @@ then
 	rm taxdump.tar
 fi
 
-cd $oldPath
-
-if [ taxonomy/gi_taxid_nucl.dmp -nt taxonomy/gi_taxid.dat ]
+if [ $taxonomyPath/gi_taxid_nucl.dmp -nt $taxonomyPath/gi_taxid.dat ]
 then
 	echo ">>>>> Creating combined GI to taxID index..."
-	./scripts/indexGIs.pl
-	rm taxonomy/gi_taxid_nucl.dmp
-	rm taxonomy/gi_taxid_prot.dmp
+	$oldPath/scripts/indexGIs.pl $taxonomyPath
+	rm $taxonomyPath/gi_taxid_nucl.dmp
+	rm $taxonomyPath/gi_taxid_prot.dmp
 else
 	echo ">>>>> GI index is up to date"
 fi
 
 echo ""
 
-if [ taxonomy/nodes.dmp -nt taxonomy/taxonomy.tab ]
+if [ $taxonomyPath/nodes.dmp -nt $taxonomyPath/taxonomy.tab ]
 then
 	echo ">>>>> Extracting taxonomy info..." 
-	./scripts/extractTaxonomy.pl
+	$oldPath/scripts/extractTaxonomy.pl $taxonomyPath
 else
 	echo ">>>>> Taxonomy info is up to date"
 fi
@@ -126,13 +139,13 @@ fi
 echo
 echo ">>>>> Cleaning up..."
 
-if [ -e taxonomy/names.dmp ]
+if [ -e $taxonomyPath/names.dmp ]
 then
-	`rm taxonomy/*.dmp`
+	`rm $taxonomyPath/*.dmp`
 fi
 
-clean taxonomy/gc.prt
-clean taxonomy/readme.txt
+clean $taxonomyPath/gc.prt
+clean $taxonomyPath/readme.txt
 
 echo
 echo ">>>>> Finished."

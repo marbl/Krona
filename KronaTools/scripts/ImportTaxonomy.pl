@@ -32,6 +32,7 @@ qw(
 	local
 	url
 	postUrl
+	taxonomy
 );
 
 getKronaOptions(@options);

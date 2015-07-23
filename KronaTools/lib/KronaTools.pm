@@ -16,6 +16,11 @@ use File::Path;
 use base 'Exporter';
 use Cwd 'abs_path';
 
+my $libPath = `ktGetLibPath`;
+my $taxonomyDir = $libPath;
+$taxonomyDir =~ s/lib$/taxonomy/;
+my $ecFile = "$libPath/../data/ec.tsv";
+
 # public subroutines
 #
 our @EXPORT = qw
@@ -74,6 +79,7 @@ my %options =
 	'scoreCol' => 3,
 	'standalone' => 1,
 	'taxCol' => 2,
+	'taxonomy' => $taxonomyDir,
 	'threshold' => 3
 );
 
@@ -131,6 +137,8 @@ my %optionFormats =
 		't=i',
 	'threshold' =>
 		't=f',
+	'taxonomy' =>
+		'tax=s',
 	'url' =>
 		'u=s',
 	'verbose' =>
@@ -178,6 +186,7 @@ my %optionDescriptions =
 	'standalone' => 'Create a standalone chart, which includes Krona resources and does not require an Internet connection or KronaTools installation to view.',
 	'summarize' => 'Summarize counts and average scores by taxonomy ID.',
 	'taxCol' => 'Column of input files to use as taxonomy ID.',
+	'taxonomy' => 'Taxonomy database to use.',
 	'threshold' => 'Threshold for bit score differences when determining "best" hits. Hits with scores that are within this distance of the highest score will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
 	'url' => 'URL of Krona resources to use instead of bundling them with the chart (e.g. "http://krona.sourceforge.net"). Reduces size of charts and allows updates, though charts will not work without access to this URL.',
 	'verbose' => 'Verbose.'
@@ -224,10 +233,6 @@ default, the basename of the file will be used.',
 ####################
 # Global constants #
 ####################
-
-my $libPath = `ktGetLibPath`;
-my $taxonomyDir = "$libPath/../taxonomy";
-my $ecFile = "$libPath/../data/ec.tsv";
 
 my $version = '2.6';
 my $javascriptVersion = '2.0';
@@ -931,7 +936,7 @@ sub getTaxIDFromGI
 	
 	if ( ! defined $taxIDByGI{$gi} )
 	{
-		if ( ! open GI, "<$taxonomyDir/gi_taxid.dat" )
+		if ( ! open GI, "<$options{'taxonomy'}/gi_taxid.dat" )
 		{
 			print "ERROR: GI to TaxID data not found.  Was updateTaxonomy.sh run?\n";
 			exit 1;
@@ -1073,8 +1078,8 @@ sub loadMagnitudes
 
 sub loadTaxonomy
 {
-	open INFO, "<$taxonomyDir/taxonomy.tab" or die
-		"Taxonomy not found in $taxonomyDir. Was updateTaxonomy.sh run?";
+	open INFO, "<$options{'taxonomy'}/taxonomy.tab" or die
+		"Taxonomy not found in $options{'taxonomy'}. Was updateTaxonomy.sh run?";
 	
 	while ( my $line = <INFO> )
 	{

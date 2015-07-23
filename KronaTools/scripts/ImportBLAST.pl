@@ -34,6 +34,7 @@ qw(
 	local
 	url
 	postUrl
+	taxonomy
 	factor
 );
 
