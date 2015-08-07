@@ -44,6 +44,7 @@ foreach my $script
 	ImportEC
 	ImportFCP
 	ImportGalaxy
+	ImportKrona
 	ImportMETAREP-BLAST
 	ImportMETAREP-EC
 	ImportMGRAST

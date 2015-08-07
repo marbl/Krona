@@ -12,7 +12,6 @@ use Getopt::Long;
 use File::Basename;
 use File::Path;
 
-
 use base 'Exporter';
 use Cwd 'abs_path';
 
@@ -28,6 +27,7 @@ our @EXPORT = qw
 	addByEC
 	addByLineage
 	addByTaxID
+	addXML
 	classifyBlast
 	default
 	getKronaOptions
@@ -632,6 +632,107 @@ sub addByTaxID
 		}
 		
 		return $child;
+	}
+}
+
+sub addXML
+{
+	my # parameters
+	(
+		$node,
+		$xml,
+		$dataset,
+		$file
+	) = @_;
+	
+	while ( (my $line = <$xml>) !~ /<\/node>/ )
+	{
+		if ( $line =~ /<node name="([^"]+)">/ )
+		{
+			my $child = $1;
+			
+			if ( ! defined $node->{'children'}{$child} )
+			{
+				my %newChild = ();
+				$node->{'children'}{$child} = \%newChild;
+			}
+			
+			addXML($node->{'children'}{$child}, $xml, $dataset, $file);
+		}
+		elsif ( $line =~ /<members>/ )
+		{
+			if ( $line =~ /<val>(.*)<\/val>/ )
+			{
+				my @members = split /<\/val><val>/, $1;
+				my $offset = 0;
+				
+				for ( my $i = 0; $i < @members; $i++ )
+				{
+					if ( $members[$i] eq "" )
+					{
+						next;
+					}
+					
+					my $fileMembers = "$file.files/$members[$i]";
+					
+					open MEMBERS, $fileMembers or die "Could not open $fileMembers";
+					
+					while ( <MEMBERS> )
+					{
+						if ( /(data\(')?(.+)\\n\\/ )
+						{
+							push @{$node->{'members'}[$dataset + $i]}, $2;
+						}
+					}
+					
+					close MEMBERS;
+				}
+			}
+			
+			while ( $line !~ /<\/members>/ )
+			{
+				my $offset = 0;
+				
+				if ( $line =~ /<vals><val>(.*)<\/val><\/vals>/ )
+				{
+					my @members = split /<\/val><val>/, $1;
+					
+					for ( my $i = 0; $i < @members; $i++ )
+					{
+						push @{$node->{'members'}[$dataset + $offset]}, $members[$i];
+					}
+					
+					$offset++;
+				}
+				
+				$line = <$xml>;
+			}
+		}
+		elsif ( $line =~ /<(rank|taxon)><val>(.*)<\/val><\/\1>/ )
+		{
+			$node->{$1}[0] = $2;
+		}
+		elsif ( $line =~ /<(count|score|magnitude)><val>(.*)<\/val><\/\1>/ )
+		{
+			my @vals = split /<\/val><val>/, $2;
+			
+			for ( my $i = 0; $i < @vals; $i++ )
+			{
+				if ( $1 eq 'score' )
+				{
+					$node->{'scoreTotal'}[$dataset + $i] = $vals[$i];
+					$node->{'scoreCount'}[$dataset + $i] = 1;
+				}
+				else
+				{
+					$node->{$1}[$dataset + $i] = $vals[$i];
+				}
+			}
+		}
+		elsif ( $line =~ /<\/node>/ )
+		{
+			return;
+		}
 	}
 }
 
@@ -2009,7 +2110,7 @@ sub toStringXML
 	
 	$$nodeIDRef++;
 	
-	if ( defined $node->{'children'} )
+	if ( defined $node->{'children'} && ( ! $options{'depth'} || $depth < $options{'depth'} ) )
 	{
 		foreach my $child (keys %{$node->{'children'}})
 		{
