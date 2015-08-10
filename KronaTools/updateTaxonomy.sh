@@ -9,7 +9,21 @@
 command -v curl >/dev/null 2>&1 || \
 	{ echo >&2 "ERROR: Curl (http://curl.haxx.se) is required."; exit 1; }
 
-local=$1
+while [ "$#" -ne 0 ]
+do
+	if [ $1 == "--help" ] || [ $1 == "-h" ]
+	then
+		echo "updateTaxonomy.sh [--local] [/custom/dir]"
+		exit
+	elif [ $1 == "--local" ]
+	then
+		local=1
+	else
+		taxonomyPath=$1
+	fi
+	
+	shift
+done
 
 function die
 {
@@ -40,7 +54,7 @@ function update
 	
 	echo ">>>>> Updating $description..."
 	
-	if [ $local ] && [ $local == "--local" ]
+	if [ $local ]
 	then
 		if [ ! -e $zipped ]
 		then
@@ -83,7 +97,6 @@ function update
 }
 
 oldPath=`ktGetLibPath`/..
-taxonomyPath=$1
 
 if [ "$taxonomyPath" == "" ]
 then
