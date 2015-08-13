@@ -1,0 +1,59 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <base href="http://krona.sourceforge.net/" target="_blank"/>
+  <link rel="shortcut icon" href="img/favicon.ico"/>
+  <script id="notfound">window.onload=function(){document.body.innerHTML="Could not get resources from \"http://krona.sourceforge.net\"."}</script>
+  <script src="src/krona-2.0.js"></script>
+ </head>
+ <body>
+  <img id="hiddenImage" src="img/hidden.png" style="display:none"/>
+  <noscript>Javascript must be enabled to view this page.</noscript>
+  <div style="display:none">
+<krona>
+	<attributes magnitude="grams">
+		<attribute display="Grams">grams</attribute>
+		<attribute display="% Daily Value">dva</attribute>
+	</attributes>
+	<color attribute="grams" valueStart="0" valueEnd="55" hueStart="120" hueEnd="240"></color>
+	<datasets>
+		<dataset>Brand X</dataset>
+		<dataset>Brand Y</dataset>
+	</datasets>
+	<node name="Granola serving">
+		<grams><val>55</val><val>55</val></grams>
+		<node name="Protein">
+			<grams><val>5</val><val>6</val></grams>
+		</node>
+		<node name="Carbohydrates">
+			<grams><val>39</val><val>41</val></grams>
+			<dva><val>13</val><val>14</val></dva>
+			<node name="Sugars">
+				<grams><val>3</val><val>5</val></grams>
+			</node>
+			<node name="Dietary fiber">
+				<grams><val>4</val><val>8</val></grams>
+				<dva><val>16</val><val>32</val></dva>
+			</node>
+		</node>
+		<node name="Fats">
+			<grams><val>8</val><val>6</val></grams>
+			<dva><val>12</val><val>9</val>
+			<node name="Saturated fat">
+				<grams><val>2</val><val>1</val></grams>
+				<dva><val>10</val><val>5</val></dva>
+			</node>
+			<node name="Unsaturated fat">
+				<grams><val>6</val><val>5</val></grams>
+				<node name="Polyunsaturated fat">
+					<grams><val>3</val><val>4</val></grams>
+				</node>
+				<node name="Monounsaturated fat">
+					<grams><val>3</val><val>2</val></grams>
+				</node>
+			</node>
+		</node>
+	</node>
+</krona>
+</div></body></html>
