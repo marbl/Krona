@@ -17,6 +17,7 @@ use KronaTools;
 setOption('out', 'krona.krona.html');
 setOption('hueBad', undef);
 setOption('hueGood', undef);
+setOption('name', undef);
 
 my @options =
 qw(
@@ -26,7 +27,6 @@ qw(
 	depth
 	hueBad
 	hueGood
-	local
 	url
 	postUrl
 );

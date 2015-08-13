@@ -21,7 +21,6 @@ qw(
 	name
 	noMag
 	combine
-	local
 	url
 );
 

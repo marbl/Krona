@@ -15,7 +15,6 @@ setOption('out', 'du.krona.html');
 my @options =
 qw(
 	out
-	local
 	url
 );
 

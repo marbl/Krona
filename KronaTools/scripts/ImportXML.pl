@@ -17,7 +17,6 @@ setOption('out', 'xml.krona.html');
 my @options =
 qw(
 	out
-	local
 	url
 );
 

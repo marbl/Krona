@@ -25,7 +25,6 @@ qw(
 	hueBad
 	hueGood
 	phymm
-	local
 	url
 	postUrl
 );

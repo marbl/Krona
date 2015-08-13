@@ -29,7 +29,6 @@ qw(
 	noRank
 	hueBad
 	hueGood
-	local
 	url
 	postUrl
 	taxonomy

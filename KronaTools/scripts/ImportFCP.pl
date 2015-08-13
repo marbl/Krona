@@ -21,7 +21,6 @@ qw(
 	name
 	combine
 	depth
-	local
 	url
 	postUrl
 );

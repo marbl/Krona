@@ -22,7 +22,6 @@ qw(
 	combine
 	include
 	depth
-	local
 	url
 	postUrl
 	verbose

@@ -24,7 +24,6 @@ qw(
 	depth
 	hueBad
 	hueGood
-	local
 	url
 	postUrl
 );

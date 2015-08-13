@@ -24,7 +24,6 @@ qw(
 	hueBad
 	hueGood
 	percentIdentity
-	local
 	url
 );
 
