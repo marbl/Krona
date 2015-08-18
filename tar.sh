@@ -39,8 +39,8 @@ tar -cnf $release.tar \
 	$release/img/favicon.uri \
 	$release/img/loading.gif \
 	$release/img/loading.uri \
-	$release/img/logo.png \
-	$release/img/logo.uri \
+	$release/img/logo-small.png \
+	$release/img/logo-small.uri \
 	$release/taxonomy \
 	$release/install.pl \
 	$release/updateTaxonomy.sh \
