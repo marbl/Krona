@@ -108,7 +108,7 @@ foreach my $input (@ARGV)
 		}
 		elsif ( $line =~ /<node name="([^"]*)"/ )
 		{
-			if ( $dataset == 0 )
+			if ( $dataset == 0 && ! defined getOption('name') )
 			{
 				setOption('name', $1);
 			}
