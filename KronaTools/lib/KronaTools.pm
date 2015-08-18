@@ -1087,7 +1087,7 @@ sub htmlHeader
 		$hiddenImage = slurp("$libPath/../img/hidden.uri");
 		$loadingImage = slurp("$libPath/../img/loading.uri");
 		$favicon = slurp("$libPath/../img/favicon.uri");
-		$logo = slurp("$libPath/../img/logo.uri");
+		$logo = slurp("$libPath/../img/logo-small.uri");
 	}
 	else
 	{

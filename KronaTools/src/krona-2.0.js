@@ -3532,14 +3532,14 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	}
 	else
 	{
-		logoImage = 'http://marbl.github.io/Krona/img/logo.png';
+		logoImage = 'http://marbl.github.io/Krona/img/logo-small.png';
 	}
 	
 //	document.getElementById('options').style.fontSize = '9pt';
 	position = addOptionElement
 	(
 		position,
-'<a style="margin:2px" target="_blank" href="https://github.com/marbl/Krona/wiki"><div style="display:inline-block;vertical-align:middle;background-color:#EEEEEE;border:1px solid gray;padding:2px;font-size:18px"><img style="vertical-align:middle;" src="' + logoImage + '"/><span style="vertical-align:middle;color:#555555">Krona</span></div></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+'<a style="margin:2px" target="_blank" href="https://github.com/marbl/Krona/wiki"><img style="vertical-align:middle;" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
