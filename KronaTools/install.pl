@@ -13,11 +13,19 @@ use Getopt::Long;
 
 my $path = '/usr/local';
 my $taxonomyDir;
+my $help;
 
 GetOptions(
 	'prefix=s'   => \$path,
-	'taxonomy=s' => \$taxonomyDir
+	'taxonomy=s' => \$taxonomyDir,
+	'help' => \$help
 	);
+
+if ( $help )
+{
+	print "./install.pl [-prefix /path/to/install] [-taxonomy /path/to/taxonomy]\n";
+	exit;
+}
 
 $path = abs_path($path);
 
