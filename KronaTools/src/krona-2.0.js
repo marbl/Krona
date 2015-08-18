@@ -69,7 +69,7 @@
 // 
 // FOR MORE INFORMATION VISIT
 // 
-// http://krona.sourceforge.net
+// https://github.com/marbl/Krona/wiki/
 // 
 //-----------------------------------------------------------------------------
 }
@@ -3532,14 +3532,14 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	}
 	else
 	{
-		logoImage = 'http://krona.sourceforge.net/img/logo.png';
+		logoImage = 'http://marbl.github.io/Krona/img/logo.png';
 	}
 	
 //	document.getElementById('options').style.fontSize = '9pt';
 	position = addOptionElement
 	(
 		position,
-'<a style="margin:2px" target="_blank" href="http://krona.sourceforge.net"><div style="display:inline-block;vertical-align:middle;background-color:#EEEEEE;border:1px solid gray;padding:2px;font-size:18px"><img style="vertical-align:middle;" src="' + logoImage + '"/><span style="vertical-align:middle;color:#555555">Krona</span></div></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+'<a style="margin:2px" target="_blank" href="https://github.com/marbl/Krona/wiki"><div style="display:inline-block;vertical-align:middle;background-color:#EEEEEE;border:1px solid gray;padding:2px;font-size:18px"><img style="vertical-align:middle;" src="' + logoImage + '"/><span style="vertical-align:middle;color:#555555">Krona</span></div></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
@@ -3659,7 +3659,7 @@ quality format that can be printed and saved (see Help for browser compatibility
 	(
 		position + 5,
 '<input type="button" id="help" value="?"\
-onclick="window.open(\'https://sourceforge.net/p/krona/wiki/Browsing%20Krona%20charts/\', \'help\')"/>',
+onclick="window.open(\'https://github.com/marbl/Krona/wiki/Browsing%20Krona%20charts\', \'help\')"/>',
 'Help'
 	);
 }
@@ -4826,7 +4826,7 @@ function load()
 	{
 		document.body.innerHTML = '\
 <br/>This browser does not support HTML5 (see \
-<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">Browser support</a>).\
+<a href="https://github.com/marbl/Krona/wiki/Browser%20support">Browser support</a>).\
 	';
 		return;
 	}
@@ -4835,7 +4835,7 @@ function load()
 	{
 		document.body.innerHTML = '\
 <br/>This browser does not support HTML5 canvas text (see \
-<a href="http://sourceforge.net/p/krona/wiki/Browser%20support/">Browser support</a>).\
+<a href="https://github.com/marbl/Krona/wiki/Browser%20support">Browser support</a>).\
 	';
 		return;
 	}
