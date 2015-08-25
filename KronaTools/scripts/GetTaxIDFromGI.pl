@@ -17,14 +17,21 @@ my $help;
 my $totalMag;
 my $prepend;
 my $append;
+my $tax;
 
 GetOptions
 (
 	'h' => \$help,
 	'help' => \$help,
 	'p' => \$prepend,
-	'a' => \$append
+	'a' => \$append,
+	'tax=s' => \$tax
 );
+
+if ( defined $tax )
+{
+	setOption('taxonomy', $tax);
+}
 
 if ( $help )
 {
