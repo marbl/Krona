@@ -19,6 +19,7 @@ tar -cnf $release.tar \
 	$release/scripts/ImportEC.pl \
 	$release/scripts/ImportFCP.pl \
 	$release/scripts/ImportGalaxy.pl \
+	$release/scripts/ImportKrona.pl \
 	$release/scripts/ImportMETAREP-BLAST.pl \
 	$release/scripts/ImportMETAREP-EC.pl \
 	$release/scripts/ImportMGRAST.pl \
