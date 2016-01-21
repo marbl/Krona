@@ -520,7 +520,7 @@ sub addByTaxID
 	
 	$magnitude = default($magnitude, 1);
 	
-	if ( ! defined $taxDepths[$taxID] )
+	if ( $taxID != 0 && ! defined $taxDepths[$taxID] )
 	{
 		$missingTaxIDs{$taxID} = 1;
 		$taxID = 1; # unknown tax ID; set to root
