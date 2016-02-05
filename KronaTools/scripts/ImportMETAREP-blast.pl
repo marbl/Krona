@@ -9,7 +9,7 @@
 
 use strict;
 
-use lib (`ktGetLibPath`);
+use lib (`ktGetLibPath` or print STDERR "Could not find KronaTools binaries. Are they in your \$PATH?\n" and exit 1);
 use KronaTools;
 
 setOption('out', 'metarep-blast.krona.html');
