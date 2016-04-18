@@ -37,7 +37,7 @@ then
 	mkdir $target/img
 fi
 
-ln -sf $PWD/src/krona-*.js $target/src
-ln -sf $PWD/img/hidden.png $PWD/img/favicon.ico $PWD/img/loading.gif $target/img
+cp $PWD/src/krona-*.js $target/src
+cp $PWD/img/hidden.png $PWD/img/favicon.ico $PWD/img/loading.gif $PWD/img/logo-med.png $target/img
 
 echo "Finished."
