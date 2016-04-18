@@ -291,6 +291,19 @@ var hiddenPattern;
 var loadingImage;
 var logoImage;
 
+function backingScale()
+{
+	if ('devicePixelRatio' in window)
+	{
+		if (window.devicePixelRatio > 1)
+		{
+			return window.devicePixelRatio;
+		}
+	}
+	
+	return 1;
+}
+
 function resize()
 {
 	imageWidth = window.innerWidth;
@@ -298,8 +311,11 @@ function resize()
 	
 	if ( ! snapshotMode )
 	{
-		context.canvas.width = imageWidth;
-		context.canvas.height = imageHeight;
+		context.canvas.width = imageWidth * backingScale();
+		context.canvas.height = imageHeight * backingScale();
+		context.canvas.style.width = imageWidth + "px"
+		context.canvas.style.height = imageHeight + "px"
+		context.scale(backingScale(), backingScale());
 	}
 	
 	if ( datasetDropDown )
@@ -503,7 +519,7 @@ function Node()
 			context.closePath();
 			context.rotate(-angleText);
 			
-			if ( context.isPointInPath(mouseX - centerX, mouseY - centerY) )
+			if ( context.isPointInPath(mouseYRel, mouseYRel) )
 			{
 				var label = String(this.getPercentage()) + '%' + '   ' + this.name;
 				
@@ -514,7 +530,7 @@ function Node()
 				
 				if
 				(
-					Math.sqrt((mouseX - centerX) * (mouseX - centerX) + (mouseY - centerY) * (mouseY - centerY)) <
+					Math.sqrt((mouseXRel) * (mouseXRel) + (mouseYRel) * (mouseYRel)) <
 					radiusText + measureText(label)
 				)
 				{
@@ -537,7 +553,7 @@ function Node()
 				context.closePath();
 				context.rotate(-hiddenLabel.angle);
 				
-				if ( context.isPointInPath(mouseX - centerX, mouseY - centerY) )
+				if ( context.isPointInPath(mouseXRel, mouseYRel) )
 				{
 					var label = String(hiddenLabel.value) + ' more';
 					
@@ -548,7 +564,7 @@ function Node()
 					
 					if
 					(
-						Math.sqrt((mouseX - centerX) * (mouseX - centerX) + (mouseY - centerY) * (mouseY - centerY)) <
+						Math.sqrt((mouseXRel) * (mouseXRel) + (mouseYRel) * (mouseYRel)) <
 						gRadius + fontSize + measureText(label)
 					)
 					{
@@ -566,7 +582,7 @@ function Node()
 			context.arc(0, 0, gRadius, angleEndCurrent, angleStartCurrent, true);
 			context.closePath();
 			
-			if ( context.isPointInPath(mouseX - centerX, mouseY - centerY) )
+			if ( context.isPointInPath(mouseXRel, mouseYRel) )
 			{
 				highlighted = true;
 			}
@@ -5255,6 +5271,8 @@ function mouseMove(e)
 {
 	mouseX = e.pageX;
 	mouseY = e.pageY - headerHeight;
+	mouseXRel = (mouseX - centerX) * backingScale()
+	mouseYRel = (mouseY - centerY) * backingScale()
 	
 	if ( head && ! quickLook )
 	{
