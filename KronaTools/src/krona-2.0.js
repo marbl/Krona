@@ -236,6 +236,8 @@ var nLabelOffsets = 3; // the number of offsets to use
 
 var mouseX = -1;
 var mouseY = -1;
+var mouseXRel = -1;
+var mouseYRel = -1;
 
 // tweening
 //
@@ -519,7 +521,7 @@ function Node()
 			context.closePath();
 			context.rotate(-angleText);
 			
-			if ( context.isPointInPath(mouseYRel, mouseYRel) )
+			if ( context.isPointInPath(mouseXRel, mouseYRel) )
 			{
 				var label = String(this.getPercentage()) + '%' + '   ' + this.name;
 				
@@ -530,7 +532,7 @@ function Node()
 				
 				if
 				(
-					Math.sqrt((mouseXRel) * (mouseXRel) + (mouseYRel) * (mouseYRel)) <
+					Math.sqrt((mouseXRel) * (mouseXRel) + (mouseYRel) * (mouseYRel)) / backingScale() <
 					radiusText + measureText(label)
 				)
 				{
@@ -564,7 +566,7 @@ function Node()
 					
 					if
 					(
-						Math.sqrt((mouseXRel) * (mouseXRel) + (mouseYRel) * (mouseYRel)) <
+						Math.sqrt((mouseXRel) * (mouseXRel) + (mouseYRel) * (mouseYRel)) / backingScale() <
 						gRadius + fontSize + measureText(label)
 					)
 					{
