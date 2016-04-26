@@ -40,7 +40,7 @@ if
 {
 	my $scriptName = getScriptName();
 	
-	printHeader($scriptName);
+	printHeader("KronaTools $version - $scriptName");
 	print
 'Creates a Krona chart from an RDP library comparison.
 ';

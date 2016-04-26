@@ -27,7 +27,7 @@ if
 {
 	my $scriptName = getScriptName();
 	
-	printHeader($scriptName);
+	printHeader("KronaTools $version - $scriptName");
 	print
 'Creates a Krona chart of disk usage of files and folders in the specified
 directory. Symbolic links and mount points within the directory are not

@@ -17,7 +17,7 @@ if ( @ARGV < 2 )
 {
 	my $scriptName = getScriptName();
 	
-	printHeader($scriptName);
+	printHeader("KronaTools $version - $scriptName");
 	print
 'Takes an ACE assembly file and writes a magnitude file for use with import
 scripts.  The magnitude of each contig will be the total number of reads
