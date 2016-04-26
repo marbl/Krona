@@ -120,7 +120,7 @@ fi
 pushd "$taxonomyPath"
 update gi_taxid_nucl.dmp gi_taxid.dat "GI to taxID dump (nucleotide)"
 update gi_taxid_prot.dmp gi_taxid.dat "GI to taxID dump (protein)"
-if [ ! $local -o ! -e names.dmp ]
+if [ -z $local -o ! -e names.dmp ]
 then
 update taxdump.tar taxonomy.tab 'Taxonomy dump'
 fi
