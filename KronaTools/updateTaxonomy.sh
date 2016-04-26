@@ -21,7 +21,7 @@ do
 	else
 		taxonomyPath=$1
 	fi
-	
+
 	shift
 done
 
@@ -37,7 +37,7 @@ function die
 function clean
 {
 	aFile=$1
-	
+
 	if [ -e $aFile ]
 	then
 		rm $aFile
@@ -49,42 +49,42 @@ function update
 	unzipped=$1
 	timestamp=$2
 	description=$3
-	
+
 	zipped=${unzipped}.gz
-	
+
 	echo ">>>>> Updating $description..."
-	
+
 	if [ $local ]
 	then
-		if [ ! -e $zipped ]
+		if [ ! -e $zipped -a ! -e $unzipped ]
 		then
-			die "Could not find $taxonomyPath/$zipped.  Was it transfered?"
+			die "Could not find $taxonomyPath/$unzipped[.gz].  Was it transfered?"
 		fi
 	else
         if [ -e $timestamp ]
         then
             timestring=" -z $timestamp"
         fi
-		
+
 		curl$timestring -R --retry 1 -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
 		return=$?
-		
+
 		if [ $return == "23" ]
 		then
 			die "Could not write '$taxonomyPath/$zipped'. Do you have permission?"
 		fi
-		
+
 		if [ $return != "0" ]
 		then
 			die "Is your internet connection okay?"
 		fi
 	fi
-	
+
 	if [ $zipped -nt $timestamp ]
 	then
 		echo ">>>>> Unzipping $description..."
 		gunzip -f $zipped
-		
+
 		if [ $? != "0" ]
 		then
 			die "Could not unzip $taxonomyPath/$zipped. Do you have permission?"
@@ -92,7 +92,7 @@ function update
 	else
 		echo ">>>>> $description is up to date."
 	fi
-	
+
 	echo ""
 }
 
@@ -107,21 +107,24 @@ else
 		echo ""
 		echo "Creating $taxonomyPath..."
 		echo ""
-		
+
 		mkdir -p "$taxonomyPath"
 	fi
 fi
-
-cd $taxonomyPath;
 
 if [ "$?" != "0" ]
 then
 	die "Could not enter '$oldPath/taxonomy'. Did you run install.pl?"
 fi
 
+pushd "$taxonomyPath"
 update gi_taxid_nucl.dmp gi_taxid.dat "GI to taxID dump (nucleotide)"
 update gi_taxid_prot.dmp gi_taxid.dat "GI to taxID dump (protein)"
+if [ -z $local -o ! -e names.dmp ]
+then
 update taxdump.tar taxonomy.tab 'Taxonomy dump'
+fi
+popd
 
 if [ -e taxdump.tar ]
 then
@@ -143,7 +146,7 @@ echo ""
 
 if [ $taxonomyPath/nodes.dmp -nt $taxonomyPath/taxonomy.tab ]
 then
-	echo ">>>>> Extracting taxonomy info..." 
+	echo ">>>>> Extracting taxonomy info..."
 	$oldPath/scripts/extractTaxonomy.pl $taxonomyPath
 else
 	echo ">>>>> Taxonomy info is up to date"
@@ -163,4 +166,3 @@ clean $taxonomyPath/readme.txt
 echo
 echo ">>>>> Finished."
 echo
-
