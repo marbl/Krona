@@ -15,7 +15,13 @@ use File::Path;
 use base 'Exporter';
 use Cwd 'abs_path';
 
-my $libPath = `ktGetLibPath`;
+my $libPath;
+BEGIN
+{
+	use File::Basename;
+	use Cwd 'abs_path';
+	$libPath = dirname(abs_path(__FILE__));
+}
 my $taxonomyDir = $libPath;
 $taxonomyDir =~ s/lib$/taxonomy/;
 my $ecFile = "$libPath/../data/ec.tsv";
@@ -234,7 +240,7 @@ default, the basename of the file will be used.',
 # Global constants #
 ####################
 
-my $version = '2.6';
+our $version = '2.6';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';

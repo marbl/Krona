@@ -10,14 +10,19 @@
 
 use strict;
 
-use lib (`ktGetLibPath` or print STDERR "Could not find KronaTools binaries. Are they in your \$PATH?\n" and exit 1);
-use KronaTools;
+BEGIN
+{
+	use File::Basename;
+	use Cwd 'abs_path';
+	use lib dirname(abs_path($0)) . "/../lib";
+	use KronaTools;
+}
 
 if ( @ARGV < 2 )
 {
 	my $scriptName = getScriptName();
 	
-	printHeader("KronaTools $version - $scriptName");
+	printHeader("KronaTools $KronaTools::version - $scriptName");
 	print
 'Takes an ACE assembly file and writes a magnitude file for use with import
 scripts.  The magnitude of each contig will be the total number of reads

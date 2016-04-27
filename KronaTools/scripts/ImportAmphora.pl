@@ -9,8 +9,13 @@
 
 use strict;
 
-use lib (`ktGetLibPath` or print STDERR "Could not find KronaTools binaries. Are they in your \$PATH?\n" and exit 1);
-use KronaTools;
+BEGIN
+{
+	use File::Basename;
+	use Cwd 'abs_path';
+	use lib dirname(abs_path($0)) . "/../lib";
+	use KronaTools;
+}
 
 my $AMPHORA_MIN_CONFIDENCE = 0.15;
 my %TAXONOMIC_ORDERING = ( 

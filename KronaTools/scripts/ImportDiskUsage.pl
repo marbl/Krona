@@ -2,8 +2,13 @@
 
 use strict;
 
-use lib (`ktGetLibPath` or print STDERR "Could not find KronaTools binaries. Are they in your \$PATH?\n" and exit 1);
-use KronaTools;
+BEGIN
+{
+	use File::Basename;
+	use Cwd 'abs_path';
+	use lib dirname(abs_path($0)) . "/../lib";
+	use KronaTools;
+}
 
 use Cwd 'abs_path';
 use File::Basename;
@@ -27,7 +32,7 @@ if
 {
 	my $scriptName = getScriptName();
 	
-	printHeader("KronaTools $version - $scriptName");
+	printHeader("KronaTools $KronaTools::version - $scriptName");
 	print
 'Creates a Krona chart of disk usage of files and folders in the specified
 directory. Symbolic links and mount points within the directory are not
