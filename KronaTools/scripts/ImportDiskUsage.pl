@@ -10,9 +10,6 @@ BEGIN
 	use KronaTools;
 }
 
-use Cwd 'abs_path';
-use File::Basename;
-
 my $otherName = '[Small files or folders]';
 
 setOption('out', 'du.krona.html');
