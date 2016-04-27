@@ -2161,7 +2161,7 @@ function Node()
 	
 	this.getUnclassifiedText = function()
 	{
-		return '[unassigned '+ this.name + ']';
+		return '[other '+ this.name + ']';
 	}
 	
 	this.getUncollapsed = function()
