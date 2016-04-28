@@ -13,11 +13,14 @@ while [ "$#" -ne 0 ]
 do
 	if [ $1 == "--help" ] || [ $1 == "-h" ]
 	then
-		echo "updateTaxonomy.sh [--local] [/custom/dir]"
+		echo "updateTaxonomy.sh [--local] [--preserve] [/custom/dir]"
 		exit
 	elif [ $1 == "--local" ]
 	then
 		local=1
+	elif [ $1 == "--preserve" ]
+	then
+		preserve=1
 	else
 		taxonomyPath=$1
 	fi
@@ -56,9 +59,9 @@ function update
 	
 	if [ $local ]
 	then
-		if [ ! -e $zipped ]
+		if [ ! -e $zipped ] && [ ! -e $unzipped ]
 		then
-			die "Could not find $taxonomyPath/$zipped.  Was it transfered?"
+			die "Could not find $taxonomyPath/$unzipped[.gz]."
 		fi
 	else
         if [ -e $timestamp ]
@@ -80,14 +83,14 @@ function update
 		fi
 	fi
 	
-	if [ $zipped -nt $timestamp ]
+	if [ ! -e $unzipped ] || [ $zipped -nt $timestamp ]
 	then
 		echo ">>>>> Unzipping $description..."
 		gunzip -f $zipped
 		
 		if [ $? != "0" ]
 		then
-			die "Could not unzip $taxonomyPath/$zipped. Do you have permission?"
+			die "Could not unzip $taxonomyPath/$zipped."
 		fi
 	else
 		echo ">>>>> $description is up to date."
@@ -96,19 +99,29 @@ function update
 	echo ""
 }
 
-oldPath=`ktGetLibPath`/..
+ktPath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 
 if [ "$taxonomyPath" == "" ]
 then
-	taxonomyPath="$oldPath/taxonomy";
+	taxonomyPath="$ktPath/taxonomy";
 else
 	if [ ! -d "$taxonomyPath" ]
 	then
+		if [ $local == "1" ]
+		then
+			die "Could not find $taxonomyPath."
+		fi
+		
 		echo ""
 		echo "Creating $taxonomyPath..."
 		echo ""
 		
 		mkdir -p "$taxonomyPath"
+		
+		if [ "$?" != "0" ]
+		then
+			die "Could not create '$taxonomyPath'. Do you have permission?"
+		fi
 	fi
 fi
 
@@ -116,49 +129,59 @@ cd $taxonomyPath;
 
 if [ "$?" != "0" ]
 then
-	die "Could not enter '$oldPath/taxonomy'. Did you run install.pl?"
+	die "Could not enter '$taxonomyPath'. Did you run install.pl?"
 fi
 
 update gi_taxid_nucl.dmp gi_taxid.dat "GI to taxID dump (nucleotide)"
 update gi_taxid_prot.dmp gi_taxid.dat "GI to taxID dump (protein)"
-update taxdump.tar taxonomy.tab 'Taxonomy dump'
+if [ "$local" != "1" ] || [ ! -e names.dmp ]
+then
+	update taxdump.tar taxonomy.tab 'Taxonomy dump'
+fi
 
-if [ -e taxdump.tar ]
+if [ -e taxdump.tar -a taxdump.tar -nt names.dmp ]
 then
 	tar -xf taxdump.tar
 	rm taxdump.tar
 fi
 
-if [ $taxonomyPath/gi_taxid_nucl.dmp -nt $taxonomyPath/gi_taxid.dat ]
+if [ gi_taxid_nucl.dmp -nt gi_taxid.dat ]
 then
 	echo ">>>>> Creating combined GI to taxID index..."
-	$oldPath/scripts/indexGIs.pl $taxonomyPath
-	rm $taxonomyPath/gi_taxid_nucl.dmp
-	rm $taxonomyPath/gi_taxid_prot.dmp
+	$ktPath/scripts/indexGIs.pl .
+	
+	if [ "$preserve" != "1" ]
+	then
+		rm gi_taxid_nucl.dmp
+		rm gi_taxid_prot.dmp
+	fi
 else
 	echo ">>>>> GI index is up to date"
 fi
 
 echo ""
 
-if [ $taxonomyPath/nodes.dmp -nt $taxonomyPath/taxonomy.tab ]
+if [ nodes.dmp -nt taxonomy.tab ]
 then
 	echo ">>>>> Extracting taxonomy info..." 
-	$oldPath/scripts/extractTaxonomy.pl $taxonomyPath
+	$ktPath/scripts/extractTaxonomy.pl .
 else
 	echo ">>>>> Taxonomy info is up to date"
 fi
 
-echo
-echo ">>>>> Cleaning up..."
-
-if [ -e $taxonomyPath/names.dmp ]
+if [ "$preserve" != "1" ]
 then
-	`rm $taxonomyPath/*.dmp`
-fi
+	echo
+	echo ">>>>> Cleaning up..."
 
-clean $taxonomyPath/gc.prt
-clean $taxonomyPath/readme.txt
+	if [ -e names.dmp ]
+	then
+		`rm *.dmp`
+	fi
+
+	clean gc.prt
+	clean readme.txt
+fi
 
 echo
 echo ">>>>> Finished."
