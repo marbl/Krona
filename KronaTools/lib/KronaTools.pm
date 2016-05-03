@@ -45,7 +45,7 @@ our @EXPORT = qw
 	getTaxName
 	getTaxParent
 	getTaxRank
-	getTaxIDFromGI
+	getTaxIDFromAcc
 	htmlFooter
 	htmlHeader
 	ktDie
@@ -58,6 +58,7 @@ our @EXPORT = qw
 	printColumns
 	printHeader
 	printOptions
+	printWarnings
 	printUsage
 	setOption
 	taxContains
@@ -220,7 +221,8 @@ our %argumentDescriptions =
 	'blast' =>
 'File containing BLAST results in tabular format ("Hit table (text)" when
 downloading from NCBI).  If running BLAST locally, subject IDs in the local
-database must contain GI numbers in "gi|12345" format.',
+database must contain accession numbers, either bare or in the fourth field of
+the pipe-separated ("gi|12345|xx|ABC123.1|") format.',
 	'magnitude' =>
 'Optional file listing query IDs with magnitudes, separated by tabs.  This can
 be used to account for read length or contig depth to obtain a more accurate
@@ -251,6 +253,7 @@ my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?
 my $ecHrefBase = 'http://www.chem.qmul.ac.uk/iubmb/enzyme/EC';
 my $suppDirSuffix = '.files';
 my $suppEnableFile = 'enable.js';
+my $fileTaxByAcc = 'all.accession2taxid.sorted';
 my $memberLimitDataset = 10000;
 my $memberLimitTotal = 100000;
 my $columns = `tput cols`;
@@ -265,9 +268,10 @@ my @taxDepths;
 my @taxParents;
 my @taxRanks;
 my @taxNames;
-my %taxIDByGI;
+my %taxIDByAcc;
 my %ecNames;
-my %missingGIs;
+my %invalidAccs;
+my %missingAccs;
 my %missingTaxIDs;
 
 
@@ -840,9 +844,23 @@ sub classifyBlast
 			last; # EOF
 		}
 		
-		$hitID =~ /gi\|(\d+)/;
+		my $acc;
 		
-		my $gi = $1;
+		if ( $hitID =~ /\|/ )
+		{
+			$acc = (split /\|/, $hitID)[3];
+		}
+		else
+		{
+			$acc = $hitID
+		}
+		
+		if ( $acc !~ /^[A-Z]+_?\d+(\.\d+)?$/ )
+		{
+			$invalidAccs{$acc} = 1;
+			$lastQueryID = $queryID;
+			next;
+		}
 		
 		if # this is a 'best' hit if...
 		(
@@ -883,11 +901,11 @@ sub classifyBlast
 				int(rand($ties)) == 0 # randomly chosen to replace other hit
 			)
 			{
-				my $newTaxID = getTaxIDFromGI($gi);
+				my $newTaxID = getTaxIDFromAcc($acc);
 				
 				if ( ! $newTaxID || ! defined $taxParents[$newTaxID] )
 				{
-					$missingGIs{$gi} = 1;
+					$missingAccs{$acc} = 1;
 					$newTaxID = 1;
 				}
 				
@@ -1037,39 +1055,67 @@ sub getTaxRank
 	return $taxRanks[$taxID];
 }
 
-sub getTaxIDFromGI
+sub getTaxIDFromAcc
 {
-	my ($gi) = @_;
+	my ($acc) = @_;
 	
-	if ( ! defined $taxIDByGI{$gi} )
+	if ( defined $taxIDByAcc{$acc} )
 	{
-		if ( ! open GI, "<$options{'taxonomy'}/gi_taxid.dat" )
+		return $taxIDByAcc{$acc};
+	}
+	
+	my $size = -s "$options{'taxonomy'}/$fileTaxByAcc";
+	my $accCur;
+	my $taxID;
+	
+	if ( ! open ACC, "<$options{'taxonomy'}/$fileTaxByAcc" )
+	{
+		print "ERROR: Sorted accession to taxID list not found.  Was updateTaxonomy.sh run?\n";
+		exit 1;
+	}
+	
+	my $min = 0;
+	my $max = $size;
+	
+	#print "ACC: $acc\n";
+	
+	while ( $accCur ne $acc )
+	{
+		my $posNew = int(($min + $max) / 2);
+		
+		seek ACC, $posNew, 0;
+		
+		<ACC>; # eat up to newline
+		
+		#$posNew = tell ACC;
+		my $line = <ACC>;
+		
+		#print "$min\t$max\t$posNew\t$line";
+		
+		my $accNew;
+		($accNew, $taxID) = split /\t/, $line;
+		
+		if ( $posNew == $min && $accNew ne $acc )
 		{
-			print "ERROR: GI to TaxID data not found.  Was updateTaxonomy.sh run?\n";
-			exit 1;
+			$taxID = 0;
+			last;
 		}
 		
-		seek GI, $gi * 4, 0;
-		
-		my $data;
-		
-		read GI, $data, 4;
-		
-		my $taxID = unpack "L", $data;
-		
-		close GI;
-		
-		if ( 0 && $taxID == 0 )
+		if ( $acc gt $accNew && $accCur ne $accNew )
 		{
-			$taxIDByGI{$gi} = 1;
+			$min = $posNew;
 		}
 		else
 		{
-			$taxIDByGI{$gi} = $taxID;
+			$max = $posNew;
 		}
+		
+		$accCur = $accNew;
 	}
 	
-	return $taxIDByGI{$gi};
+	$taxIDByAcc{$acc} = $taxID;
+	
+	return $taxIDByAcc{$acc};
 }
 
 sub htmlFooter
@@ -1320,6 +1366,42 @@ sub printOptions
 	print "\n";
 }
 
+sub printWarnings
+{
+	if ( %invalidAccs )
+	{
+		ktWarn
+		(
+			"The following accessions were not in a valid format and were ignored:\n" .
+			join ' ', (keys %invalidAccs)
+		);
+		
+		%invalidAccs = ();
+	}
+	
+	if ( %missingAccs )
+	{
+		ktWarn
+		(
+			"The following accessions were not found in the local taxonomy database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
+			join ' ', (keys %missingAccs)
+		);
+		
+		%missingAccs = ();
+	}
+	
+	if ( %missingTaxIDs )
+	{
+		ktWarn
+		(
+			"The following taxonomy IDs were not found in the local database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
+			join ' ', (keys %missingTaxIDs)
+		);
+		
+		%missingTaxIDs = ();
+	}
+}
+
 sub printUsage
 {
 	my
@@ -1494,27 +1576,7 @@ sub writeTree
 		$hueEnd # (optional) hue at the end of the gradient for score
 	) = @_;
 	
-	if ( %missingGIs )
-	{
-		ktWarn
-		(
-			"The following GIs were not found in the local taxonomy database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
-			join ',', (keys %missingGIs)
-		);
-		
-		%missingGIs = ();
-	}
-	
-	if ( %missingTaxIDs )
-	{
-		ktWarn
-		(
-			"The following taxonomy IDs were not found in the local database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
-			join ',', (keys %missingTaxIDs)
-		);
-		
-		%missingTaxIDs = ();
-	}
+	printWarnings();
 	
 	my %attributeHash;
 	

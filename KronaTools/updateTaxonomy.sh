@@ -6,6 +6,10 @@
 #
 # See the LICENSE.txt file included with this software for license information.
 
+MD5="md5 -r" # TODO: linux
+makefileAcc2taxid="scripts/accession2taxid.make"
+makefileTaxonomy="scripts/taxonomy.make"
+
 command -v curl >/dev/null 2>&1 || \
 	{ echo >&2 "ERROR: Curl (http://curl.haxx.se) is required."; exit 1; }
 
@@ -13,7 +17,13 @@ while [ "$#" -ne 0 ]
 do
 	if [ $1 == "--help" ] || [ $1 == "-h" ]
 	then
-		echo "updateTaxonomy.sh [--local] [--preserve] [/custom/dir]"
+		echo
+		echo "updateTaxonomy.sh [options...] [/custom/dir]"
+		echo ""
+		echo "   --local-pull   Only download source files; do not build. Must specify"
+		echo "                  directory."
+		echo "   --local-build  Assume source files exist; do not fetch."
+		echo
 		exit
 	elif [ $1 == "--local" ]
 	then
@@ -30,10 +40,10 @@ done
 
 function die
 {
-	echo ""
+	echo
 	echo ">>>>> Update failed."
 	echo "      $1"
-	echo ""
+	echo
 	exit 1
 }
 
@@ -47,56 +57,65 @@ function clean
 	fi
 }
 
-function update
+function fetch
 {
-	unzipped=$1
-	timestamp=$2
-	description=$3
+	name="$1"
+	description="$2"
+	prefix="$3"
+	timeDependencies="$4"
+	retry="$5"
 	
-	zipped=${unzipped}.gz
+	echo "Fetching $description..."
 	
-	echo ">>>>> Updating $description..."
+	timestring=""
 	
-	if [ $local ]
+	if [ "$retry" != "1" ]
 	then
-		if [ ! -e $zipped ] && [ ! -e $unzipped ]
-		then
-			die "Could not find $taxonomyPath/$unzipped[.gz]."
-		fi
-	else
-        if [ -e $timestamp ]
-        then
-            timestring=" -z $timestamp"
-        fi
-		
-		curl$timestring -R --retry 1 -o $zipped ftp://ftp.ncbi.nih.gov/pub/taxonomy/$zipped
-		return=$?
-		
-		if [ $return == "23" ]
-		then
-			die "Could not write '$taxonomyPath/$zipped'. Do you have permission?"
-		fi
-		
-		if [ $return != "0" ]
-		then
-			die "Is your internet connection okay?"
-		fi
+		for dep in $name $timeDependencies
+		do
+			if [ -s "$dep" ]
+			then
+				timestring=" -z $dep"
+				break
+			fi
+		done
 	fi
 	
-	if [ ! -e $unzipped ] || [ $zipped -nt $timestamp ]
+	curl$timestring -s -R --retry 1 -o $name ftp://ftp.ncbi.nih.gov/pub/taxonomy/$prefix/$name
+	return=$?
+	
+	if [ $return == "23" ]
 	then
-		echo ">>>>> Unzipping $description..."
-		gunzip -f $zipped
-		
-		if [ $? != "0" ]
-		then
-			die "Could not unzip $taxonomyPath/$zipped."
-		fi
-	else
-		echo ">>>>> $description is up to date."
+		die "Could not write '$taxonomyPath/$name'. Do you have permission?"
 	fi
 	
-	echo ""
+	if [ $return != "0" ]
+	then
+		die "Is your internet connection okay?"
+	fi
+	
+	if [ -e "$name" ]
+	then
+		echo "   Fetching checksum..."
+		
+		curl -s -R --retry 1 -o $name.md5 ftp://ftp.ncbi.nih.gov/pub/taxonomy/$prefix/$name.md5
+		checksum=$($MD5 $name | cut -d ' ' -f 1)
+		checksumRef=$(cut -d ' ' -f 1 $name.md5)
+		rm $name.md5
+		
+		if [ $checksum == $checksumRef ]
+		then
+			echo "   Checksum for $name matches server."
+		else
+			if [ "$retry" == "1" ]
+			then
+				die "Checksum for $name still does not match server after retry."
+			else
+				echo "Checksum for $name does not match server. Retrying..."
+				fetch "$name" "$description" "$prefix" "$timeDependcies" 1
+			fi
+		fi
+	fi
 }
 
 ktPath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
@@ -112,9 +131,9 @@ else
 			die "Could not find $taxonomyPath."
 		fi
 		
-		echo ""
+		echo
 		echo "Creating $taxonomyPath..."
-		echo ""
+		echo
 		
 		mkdir -p "$taxonomyPath"
 		
@@ -125,65 +144,61 @@ else
 	fi
 fi
 
-cd $taxonomyPath;
+cd $taxonomyPath
 
 if [ "$?" != "0" ]
 then
 	die "Could not enter '$taxonomyPath'. Did you run install.pl?"
 fi
 
-update gi_taxid_nucl.dmp gi_taxid.dat "GI to taxID dump (nucleotide)"
-update gi_taxid_prot.dmp gi_taxid.dat "GI to taxID dump (protein)"
-if [ "$local" != "1" ] || [ ! -e names.dmp ]
-then
-	update taxdump.tar taxonomy.tab 'Taxonomy dump'
-fi
+ACC2TAXID="
+dead_nucl.accession2taxid
+dead_prot.accession2taxid
+dead_wgs.accession2taxid
+nucl_est.accession2taxid
+nucl_gb.accession2taxid
+nucl_gss.accession2taxid
+nucl_wgs.accession2taxid
+prot.accession2taxid
+"
 
-if [ -e taxdump.tar -a taxdump.tar -nt names.dmp ]
+if [ "$local" != "1" ]
 then
-	tar -xf taxdump.tar
-	rm taxdump.tar
-fi
-
-if [ gi_taxid_nucl.dmp -nt gi_taxid.dat ]
-then
-	echo ">>>>> Creating combined GI to taxID index..."
-	$ktPath/scripts/indexGIs.pl .
+	for unzipped in $ACC2TAXID
+	do
+		fetch $unzipped.gz $unzipped.gz accession2taxid "$unzipped all.accession2taxid.sorted"
+	done
 	
-	if [ "$preserve" != "1" ]
-	then
-		rm gi_taxid_nucl.dmp
-		rm gi_taxid_prot.dmp
-	fi
-else
-	echo ">>>>> GI index is up to date"
+	fetch taxdump.tar.gz "Taxonomy dump" "" "taxdump.tar names.dmp taxonomy.tab"
 fi
 
-echo ""
+make -j 4 PRESERVE="$preserve" -f $ktPath/$makefileAcc2taxid
 
-if [ nodes.dmp -nt taxonomy.tab ]
+if [ "$?" != "0" ]
 then
-	echo ">>>>> Extracting taxonomy info..." 
-	$ktPath/scripts/extractTaxonomy.pl .
-else
-	echo ">>>>> Taxonomy info is up to date"
+	die "Building accession2taxid failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+fi
+
+if [ -e taxdump.tar ] || [ -e taxdump.tar.gz ]
+then
+	make KTPATH="$ktPath" PRESERVE="$preserve" -f $ktPath/$makefileTaxonomy
+	
+	if [ "$?" != "0" ]
+	then
+		die "Building taxonomy table failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+	fi
 fi
 
 if [ "$preserve" != "1" ]
 then
 	echo
-	echo ">>>>> Cleaning up..."
-
-	if [ -e names.dmp ]
-	then
-		`rm *.dmp`
-	fi
-
-	clean gc.prt
-	clean readme.txt
+	echo "Cleaning up..."
+	
+	make -f $ktPath/$makefileAcc2taxid clean
+	make -f $ktPath/$makefileTaxonomy clean
 fi
 
 echo
-echo ">>>>> Finished."
+echo "Finished."
 echo
 

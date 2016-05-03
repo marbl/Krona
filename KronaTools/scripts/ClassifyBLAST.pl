@@ -90,6 +90,8 @@ foreach my $fileName (@ARGV)
 	classifyBlast($fileName, \%taxIDs, \%scores);
 }
 
+printWarnings();
+
 my $outFile = getOption('out');
 
 print "Writing $outFile...\n";
