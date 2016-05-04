@@ -43,14 +43,14 @@ if ( $help )
 {
 	print '
 Description:
-   Translates GI numbers from <stdin> to NCBI taxonomy IDs.  A GI number can be
-   identified within each line by "gi|<number>", or they can be bare numbers if
-   nothing else is on the line.  Lines that do not fit either format will be
-   ignored.  GIs with no taxonomy IDs in the database will return 0.
+   Translates accessions from <stdin> to NCBI taxonomy IDs. The accession can
+   be bare  or in the fourth field of pipe notation (e.g.
+   "gi|12345|xx|ABC123.1|", Accessions with no taxonomy IDs in the database will
+   return 0.
 
 Usage:
 
-   ktGetTaxIDFromGI [options] < GI_list > tax_ID_list
+   ktGetTaxIDFromAcc [options] < acc_list > tax_ID_list
 
 Options:
 
@@ -72,20 +72,28 @@ while ( <> )
 {
 	chomp;
 	
-	if ( /^(\d+)$/ || /gi\|(\d+)/ )
+	my $acc;
+	
+	if ( /\|/ )
 	{
-		if ( $append )
-		{
-			print "$_\t";
-		}
-		
-		print int(getTaxIDFromGI($1));
-		
-		if ( $prepend )
-		{
-			print "\t$_";
-		}
-		
-		print "\n";
+		$acc = (split /\|/)[3];
 	}
+	else
+	{
+		$acc = $_
+	}
+	
+	if ( $append )
+	{
+		print "$_\t";
+	}
+	
+	print int(getTaxIDFromAcc($acc));
+	
+	if ( $prepend )
+	{
+		print "\t$_";
+	}
+	
+	print "\n";
 }

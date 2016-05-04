@@ -1188,7 +1188,10 @@ sub ktWarn
 {
 	my ($warning) = @_;
 	
+	*STDOUTOLD = *STDOUT;
+	*STDOUT = *STDERR;
 	printColumns('   [ WARNING ]', $warning);
+	*STDOUT = *STDOUTOLD
 }
 
 sub loadEC

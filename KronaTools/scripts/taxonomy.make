@@ -18,5 +18,6 @@ names.dmp : $(wildcard taxdump.tar taxdump.tar.gz)
 
 .PHONY clean :
 clean :
+	@rm -f taxdump.tar
 	@rm -f taxdump.tar.gz
 	@rm -f $(TAX)

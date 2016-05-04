@@ -46,7 +46,7 @@ foreach my $script
 	ClassifyBLAST
 	GetContigMagnitudes
 	GetLibPath
-	GetTaxIDFromGI
+	GetTaxIDFromAcc
 	ImportBLAST
 	ImportDiskUsage
 	ImportEC

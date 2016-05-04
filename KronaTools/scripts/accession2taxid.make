@@ -13,6 +13,7 @@ ACC2TAXID_SORTED=$(ACC2TAXID:.accession2taxid=.accession2taxid.sorted)
 all.accession2taxid.sorted : $(ACC2TAXID_SORTED)
 	@echo "Merging sorted..."
 	@LC_ALL=C sort -m $(ACC2TAXID_SORTED) > $@
+	@rm $(ACC2TAXID_SORTED)
 
 %.accession2taxid.sorted : %.accession2taxid
 	@echo "Sorting $<..."
@@ -31,3 +32,4 @@ endif
 .PHONY clean :
 clean :
 	@rm -f *.accession2taxid.gz
+	

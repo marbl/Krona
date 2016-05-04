@@ -19,18 +19,31 @@ do
 	then
 		echo
 		echo "updateTaxonomy.sh [options...] [/custom/dir]"
-		echo ""
-		echo "   --local-pull   Only download source files; do not build. Must specify"
-		echo "                  directory."
-		echo "   --local-build  Assume source files exist; do not fetch."
+		echo
+		echo "   [/custom/dir]  Taxonomy will be built in this directory instead of the"
+		echo "                  directory specified during installation. This custom"
+		echo "                  directory can be referred to with -tax in import scripts."
+		echo
+		echo "   --only-fetch   Only download source files; do not build."
+		echo
+		echo "   --only-build   Assume source files exist; do not fetch."
+		echo
+		echo "   --preserve     Do not remove source files after build."
 		echo
 		exit
-	elif [ $1 == "--local" ]
+	elif [ $1 == "--only-fetch" ]
+	then
+		localPull=1
+	elif [ $1 == "--only-build" ]
 	then
 		local=1
 	elif [ $1 == "--preserve" ]
 	then
 		preserve=1
+	elif [ "${1:0:1}" == "-" ]
+	then
+		echo "Unrecognized option: \"$1\". See help (--help or -h)"
+		exit
 	else
 		taxonomyPath=$1
 	fi
@@ -41,8 +54,8 @@ done
 function die
 {
 	echo
-	echo ">>>>> Update failed."
-	echo "      $1"
+	echo "Update failed."
+	echo "   $1"
 	echo
 	exit 1
 }
@@ -118,6 +131,11 @@ function fetch
 	fi
 }
 
+if [ "$local" == "1" ] && [ "$localPull" == "1" ]
+then
+	die "Cannot use --only-fetch with --only-build."
+fi
+
 ktPath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 
 if [ "$taxonomyPath" == "" ]
@@ -170,6 +188,14 @@ then
 	done
 	
 	fetch taxdump.tar.gz "Taxonomy dump" "" "taxdump.tar names.dmp taxonomy.tab"
+fi
+
+if [ "$localPull" == "1" ]
+then
+	echo
+	echo "Fetching finished."
+	echo
+	exit
 fi
 
 make -j 4 PRESERVE="$preserve" -f $ktPath/$makefileAcc2taxid
