@@ -29,7 +29,6 @@ tar -cnf $release.tar \
 	$release/scripts/ImportTaxonomy.pl \
 	$release/scripts/ImportText.pl \
 	$release/scripts/ImportXML.pl \
-	$release/scripts/indexGIs.pl \
 	$release/data/ec.tsv \
 	$release/data/README \
 	$release/lib/KronaTools.pm \
