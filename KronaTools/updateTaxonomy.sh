@@ -6,7 +6,13 @@
 #
 # See the LICENSE.txt file included with this software for license information.
 
-MD5="md5 -r" # TODO: linux
+if [ "$(uname)" == "Darwin" ]
+then
+    MD5="md5 -r"
+else # Assume linux
+    MD5=md5sum
+fi
+
 makefileAcc2taxid="scripts/accession2taxid.make"
 makefileTaxonomy="scripts/taxonomy.make"
 
@@ -47,7 +53,7 @@ do
 	else
 		taxonomyPath=$1
 	fi
-	
+
 	shift
 done
 
@@ -63,7 +69,7 @@ function die
 function clean
 {
 	aFile=$1
-	
+
 	if [ -e $aFile ]
 	then
 		rm $aFile
@@ -77,11 +83,11 @@ function fetch
 	prefix="$3"
 	timeDependencies="$4"
 	retry="$5"
-	
+
 	echo "Fetching $description..."
-	
+
 	timestring=""
-	
+
 	if [ "$retry" != "1" ]
 	then
 		for dep in $name $timeDependencies
@@ -93,29 +99,29 @@ function fetch
 			fi
 		done
 	fi
-	
+
 	curl$timestring -s -R --retry 1 -o $name ftp://ftp.ncbi.nih.gov/pub/taxonomy/$prefix/$name
 	return=$?
-	
+
 	if [ $return == "23" ]
 	then
 		die "Could not write '$taxonomyPath/$name'. Do you have permission?"
 	fi
-	
+
 	if [ $return != "0" ]
 	then
 		die "Is your internet connection okay?"
 	fi
-	
+
 	if [ -e "$name" ]
 	then
 		echo "   Fetching checksum..."
-		
+
 		curl -s -R --retry 1 -o $name.md5 ftp://ftp.ncbi.nih.gov/pub/taxonomy/$prefix/$name.md5
 		checksum=$($MD5 $name | cut -d ' ' -f 1)
 		checksumRef=$(cut -d ' ' -f 1 $name.md5)
 		rm $name.md5
-		
+
 		if [ $checksum == $checksumRef ]
 		then
 			echo "   Checksum for $name matches server."
@@ -148,13 +154,13 @@ else
 		then
 			die "Could not find $taxonomyPath."
 		fi
-		
+
 		echo
 		echo "Creating $taxonomyPath..."
 		echo
-		
+
 		mkdir -p "$taxonomyPath"
-		
+
 		if [ "$?" != "0" ]
 		then
 			die "Could not create '$taxonomyPath'. Do you have permission?"
@@ -186,7 +192,7 @@ then
 	do
 		fetch $unzipped.gz $unzipped.gz accession2taxid "$unzipped all.accession2taxid.sorted"
 	done
-	
+
 	fetch taxdump.tar.gz "Taxonomy dump" "" "taxdump.tar names.dmp taxonomy.tab"
 fi
 
@@ -205,10 +211,10 @@ then
 	die "Building accession2taxid failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
 fi
 
-if [ -e taxdump.tar ] || [ -e taxdump.tar.gz ]
+if [ -e taxdump.tar ] || [ -e taxdump.tar.gz ] || [ -e names.dmp ]
 then
 	make KTPATH="$ktPath" PRESERVE="$preserve" -f $ktPath/$makefileTaxonomy
-	
+
 	if [ "$?" != "0" ]
 	then
 		die "Building taxonomy table failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
@@ -219,7 +225,7 @@ if [ "$preserve" != "1" ]
 then
 	echo
 	echo "Cleaning up..."
-	
+
 	make -f $ktPath/$makefileAcc2taxid clean
 	make -f $ktPath/$makefileTaxonomy clean
 fi
@@ -227,4 +233,3 @@ fi
 echo
 echo "Finished."
 echo
-
