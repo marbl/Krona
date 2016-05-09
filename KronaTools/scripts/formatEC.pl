@@ -2,56 +2,58 @@
 
 use strict;
 
-my %descs;
+my ($fileClass, $fileEnzyme) = @ARGV;
 
-print "# See <KronaTools>/data/README for provenance of this file.\n";
+open CLASS, $fileClass or die $fileClass;
 
-<>; # eat header
-
-while ( <> )
+while ( <CLASS> )
 {
 	chomp;
 	
-	my ($ec, $desc) = split /\t/;
+	if ( /^(\d+)\.\s*(\d+|-)\.\s*(\d+|-)\.\s*(\d+|-)\s+(.+)\.$/ )
+	{
+		my @classes = ($1, $2, $3, $4);
+		my $desc = $5;
+		
+		while ( $classes[-1] eq '-' )
+		{
+			pop @classes;
+		}
+		
+		print join '.', @classes;
+		print "\t$desc\n";
+	}
+}
+
+close CLASS;
+
+my $id;
+my $desc;
+
+open ENZYME, $fileEnzyme or die $fileEnzyme;
+
+while ( <ENZYME> )
+{
+	chomp;
 	
-	# remove 'EC:' and extract numbers
-	#
-	my @lineage = split /\./, substr $ec, 3;
-	
-	# remove quotes from description
-	#
-	if ( $desc =~ /^"(.*)"$/ )
+	if ( /^ID\s+(\d+\.\d+\.\d+\.\d+)$/ )
+	{
+		$id = $1;
+	}
+	elsif ( /^DE\s+(.+)\.$/ )
 	{
 		$desc = $1;
 	}
-	
-	# remove '-' wildcard
-	#
-	if ( $lineage[-1] eq '-' )
+	elsif ( /^\/\/$/ )
 	{
-		pop @lineage;
-	}
-	
-	my $newEC = join '.', @lineage;
-	my $name = $desc;
-	
-	# store group descriptions and strip them from more specific groups to avoid
-	# redundancy when they are displayed together.
-	#
-	if ( @lineage < 4 )
-	{
-		$descs{$newEC} = $desc;
-		
-		if ( @lineage > 1 )
+		if ( defined $id && defined $desc )
 		{
-			my $parent = join '.', @lineage[0..@lineage - 2];
-			my $parentDesc = $descs{$parent};
-			
-			$name =~ s/^$parentDesc\s+//;
+			print "$id\t$desc\n";
 		}
+		
+		undef $id;
+		undef $desc;
 	}
-	
-	$name =~ s/\.$//; # remove trailing '.'
-	
-	print "$newEC\t$name\n";
 }
+
+close ENZYME;
