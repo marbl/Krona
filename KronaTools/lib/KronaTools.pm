@@ -1085,7 +1085,10 @@ sub getTaxIDFromAcc
 		
 		seek ACC, $posNew, 0;
 		
-		<ACC>; # eat up to newline
+		if ( $posNew > 0 )
+		{
+			<ACC>; # eat up to newline
+		}
 		
 		#$posNew = tell ACC;
 		my $line = <ACC>;
