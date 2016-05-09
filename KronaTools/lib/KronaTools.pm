@@ -242,7 +242,7 @@ default, the basename of the file will be used.',
 # Global constants #
 ####################
 
-our $version = '2.6';
+our $version = '2.7';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';
