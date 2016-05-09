@@ -78,8 +78,6 @@ function fetch
 	timeDependencies="$4"
 	retry="$5"
 	
-	echo "Fetching $description..."
-	
 	timestring=""
 	
 	if [ "$retry" != "1" ]
@@ -89,10 +87,13 @@ function fetch
 			if [ -s "$dep" ]
 			then
 				timestring=" -z $dep"
+				depDesc=" (if newer than $dep)"
 				break
 			fi
 		done
 	fi
+	
+	echo "Fetching $description$depDesc..."
 	
 	curl$timestring -s -R --retry 1 -o $name ftp://ftp.ncbi.nih.gov/pub/taxonomy/$prefix/$name
 	return=$?
@@ -166,7 +167,7 @@ cd $taxonomyPath
 
 if [ "$?" != "0" ]
 then
-	die "Could not enter '$taxonomyPath'. Did you run install.pl?"
+	die "Could not enter '$taxonomyPath'."
 fi
 
 ACC2TAXID="
@@ -187,7 +188,7 @@ then
 		fetch $unzipped.gz $unzipped.gz accession2taxid "$unzipped all.accession2taxid.sorted"
 	done
 	
-	fetch taxdump.tar.gz "Taxonomy dump" "" "taxdump.tar names.dmp taxonomy.tab"
+	fetch taxdump.tar.gz "taxdump.tar.gz" "" "taxdump.tar names.dmp taxonomy.tab"
 fi
 
 if [ "$localPull" == "1" ]
