@@ -88,7 +88,8 @@ function fetch
 	retry="$5"
 	
 	timestring=""
-
+	depDesc=""
+	
 	if [ "$retry" != "1" ]
 	then
 		for dep in $name $timeDependencies

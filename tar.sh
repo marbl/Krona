@@ -29,6 +29,8 @@ tar -cnf $release.tar \
 	$release/scripts/ImportTaxonomy.pl \
 	$release/scripts/ImportText.pl \
 	$release/scripts/ImportXML.pl \
+	$release/scripts/taxonomy.make \
+	$release/scripts/accession2taxid.make \
 	$release/data/ec.tsv \
 	$release/data/README \
 	$release/lib/KronaTools.pm \
@@ -43,6 +45,7 @@ tar -cnf $release.tar \
 	$release/img/logo-med.uri \
 	$release/taxonomy \
 	$release/install.pl \
+	$release/updateAccessions.sh \
 	$release/updateTaxonomy.sh \
 	$release/deployResources.sh \
 	$release/README.txt \
