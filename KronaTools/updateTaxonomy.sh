@@ -46,6 +46,9 @@ do
 	elif [ $1 == "--preserve" ]
 	then
 		preserve=1
+	elif [ $1 == "--accessions" ]
+	then
+		accessions=1
 	elif [ "${1:0:1}" == "-" ]
 	then
 		echo "Unrecognized option: \"$1\". See help (--help or -h)"
@@ -189,12 +192,15 @@ prot.accession2taxid
 
 if [ "$local" != "1" ]
 then
-	for unzipped in $ACC2TAXID
-	do
-		fetch $unzipped.gz $unzipped.gz accession2taxid "$unzipped all.accession2taxid.sorted"
-	done
-	
-	fetch taxdump.tar.gz "taxdump.tar.gz" "" "taxdump.tar names.dmp taxonomy.tab"
+	if [ "$accessions" == "1" ]
+	then
+		for unzipped in $ACC2TAXID
+		do
+			fetch $unzipped.gz $unzipped.gz accession2taxid "$unzipped all.accession2taxid.sorted"
+		done
+	else
+		fetch taxdump.tar.gz "taxdump.tar.gz" "" "taxdump.tar names.dmp taxonomy.tab"
+	fi
 fi
 
 if [ "$localPull" == "1" ]
@@ -205,20 +211,37 @@ then
 	exit
 fi
 
-make -j 4 PRESERVE="$preserve" -f $ktPath/$makefileAcc2taxid
-
-if [ "$?" != "0" ]
+if [ "$accessions" == "1" ]
 then
-	die "Building accession2taxid failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
-fi
-
-if [ -e taxdump.tar ] || [ -e taxdump.tar.gz ] || [ -e names.dmp ]
-then
-	make KTPATH="$ktPath" PRESERVE="$preserve" -f $ktPath/$makefileTaxonomy
+	if [ "$local" == "1" ]
+	then
+		for base in $ACC2TAXID
+		do
+			if [ ! -e $base ] && [ ! -e $base.gz ]
+			then
+				die "Could not find accession2taxid source files in $taxonomyPath."
+			fi
+		done
+	fi
+	
+	make -j 4 PRESERVE="$preserve" -f $ktPath/$makefileAcc2taxid
 
 	if [ "$?" != "0" ]
 	then
-		die "Building taxonomy table failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+		die "Building accession2taxid failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+	fi
+else
+	if [ -e taxdump.tar ] || [ -e taxdump.tar.gz ] || [ -e names.dmp ]
+	then
+		make KTPATH="$ktPath" PRESERVE="$preserve" -f $ktPath/$makefileTaxonomy
+
+		if [ "$?" != "0" ]
+		then
+			die "Building taxonomy table failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+		fi
+	elif [ "$local" == "1" ]
+	then
+		die "Could not find taxonomy source files in $taxonomyPath."
 	fi
 fi
 
@@ -227,8 +250,12 @@ then
 	echo
 	echo "Cleaning up..."
 
-	make -f $ktPath/$makefileAcc2taxid clean
-	make -f $ktPath/$makefileTaxonomy clean
+	if [ "$accessions" == "1" ]
+	then
+		make -f $ktPath/$makefileAcc2taxid clean
+	else
+		make -f $ktPath/$makefileTaxonomy clean
+	fi
 fi
 
 echo

@@ -89,8 +89,17 @@ if ( defined $taxonomyDir )
 print '
 Installation complete.
 
-To use scripts that rely on NCBI taxonomy, run updateTaxonomy.sh to build the
-local taxonomy database.
+Run ./updateTaxonomy.sh to use scripts that rely on NCBI taxonomy:
+   ktClassifyBLAST
+   ktImportBLAST
+   ktImportTaxonomy
+   ktImportMETAREP-BLAST
+   ktLowestCommonAncestor
+
+Run ./updateAccessions.sh to use scripts that get taxonomy IDs from accessions:
+   ktClassifyBLAST
+   ktGetTaxIDFromAcc
+   ktImportBLAST
 ';
 
 sub createDir
