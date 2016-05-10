@@ -251,10 +251,8 @@ then
 	echo
 	echo "Cleaning up..."
 
-	if [ "$accessions" == "1" ]
+	if [ "$accessions" != "1" ]
 	then
-		make -f $ktPath/$makefileAcc2taxid clean
-	else
 		make -f $ktPath/$makefileTaxonomy clean
 	fi
 fi

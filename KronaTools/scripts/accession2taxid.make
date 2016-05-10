@@ -19,17 +19,12 @@ all.accession2taxid.sorted : $(ACC2TAXID_SORTED)
 	@echo "Sorting $<..."
 	@cut -f 2,3 $< | grep -v accession | LC_ALL=C sort > $@
 ifneq ($(PRESERVE), "1")
-	@echo rm $<
+	@rm $<
 endif
 
 %.accession2taxid.sorted : %.accession2taxid.gz
 	@echo "Sorting $<..."
 	@gunzip -c $< | cut -f 2,3 | grep -v accession | LC_ALL=C sort > $@
 ifneq ($(PRESERVE), "1")
-	@echo rm $<
+	@rm $<
 endif
-
-.PHONY clean :
-clean :
-	@rm -f *.accession2taxid.gz
-	
