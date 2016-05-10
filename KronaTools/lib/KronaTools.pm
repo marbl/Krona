@@ -1104,7 +1104,7 @@ sub getTaxIDFromAcc
 			last;
 		}
 		
-		if ( $acc gt $accNew && $accCur ne $accNew )
+		if ( $acc gt $accNew && $accCur ne $accNew && $accNew )
 		{
 			$min = $posNew;
 		}
