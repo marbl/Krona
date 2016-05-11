@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#!/usr/bin/env perl
 
 # Copyright © 2011, Battelle National Biodefense Institute (BNBI);
 # all rights reserved. Authored by: Brian Ondov, Nicholas Bergman, and

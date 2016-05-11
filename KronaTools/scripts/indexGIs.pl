@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#!/usr/bin/env perl
 
 # converts the large text files into uniform records so they can be randomly
 # accessed instead of slow serial searches
