@@ -70,17 +70,17 @@ if ( $prepend && $append )
 
 while ( <> )
 {
-	chomp;
+	/>?(\S+)/
 	
 	my $acc;
 	
-	if ( /\|/ )
+	if ( $1 =~ /\|/ )
 	{
-		$acc = (split /\|/)[3];
+		$acc = (split /\|/, $1)[3];
 	}
 	else
 	{
-		$acc = $_
+		$acc = $1
 	}
 	
 	if ( $append )
