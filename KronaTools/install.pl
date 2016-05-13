@@ -45,8 +45,10 @@ foreach my $script
 (qw(
 	ClassifyBLAST
 	GetContigMagnitudes
+	GetLCA
 	GetLibPath
 	GetTaxIDFromAcc
+	GetTaxInfo
 	ImportBLAST
 	ImportDiskUsage
 	ImportEC

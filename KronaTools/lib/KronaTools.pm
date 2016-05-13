@@ -36,12 +36,14 @@ our @EXPORT = qw
 	addXML
 	classifyBlast
 	default
+	getAccFromSeqID
 	getKronaOptions
 	getOption
 	getOptionString
 	getScoreName
 	getScriptName
 	getTaxDepth
+	getTaxInfo
 	getTaxName
 	getTaxParent
 	getTaxRank
@@ -253,6 +255,7 @@ my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?
 my $ecHrefBase = 'http://www.chem.qmul.ac.uk/iubmb/enzyme/EC';
 my $suppDirSuffix = '.files';
 my $suppEnableFile = 'enable.js';
+my $fileTaxonomy = 'taxonomy.tab';
 my $fileTaxByAcc = 'all.accession2taxid.sorted';
 my $memberLimitDataset = 10000;
 my $memberLimitTotal = 100000;
@@ -268,6 +271,7 @@ my @taxDepths;
 my @taxParents;
 my @taxRanks;
 my @taxNames;
+my %taxInfoByID;
 my %taxIDByAcc;
 my %ecNames;
 my %invalidAccs;
@@ -573,7 +577,14 @@ sub addByTaxID
 	# get parent recursively
 	#
 	my $parent;
-	my $parentID = getTaxParent($taxID);
+	my $parentID = $taxID;
+	
+	do
+	{
+		$parentID = getTaxParent($parentID);
+	}
+	while (! $options{'noRank'} && $parentID > 1 && getTaxRank($parentID) eq 'no rank');
+	
 	#
 	if ( $parentID != 1 )#$taxID )
 	{
@@ -844,20 +855,10 @@ sub classifyBlast
 			last; # EOF
 		}
 		
-		my $acc;
+		my $acc = getAccFromSeqID($hitID);
 		
-		if ( $hitID =~ /\|/ )
+		if ( ! defined $acc )
 		{
-			$acc = (split /\|/, $hitID)[3];
-		}
-		else
-		{
-			$acc = $hitID
-		}
-		
-		if ( $acc !~ /^[A-Z]+_?\d+(\.\d+)?$/ )
-		{
-			$invalidAccs{$acc} = 1;
 			$lastQueryID = $queryID;
 			next;
 		}
@@ -905,7 +906,6 @@ sub classifyBlast
 				
 				if ( ! $newTaxID || ! defined $taxParents[$newTaxID] )
 				{
-					$missingAccs{$acc} = 1;
 					$newTaxID = 1;
 				}
 				
@@ -949,6 +949,28 @@ sub default
 	{
 		return $default;
 	}
+}
+
+sub getAccFromSeqID
+{
+	my ($seqID) = @_;
+	
+	$seqID =~ /^>?(\S+)/;
+	
+	my $acc = $1;
+	
+	if ( $acc =~ /\|/ )
+	{
+		$acc = (split /\|/, $acc)[3];
+	}
+	
+	if ( $acc !~ /^\d+$/ && $acc !~ /^[A-Z]+_?\d+(\.\d+)?$/ )
+	{
+		$invalidAccs{$acc} = 1;
+		return undef;
+	}
+	
+	return $acc;
 }
 
 sub getKronaOptions
@@ -1022,42 +1044,141 @@ sub getScriptName
 sub getTaxDepth
 {
 	my ($taxID) = @_;
-	checkTaxonomy();
-	return $taxDepths[$taxID];
+	
+	if ( @taxDepths )
+	{
+		return $taxDepths[$taxID];
+	}
+	else
+	{
+		return (getTaxInfo($taxID))[1];
+	}
+}
+
+sub getTaxInfo
+{
+	# gets info from a line in taxonomy.tab with it being loaded (via binary search)
+	
+	my ($tax) = @_;
+	
+	$tax = int($tax);
+	
+	if ( defined $taxInfoByID{$tax} )
+	{
+		return @{$taxInfoByID{$tax}};
+	}
+	
+	my $size = -s "$options{'taxonomy'}/$fileTaxonomy";
+	my $taxCur;
+	my @info = ($tax);
+	
+	if ( ! open TAX, "<$options{'taxonomy'}/$fileTaxonomy" )
+	{
+		print "ERROR: Taxonomy not found in $options{'taxonomy'}. Was updateTaxonomy.sh run?\n";
+		exit 1;
+	}
+	
+	my $min = 0;
+	my $max = $size;
+	
+	while ( $taxCur ne $tax )
+	{
+		my $posNew = int(($min + $max) / 2);
+		
+		seek TAX, $posNew, 0;
+		
+		if ( $posNew > 0 )
+		{
+			<TAX>; # eat up to newline
+		}
+		
+		my $line = <TAX>;
+		
+		my $taxNew;
+		
+		$line =~ /^(\d+)/;
+		$taxNew = $1;
+		
+		if ( $tax == $taxNew )
+		{
+			chomp $line;
+			@info = split /\t/, $line;
+			last;
+		}
+		elsif ( $posNew == $min )
+		{
+			last;
+		}
+		
+		if ( $tax > $taxNew && $taxCur != $taxNew && $taxNew )
+		{
+			$min = $posNew;
+		}
+		else
+		{
+			$max = $posNew;
+		}
+		
+		$taxCur = $taxNew;
+	}
+	
+	close TAX;
+	
+	$taxInfoByID{$tax} = \@info;
+	
+	return @info;
 }
 
 sub getTaxName
 {
 	my ($taxID) = @_;
-	checkTaxonomy();
-	return $taxNames[$taxID]
+	
+	if ( @taxNames )
+	{
+		return $taxNames[$taxID];
+	}
+	else
+	{
+		return (getTaxInfo($taxID))[4];
+	}
 }
 
 sub getTaxParent
 {
 	my ($taxID) = @_;
 	
-	checkTaxonomy();
-	
-	do
+	if ( @taxParents )
 	{
-		$taxID = $taxParents[$taxID];
+		return $taxParents[$taxID];
 	}
-	while (! $options{'noRank'} && $taxID > 1 && $taxRanks[$taxID] eq 'no rank');
-	
-	return $taxID;
+	else
+	{
+		return (getTaxInfo($taxID))[2];
+	}
 }
 
 sub getTaxRank
 {
 	my ($taxID) = @_;
-	checkTaxonomy();
-	return $taxRanks[$taxID];
+	
+	if ( @taxRanks )
+	{
+		return $taxRanks[$taxID];
+	}
+	else
+	{
+		return (getTaxInfo($taxID))[3];
+	}
 }
 
 sub getTaxIDFromAcc
 {
 	my ($acc) = @_;
+	
+	if ( $acc =~ /^\d+$/ )
+	{
+		return $acc;
+	}
 	
 	if ( defined $taxIDByAcc{$acc} )
 	{
@@ -1070,7 +1191,7 @@ sub getTaxIDFromAcc
 	
 	if ( ! open ACC, "<$options{'taxonomy'}/$fileTaxByAcc" )
 	{
-		print "ERROR: Sorted accession to taxID list not found.  Was updateTaxonomy.sh run?\n";
+		print "ERROR: Sorted accession to taxID list not found.  Was updateAccessions.sh run?\n";
 		exit 1;
 	}
 	
@@ -1100,6 +1221,7 @@ sub getTaxIDFromAcc
 		
 		if ( $posNew == $min && $accNew ne $acc )
 		{
+			$missingAccs{$acc} = 1;
 			$taxID = 0;
 			last;
 		}
@@ -1115,6 +1237,10 @@ sub getTaxIDFromAcc
 		
 		$accCur = $accNew;
 	}
+	
+	close ACC;
+	
+	chomp $taxID;
 	
 	$taxIDByAcc{$acc} = $taxID;
 	
@@ -1237,7 +1363,7 @@ sub loadMagnitudes
 
 sub loadTaxonomy
 {
-	open INFO, "<$options{'taxonomy'}/taxonomy.tab" or die
+	open INFO, "<$options{'taxonomy'}/$fileTaxonomy" or die
 		"Taxonomy not found in $options{'taxonomy'}. Was updateTaxonomy.sh run?";
 	
 	while ( my $line = <INFO> )
@@ -1389,7 +1515,7 @@ sub printWarnings
 	{
 		ktWarn
 		(
-			"The following accessions were not found in the local taxonomy database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
+			"The following accessions were not found in the local database (if they were recently added to NCBI, use updateAccessions.sh to update the local database):\n" .
 			join ' ', (keys %missingAccs)
 		);
 		
@@ -1500,25 +1626,23 @@ sub taxLowestCommonAncestor
 {
 	my @nodes = @_;
 	
-	checkTaxonomy();
-	
 	# walk the nodes up to an equal depth
 	#
 	my $minDepth;
 	#
 	foreach my $node ( @nodes )
 	{
-		if ( ! defined $minDepth || $taxDepths[$node] < $minDepth )
+		if ( ! defined $minDepth || getTaxDepth($node) < $minDepth )
 		{
-			$minDepth = $taxDepths[$node];
+			$minDepth = getTaxDepth($node);
 		}
 	}
 	#
 	foreach my $node ( @nodes )
 	{
-		while ( $taxDepths[$node] > $minDepth )
+		while ( getTaxDepth($node) > $minDepth )
 		{
-			$node = $taxParents[$node];
+			$node = getTaxParent($node);
 		}
 	}
 	
@@ -1526,6 +1650,7 @@ sub taxLowestCommonAncestor
 	
 	while ( ! $done )
 	{
+		print "@nodes\n";
 		$done = 1;
 		
 		my $prevNode;
@@ -1545,13 +1670,13 @@ sub taxLowestCommonAncestor
 		{
 			for ( my $i = 0; $i < @nodes; $i++ )
 			{
-				if ( ! defined $taxParents[$nodes[$i]] )
+				if ( ! defined getTaxParent($nodes[$i]) )
 				{
 					ktDie("Undefined parent for taxID $nodes[$i]");
 					return;
 				}
 				
-				$nodes[$i] = $taxParents[$nodes[$i]];
+				$nodes[$i] = getTaxParent($nodes[$i]);
 			}
 		}
 	}

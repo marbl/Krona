@@ -12,8 +12,10 @@ tar -cnf $release.tar \
 	$release/scripts/extractTaxonomy.pl \
 	$release/scripts/formatEC.pl \
 	$release/scripts/GetContigMagnitudes.pl \
+	$release/scripts/GetLCA.pl \
 	$release/scripts/GetLibPath.pl \
 	$release/scripts/GetTaxIDFromAcc.pl \
+	$release/scripts/GetTaxInfo.pl \
 	$release/scripts/ImportBLAST.pl \
 	$release/scripts/ImportDiskUsage.pl \
 	$release/scripts/ImportEC.pl \

@@ -20,7 +20,6 @@ BEGIN
 use Getopt::Long;
 
 my $help;
-my $totalMag;
 my $prepend;
 my $append;
 my $tax;
@@ -43,15 +42,24 @@ if ( $help )
 {
 	print '
 Description:
-   Translates accessions from <stdin> to NCBI taxonomy IDs. The accession can
-   be bare  or in the fourth field of pipe notation (e.g.
-   "gi|12345|xx|ABC123.1|", Accessions with no taxonomy IDs in the database will
-   return 0.
+
+   Translates accessions (from arguments or <stdin>) to NCBI taxonomy IDs. The
+   accession can be bare or in the fourth field of pipe notation (e.g.
+   "gi|12345|xx|ABC123.1|", ignoring fasta tag markers [">"]). Inputs that are
+   bare numbers will be assumed to be taxonomy IDs already and preserved.
+   Accessions with no taxonomy IDs in the database will return 0.
 
 Usage:
 
-   ktGetTaxIDFromAcc [options] < acc_list > tax_ID_list
+   ktGetTaxIDFromAcc [options] [acc1 acc2 ...] [< acc_list] > tax_ID_list
 
+   Command line example:
+   
+      ktGetTaxIDFromAcc A00001.1 A00002.1
+
+   Fasta tag example:
+
+      grep ">" sequence
 Options:
 
    -p  Prepend tax IDs to the original lines (separated by tabs).
@@ -68,32 +76,30 @@ if ( $prepend && $append )
 	$prepend = 0;
 }
 
-while ( <> )
+my $stdin;
+
+if ( @ARGV == 0 )
 {
-	chomp;
-	
-	my $acc;
-	
-	if ( /\|/ )
-	{
-		$acc = (split /\|/)[3];
-	}
-	else
-	{
-		$acc = $_
-	}
+	$stdin = 1;
+}
+
+while ( my $in = $stdin ? <STDIN> : shift @ARGV )
+{
+	chomp $in;
 	
 	if ( $append )
 	{
-		print "$_\t";
+		print "$in\t";
 	}
 	
-	print int(getTaxIDFromAcc($acc));
+	print getTaxIDFromAcc(getAccFromSeqID($in));
 	
 	if ( $prepend )
 	{
-		print "\t$_";
+		print "\t$in";
 	}
 	
 	print "\n";
 }
+
+printWarnings();
