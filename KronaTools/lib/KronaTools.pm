@@ -1650,7 +1650,6 @@ sub taxLowestCommonAncestor
 	
 	while ( ! $done )
 	{
-		print "@nodes\n";
 		$done = 1;
 		
 		my $prevNode;
