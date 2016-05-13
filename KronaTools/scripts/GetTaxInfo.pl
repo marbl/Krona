@@ -71,7 +71,14 @@ if ( @ARGV == 0 )
 
 while ( my $in = $stdin ? <STDIN> : shift @ARGV )
 {
-	chomp;
+	chomp $in;
+	
+	if ( $in eq "" )
+	{
+		print "\n";
+		next;
+	}
+	
 	print join "\t", getTaxInfo(getTaxIDFromAcc(getAccFromSeqID($in)));
 	print "\n";
 }

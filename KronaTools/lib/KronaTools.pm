@@ -1632,6 +1632,12 @@ sub taxLowestCommonAncestor
 	#
 	foreach my $node ( @nodes )
 	{
+		if ( ! taxIDExists($node) )
+		{
+			$missingTaxIDs{$node} = 1;
+			$node = 1;
+		}
+		
 		if ( ! defined $minDepth || getTaxDepth($node) < $minDepth )
 		{
 			$minDepth = getTaxDepth($node);
@@ -1686,8 +1692,8 @@ sub taxLowestCommonAncestor
 sub taxIDExists
 {
 	my ($taxID) = @_;
-	checkTaxonomy();
-	return defined $taxDepths[$taxID];
+	
+	return defined getTaxParent($taxID);
 }
 
 sub writeTree

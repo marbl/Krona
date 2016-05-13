@@ -87,6 +87,12 @@ while ( my $in = $stdin ? <STDIN> : shift @ARGV )
 {
 	chomp $in;
 	
+	if ( $in eq "" )
+	{
+		print "\n";
+		next;
+	}
+	
 	if ( $append )
 	{
 		print "$in\t";

@@ -76,12 +76,35 @@ while ( my $in = $stdin ? <STDIN> : shift @ARGV )
 	
 	if ( $stream )
 	{
-		my $lca = taxLowestCommonAncestor(map {getTaxIDFromAcc(getAccFromSeqID($_))} (split /\s+/, $in));
+		if ( $in eq "" )
+		{
+			print "\n";
+			next;
+		}
+		
+		my @taxIDs;
+		
+		foreach my $id (split /\s+/, $in)
+		{
+			my $taxID = getTaxIDFromAcc(getAccFromSeqID($id));
+			
+			if ( $taxID != 0 )
+			{
+				push @taxIDs, $taxID;
+			}
+		}
+		
+		my $lca = taxLowestCommonAncestor(@taxIDs);
 		print "$lca\n";
 	}
 	else
 	{
-		push @taxIDs, getTaxIDFromAcc(getAccFromSeqID($in));
+		my $taxID = getTaxIDFromAcc(getAccFromSeqID($in));
+		
+		if ( $taxID != 0 )
+		{
+			push @taxIDs, $taxID;
+		}
 	}
 }
 
@@ -90,3 +113,5 @@ if ( ! $stream )
 	my $lca = taxLowestCommonAncestor(@taxIDs);
 	print "$lca\n";
 }
+
+printWarnings();
