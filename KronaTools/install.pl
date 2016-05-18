@@ -96,7 +96,8 @@ Run ./updateTaxonomy.sh to use scripts that rely on NCBI taxonomy:
    ktImportBLAST
    ktImportTaxonomy
    ktImportMETAREP-BLAST
-   ktLowestCommonAncestor
+   ktGetLCA
+   ktGetTaxInfo
 
 Run ./updateAccessions.sh to use scripts that get taxonomy IDs from accessions:
    ktClassifyBLAST
