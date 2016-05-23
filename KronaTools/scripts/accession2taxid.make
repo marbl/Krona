@@ -12,7 +12,7 @@ ACC2TAXID_SORTED=$(ACC2TAXID:.accession2taxid=.accession2taxid.sorted)
 
 all.accession2taxid.sorted : $(ACC2TAXID_SORTED)
 	@echo "Merging sorted..."
-	@LC_ALL=C sort -m $(ACC2TAXID_SORTED) > $@
+	@LC_ALL=C sort -m $(ACC2TAXID_SORTED) | sed 's/\.[[:digit:]]*//' > $@
 	@rm $(ACC2TAXID_SORTED)
 
 %.accession2taxid.sorted : %.accession2taxid
