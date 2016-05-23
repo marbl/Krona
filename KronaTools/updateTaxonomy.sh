@@ -173,6 +173,16 @@ else
 	fi
 fi
 
+if [ "$accessions" == "1" ] && [ ! -d "$taxonomyPath/accession2taxid" ]
+then
+	mkdir "$taxonomyPath/accession2taxid"
+
+	if [ "$?" != "0" ]
+	then
+		die "Could not create '$taxonomyPath/accession2taxid'. Do you have permission?"
+	fi
+fi
+
 cd $taxonomyPath
 
 if [ "$?" != "0" ]
@@ -181,24 +191,56 @@ then
 fi
 
 ACC2TAXID="
-dead_nucl.accession2taxid
-dead_prot.accession2taxid
-dead_wgs.accession2taxid
-nucl_est.accession2taxid
-nucl_gb.accession2taxid
-nucl_gss.accession2taxid
-nucl_wgs.accession2taxid
-prot.accession2taxid
+accession2taxid/dead_nucl.accession2taxid
+accession2taxid/dead_prot.accession2taxid
+accession2taxid/dead_wgs.accession2taxid
+accession2taxid/nucl_est.accession2taxid
+accession2taxid/nucl_gb.accession2taxid
+accession2taxid/nucl_gss.accession2taxid
+accession2taxid/nucl_wgs.accession2taxid
+accession2taxid/prot.accession2taxid
 "
 
 if [ "$local" != "1" ]
 then
 	if [ "$accessions" == "1" ]
 	then
-		for unzipped in $ACC2TAXID
-		do
-			fetch $unzipped.gz $unzipped.gz accession2taxid "$unzipped all.accession2taxid.sorted"
-		done
+		fetchAll="$localPull"
+		
+		if [ "$fetchAll" == "" ] && [ ! -e all.accession2taxid.sorted ]
+		then
+			echo fetchAll=1
+		fi
+		
+		# if any are fetched by timestamp of all.accession2taxid.sorted, all
+		# others must be fetched to rebuild it
+		#
+		if [ "$fetchAll" == "" ]
+		then
+			for unzipped in $ACC2TAXID
+			do
+				fetch $unzipped.gz $unzipped.gz "" "$unzipped all.accession2taxid.sorted"
+				
+				if [ -e $unzipped.gz ]
+				then
+					if [ ! -e all.accession2taxid.sorted ] || [ $unzipped.gz -nt all.accession2taxid.sorted ]
+					then
+						fetchAll=1
+					fi
+				fi
+			done
+		fi
+		#
+		if [ "$fetchAll" == "1" ]
+		then
+			for unzipped in $ACC2TAXID
+			do
+				if [ "$localPull" == "1" ] || [ [ ! -e $unzipped.gz ] && [ ! -e $unzipped ] ]
+				then
+					fetch $unzipped.gz $unzipped.gz "" $unzipped
+				fi
+			done
+		fi
 	else
 		fetch taxdump.tar.gz "taxdump.tar.gz" "" "taxdump.tar names.dmp taxonomy.tab"
 	fi
@@ -214,22 +256,27 @@ fi
 
 if [ "$accessions" == "1" ]
 then
-	if [ "$local" == "1" ]
-	then
-		for base in $ACC2TAXID
-		do
-			if [ ! -e $base ] && [ ! -e $base.gz ]
+	for base in $ACC2TAXID
+	do
+		if [ ! -e $base ] && [ ! -e $base.gz ]
+		then
+			if [ "$local" == "1" ]
 			then
 				die "Could not find accession2taxid source files in $taxonomyPath."
+			else
+				echo "Accessions up to date."
+				exit 0
 			fi
-		done
-	fi
+		fi
+	done
+	
+	cd accession2taxid
 	
 	make -j 4 PRESERVE="$preserve" -f $ktPath/$makefileAcc2taxid
 
 	if [ "$?" != "0" ]
 	then
-		die "Building accession2taxid failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+		die "Building accession2taxid failed (see errors above). Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
 	fi
 else
 	if [ -e taxdump.tar ] || [ -e taxdump.tar.gz ] || [ -e names.dmp ]
@@ -238,7 +285,7 @@ else
 
 		if [ "$?" != "0" ]
 		then
-			die "Building taxonomy table failed. Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
+			die "Building taxonomy table failed (see errors above). Issues can be tracked and reported at https://github.com/marbl/Krona/issues."
 		fi
 	elif [ "$local" == "1" ]
 	then
@@ -254,6 +301,8 @@ then
 	if [ "$accessions" != "1" ]
 	then
 		make -f $ktPath/$makefileTaxonomy clean
+	else
+		rmdir $ktPath/taxonomy/accession2taxid 2> /dev/null
 	fi
 fi
 
