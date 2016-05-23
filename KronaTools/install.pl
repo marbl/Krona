@@ -93,11 +93,11 @@ Installation complete.
 
 Run ./updateTaxonomy.sh to use scripts that rely on NCBI taxonomy:
    ktClassifyBLAST
+   ktGetLCA
+   ktGetTaxInfo
    ktImportBLAST
    ktImportTaxonomy
    ktImportMETAREP-BLAST
-   ktGetLCA
-   ktGetTaxInfo
 
 Run ./updateAccessions.sh to use scripts that get taxonomy IDs from accessions:
    ktClassifyBLAST
