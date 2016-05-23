@@ -964,7 +964,7 @@ sub getAccFromSeqID
 		$acc = (split /\|/, $acc)[3];
 	}
 	
-	if ( $acc !~ /^\d+$/ && $acc !~ /^[A-Z]+_?\d+(\.\d+)?$/ )
+	if ( $acc !~ /^\d+$/ && $acc !~ /^[A-Z]+_?[A-Z]*\d+(\.\d+)?$/ )
 	{
 		$invalidAccs{$acc} = 1;
 		return undef;
@@ -1180,6 +1180,8 @@ sub getTaxIDFromAcc
 		return $acc;
 	}
 	
+	$acc =~ s/\.\d+$//;
+	
 	if ( defined $taxIDByAcc{$acc} )
 	{
 		return $taxIDByAcc{$acc};
@@ -1200,34 +1202,29 @@ sub getTaxIDFromAcc
 	
 	#print "ACC: $acc\n";
 	
-	while ( $accCur ne $acc )
+	while ( $acc ne $accCur && $min < $max )
 	{
 		my $posNew = int(($min + $max) / 2);
 		
 		seek ACC, $posNew, 0;
 		
-		if ( $posNew > 0 )
+		if ( $posNew != $min )
 		{
 			<ACC>; # eat up to newline
 		}
 		
-		#$posNew = tell ACC;
 		my $line = <ACC>;
-		
-		#print "$min\t$max\t$posNew\t$line";
 		
 		my $accNew;
 		($accNew, $taxID) = split /\t/, $line;
 		
-		if ( $posNew == $min && $accNew ne $acc )
-		{
-			$missingAccs{$acc} = 1;
-			$taxID = 0;
-			last;
-		}
-		
 		if ( $acc gt $accNew && $accCur ne $accNew && $accNew )
 		{
+			if ( $accNew )
+			{
+				$posNew = tell ACC;
+			}
+			
 			$min = $posNew;
 		}
 		else
@@ -1241,6 +1238,12 @@ sub getTaxIDFromAcc
 	close ACC;
 	
 	chomp $taxID;
+	
+	if ( $accCur ne $acc )
+	{
+		$missingAccs{$acc} = 1;
+		$taxID = 0;
+	}
 	
 	$taxIDByAcc{$acc} = $taxID;
 	
