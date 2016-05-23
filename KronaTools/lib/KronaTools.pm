@@ -1226,6 +1226,11 @@ sub getTaxIDFromAcc
 			}
 			
 			$min = $posNew;
+			
+			if ( $min >= $max )
+			{
+				$max = $min + 1;
+			}
 		}
 		else
 		{
