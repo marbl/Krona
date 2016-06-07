@@ -209,7 +209,7 @@ then
 		
 		if [ "$fetchAll" == "" ] && [ ! -e all.accession2taxid.sorted ]
 		then
-			echo fetchAll=1
+			fetchAll=1
 		fi
 		
 		# if any are fetched by timestamp of all.accession2taxid.sorted, all
@@ -235,7 +235,7 @@ then
 		then
 			for unzipped in $ACC2TAXID
 			do
-				if [ "$localPull" == "1" ] || [ [ ! -e $unzipped.gz ] && [ ! -e $unzipped ] ]
+				if [ "$localPull" == "1" ] || [ ! -e $unzipped.gz ] && [ ! -e $unzipped ]
 				then
 					fetch $unzipped.gz $unzipped.gz "" $unzipped
 				fi
