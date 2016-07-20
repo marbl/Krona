@@ -60,6 +60,7 @@ Usage:
    Fasta tag example:
 
       grep ">" sequence
+
 Options:
 
    -p  Prepend tax IDs to the original lines (separated by tabs).

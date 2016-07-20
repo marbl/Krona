@@ -25,6 +25,7 @@ BEGIN
 my $taxonomyDir = $libPath;
 $taxonomyDir =~ s/lib$/taxonomy/;
 my $ecFile = "$libPath/../data/ec.tsv";
+my $useMembers; # set by addMember()
 
 # public subroutines
 #
@@ -222,14 +223,14 @@ our %argumentDescriptions =
 (
 	'blast' =>
 'File containing BLAST results in tabular format ("Hit table (text)" when
-downloading from NCBI).  If running BLAST locally, subject IDs in the local
+downloading from NCBI). If running BLAST locally, subject IDs in the local
 database must contain accession numbers, either bare or in the fourth field of
 the pipe-separated ("gi|12345|xx|ABC123.1|") format.',
 	'magnitude' =>
-'Optional file listing query IDs with magnitudes, separated by tabs.  This can
+'Optional file listing query IDs with magnitudes, separated by tabs. This can
 be used to account for read length or contig depth to obtain a more accurate
-representation of abundance.  By default, query sequences without specified
-magnitudes will be assigned a magnitude of 1.  Magnitude files for assemblies in
+representation of abundance. By default, query sequences without specified
+magnitudes will be assigned a magnitude of 1. Magnitude files for assemblies in
 ACE format can be created with ktGetContigMagnitudes.',
 	'metarep' =>
 'Unpacked METAREP data folder.',
@@ -696,17 +697,18 @@ sub addXML
 					
 					my $fileMembers = "$file.files/$members[$i]";
 					
-					open MEMBERS, $fileMembers or die "Could not open $fileMembers";
-					
-					while ( <MEMBERS> )
+					if ( open MEMBERS, $fileMembers )
 					{
-						if ( /(data\(')?(.+)\\n\\/ )
+						while ( <MEMBERS> )
 						{
-							push @{$node->{'members'}[$dataset + $i]}, $2;
+							if ( /(data\(')?(.+)\\n\\/ )
+							{
+								addMember($node, $dataset + $i, $2);
+							}
 						}
-					}
 					
-					close MEMBERS;
+						close MEMBERS;
+					}
 				}
 			}
 			
@@ -720,7 +722,7 @@ sub addXML
 					
 					for ( my $i = 0; $i < @members; $i++ )
 					{
-						push @{$node->{'members'}[$dataset + $offset]}, $members[$i];
+						addMember($node, $dataset + $offset, $members[$i]);
 					}
 					
 					$offset++;
@@ -1193,7 +1195,7 @@ sub getTaxIDFromAcc
 	
 	if ( ! open ACC, "<$options{'taxonomy'}/$fileTaxByAcc" )
 	{
-		print "ERROR: Sorted accession to taxID list not found.  Was updateAccessions.sh run?\n";
+		print "ERROR: Sorted accession to taxID list not found. Was updateAccessions.sh run?\n";
 		exit 1;
 	}
 	
@@ -1746,14 +1748,17 @@ sub writeTree
 	my $totalCount;
 	my $supp;
 	#
-	foreach my $count ( @{$tree->{'count'}} )
+	if ( $useMembers )
 	{
-		$totalCount += $count;
-		
-		if ( $count > $memberLimitDataset || $totalCount > $memberLimitTotal )
+		foreach my $count ( @{$tree->{'count'}} )
 		{
-			$supp = 1;
-			last;
+			$totalCount += $count;
+		
+			if ( $count > $memberLimitDataset || $totalCount > $memberLimitTotal )
+			{
+				$supp = 1;
+				last;
+			}
 		}
 	}
 	
@@ -1818,6 +1823,7 @@ sub addMember
 #	$member =~ s/"/&quot;/g;
 	
 	push @{$node->{'members'}[$set]}, $member;
+	$useMembers = 1;
 }
 
 sub argumentString
@@ -1905,7 +1911,7 @@ sub dataHeader
 	my $assignedText;
 	my $summaryText;
 	#
-	if ( $assignedName && $summaryName )
+	if ( $assignedName && $summaryName && $useMembers )
 	{
 		my $memberTag = $supp ? 'data' : 'list';
 		my $suppDir = basename($options{'out'}) . $suppDirSuffix;

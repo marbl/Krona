@@ -50,7 +50,7 @@ Usage:
 
    Command line example:
 
-      ktGetTaxInfo A00001.1	"gi|2|emb|A00002.1|" 9606
+      ktGetTaxInfo A00001.1 "gi|2|emb|A00002.1|" 9606
 
    Fasta tag example:
 
