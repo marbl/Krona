@@ -868,7 +868,7 @@ sub classifyBlast
 		if # this is a 'best' hit if...
 		(
 			$queryID ne $lastQueryID || # new query ID (including null at EOF)
-			$bitScore > $topScore - $options{'threshold'} || # within score threshold
+			$bitScore >= $topScore - $options{'threshold'} || # within score threshold
 			$options{'factor'} && $eVal <= $options{'factor'} * $topEVal # within e-val factor
 		)
 		{
@@ -906,7 +906,7 @@ sub classifyBlast
 			{
 				my $newTaxID = getTaxIDFromAcc($acc);
 				
-				if ( ! $newTaxID || ! defined $taxParents[$newTaxID] )
+				if ( ! $newTaxID || ! taxIDExists($newTaxID) )
 				{
 					$newTaxID = 1;
 				}
