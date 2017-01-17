@@ -756,7 +756,7 @@ function Node()
 		
 //		if ( this.alphaWedge.current() > 0 || this.alphaLabel.current() > 0 )
 		{
-			var lastChildAngleEnd;
+			var lastChildAngleEnd = rotationOffset;
 			
 			if ( this.hasChildren() )//canDisplayChildren )
 			{
@@ -785,7 +785,9 @@ function Node()
 				if ( this == selectedNode || alphaOtherCurrent )
 				{
 					childRadiusInner =
-						this.children[this.children.length - 1].radiusInner.current() * gRadius;
+						this.children.length ?
+							this.children[this.children.length - 1].radiusInner.current() * gRadius
+						: compressedRadii[0] * gRadius;
 				}
 				
 				if ( this == selectedNode )
@@ -938,7 +940,7 @@ function Node()
 					var lastChildAngle;
 					var truncateWedge =
 					(
-						this.hasChildren() &&
+						(this.hasChildren() || this == selectedNode ) &&
 						! this.keyed &&
 						(compress || depth < maxDisplayDepth) &&
 						drawChildren
@@ -946,7 +948,7 @@ function Node()
 					
 					if ( truncateWedge )
 					{
-						radiusOuter = this.children[0].radiusInner.current() * gRadius;
+						radiusOuter = this.children.length ? this.children[0].radiusInner.current() * gRadius : compressedRadii[0] * gRadius;
 					}
 					else
 					{
@@ -2146,17 +2148,24 @@ function Node()
 	
 	this.getUnclassifiedPercentage = function()
 	{
-		var lastChild = this.children[this.children.length - 1];
+		if ( this.children.length )
+		{
+			var lastChild = this.children[this.children.length - 1];
 		
-		return getPercentage
-		(
+			return getPercentage
 			(
-				this.baseMagnitude +
-				this.magnitude -
-				lastChild.magnitude -
-				lastChild.baseMagnitude
-			) / this.magnitude
-		) + '%';
+				(
+					this.baseMagnitude +
+					this.magnitude -
+					lastChild.magnitude -
+					lastChild.baseMagnitude
+				) / this.magnitude
+			) + '%';
+		}
+		else
+		{
+			return '100%';
+		}
 	}
 	
 	this.getUnclassifiedText = function()
@@ -2982,15 +2991,19 @@ function Node()
 		if ( this == selectedNode )
 		{
 			var otherArc = 
-				angleFactor *
-				(
-					this.baseMagnitude + this.magnitude -
-					lastChild.baseMagnitude - lastChild.magnitude
-				);
+				this.children.length ?
+					angleFactor *
+					(
+						this.baseMagnitude + this.magnitude -
+						lastChild.baseMagnitude - lastChild.magnitude
+					)
+				: this.baseMagnitude + this.magnitude;
 			this.canDisplayLabelOther =
-				otherArc *
-				(this.children[0].radiusInner.end + 1) * gRadius >=
-				minWidth();
+				this.children.length ?
+					otherArc *
+					(this.children[0].radiusInner.end + 1) * gRadius >=
+					minWidth()
+				: true;
 			
 			this.keyUnclassified = false;
 			
@@ -3855,7 +3868,7 @@ function checkSelectedCollapse()
 		newNode = newNode.children[0];
 	}
 	
-	if ( newNode.children.length == 0 )
+	if ( newNode.children.length == 0 && newNode.getParent() )
 	{
 		newNode = newNode.getParent();
 	}
@@ -6570,7 +6583,7 @@ function updateView()
 
 function updateMaxAbsoluteDepth()
 {
-	while ( selectedNode.depth > maxAbsoluteDepth - 1 )
+	while ( maxAbsoluteDepth > 1 && selectedNode.depth > maxAbsoluteDepth - 1 )
 	{
 		selectedNode = selectedNode.getParent();
 	}
