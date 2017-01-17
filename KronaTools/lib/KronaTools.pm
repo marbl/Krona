@@ -966,7 +966,7 @@ sub getAccFromSeqID
 		$acc = (split /\|/, $acc)[3];
 	}
 	
-	if ( $acc !~ /^\d+$/ && $acc !~ /^[A-Z]+_?[A-Z]*\d+(\.\d+)?$/ )
+	if ( $acc !~ /^\d+$/ && $acc !~ /^[A-Z\d]+_?[A-Z\d]+(\.\d+)?$/ )
 	{
 		$invalidAccs{$acc} = 1;
 		return undef;
