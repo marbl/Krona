@@ -756,7 +756,7 @@ function Node()
 		
 //		if ( this.alphaWedge.current() > 0 || this.alphaLabel.current() > 0 )
 		{
-			var lastChildAngleEnd = rotationOffset;
+			var lastChildAngleEnd = angleStartCurrent;
 			
 			if ( this.hasChildren() )//canDisplayChildren )
 			{
@@ -787,7 +787,7 @@ function Node()
 					childRadiusInner =
 						this.children.length ?
 							this.children[this.children.length - 1].radiusInner.current() * gRadius
-						: compressedRadii[0] * gRadius;
+						: radiusInner
 				}
 				
 				if ( this == selectedNode )
@@ -948,7 +948,7 @@ function Node()
 					
 					if ( truncateWedge )
 					{
-						radiusOuter = this.children.length ? this.children[0].radiusInner.current() * gRadius : compressedRadii[0] * gRadius;
+						radiusOuter = this.children.length ? this.children[0].radiusInner.current() * gRadius : radiusInner;
 					}
 					else
 					{
@@ -971,7 +971,7 @@ function Node()
 					*/
 					context.globalAlpha = alphaWedgeCurrent;
 					
-					if ( radiusInner != radiusOuter )
+					if ( radiusInner != radiusOuter || truncateWedge )
 					{
 						drawWedge
 						(
@@ -3019,7 +3019,16 @@ function Node()
 			
 			this.angleStart.setTarget(0);
 			this.angleEnd.setTarget(Math.PI * 2);
-			this.radiusInner.setTarget(0);
+			
+			if ( this.children.length )
+			{
+				this.radiusInner.setTarget(0);
+			}
+			else
+			{
+				this.radiusInner.setTarget(compressedRadii[0]);
+			}
+			
 			this.hidePrev = this.hide;
 			this.hide = false;
 			this.hideAlonePrev = this.hideAlone;
