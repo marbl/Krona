@@ -756,7 +756,7 @@ function Node()
 		
 //		if ( this.alphaWedge.current() > 0 || this.alphaLabel.current() > 0 )
 		{
-			var lastChildAngleEnd = rotationOffset;
+			var lastChildAngleEnd = angleStartCurrent;
 			
 			if ( this.hasChildren() )//canDisplayChildren )
 			{
