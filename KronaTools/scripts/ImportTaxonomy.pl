@@ -31,6 +31,7 @@ qw(
 	scoreCol
 	magCol
 	depth
+	cellular
 	noRank
 	hueBad
 	hueGood
