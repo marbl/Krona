@@ -9,6 +9,7 @@ use strict;
 package KronaTools;
 
 use Getopt::Long;
+Getopt::Long::Configure("no_ignore_case");
 use File::Basename;
 use File::Path;
 
@@ -113,8 +114,10 @@ my %optionFormats =
 		'e=f',
 	'include' =>
 		'i',
-	'noRank' =>
+	'cellular' =>
 		'k',
+	'noRank' =>
+		'K',
 	'local' =>
 		'l',
 	'magCol' =>
@@ -173,6 +176,7 @@ my %optionTypes =
 my %optionDescriptions =
 (
 	'bitScore' => 'Use bit score for average scores instead of log[10] e-value.',
+	'cellular' => 'Show the "cellular organisms" taxon (collapsed by default).',
 	'combine' => 'Combine data from each file, rather than creating separate datasets within the chart.',
 	'depth' => 'Maximum depth of wedges to include in the chart.',
 	'ecCol' => 'Column of input files to use as EC number.',
@@ -186,7 +190,7 @@ my %optionDescriptions =
 	'minConfidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
 	'name' => 'Name of the highest level.',
 	'noMag' => 'Files do not have a field for quantity.',
-	'noRank' => 'Allow assignments to taxa with ranks labeled "no rank" (instead of moving up to parent).',
+	'noRank' => 'Collapse assignments to taxa with ranks labeled "no rank" by moving up to parent.',
 	'out' => 'Output file name.',
 	'phymm' => 'Input is phymm only (no confidence scores).',
 	'postUrl' => 'Url to send query IDs to (instead of listing them) for each wedge. The query IDs will be sent as a comma separated list in the POST variable "queries", with the current dataset index (from 0) in the POST variable "dataset". The url can include additional variables encoded via GET.',
@@ -568,11 +572,11 @@ sub addByTaxID
 	#
 	while
 	(
-		! $options{'noRank'} && $taxID > 1 && $taxRanks[$taxID] eq 'no rank' ||
-		$options{'depth'} && $taxDepths[$taxID] > $options{'depth'}
+		shouldCollapse($taxID) ||
+		$options{'depth'} && getTaxDepth($taxID) > $options{'depth'}
 	)
 	{
-		$taxID = $taxParents[$taxID];
+		$taxID = getTaxParent($taxID);
 	}
 	
 	# get parent recursively
@@ -584,7 +588,7 @@ sub addByTaxID
 	{
 		$parentID = getTaxParent($parentID);
 	}
-	while (! $options{'noRank'} && $parentID > 1 && getTaxRank($parentID) eq 'no rank');
+	while ( shouldCollapse($parentID) );
 	
 	#
 	if ( $parentID != 1 )#$taxID )
@@ -1614,6 +1618,19 @@ sub setOption
 	my ($option, $value) = @_;
 	
 	$options{$option} = $value;
+}
+
+sub shouldCollapse
+{
+	my ($taxID) = @_;
+	
+	return !
+	(
+		getTaxRank($taxID) ne 'no rank' ||
+		! $options{'noRank'} && $taxID != 131567 ||
+		$taxID == 1 ||
+		$options{'cellular'} && $taxID == 131567
+	);
 }
 
 sub taxContains

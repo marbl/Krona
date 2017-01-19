@@ -33,6 +33,7 @@ qw(
 	bitScore
 	combine
 	depth
+	cellular
 	noRank
 	hueBad
 	hueGood
