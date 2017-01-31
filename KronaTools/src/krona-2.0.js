@@ -774,7 +774,7 @@ function Node()
 					angleEndCurrent == this.parent.angleEnd.current() + rotationOffset
 				);
 				
-				if ( angleStartCurrent != angleEndCurrent )
+				//if ( angleStartCurrent != angleEndCurrent )
 				{
 					this.drawLines(angleStartCurrent, angleEndCurrent, radiusInner, drawRadial, selected);
 				}
