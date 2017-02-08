@@ -13,6 +13,11 @@ else # Assume linux
     MD5=md5sum
 fi
 
+# This would not resolve symlink:
+# ktPath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
+# Therefore this:
+ktPath=$(dirname $(readlink -f $0))
+
 makefileAcc2taxid="scripts/accession2taxid.make"
 makefileTaxonomy="scripts/taxonomy.make"
 
@@ -146,8 +151,6 @@ if [ "$local" == "1" ] && [ "$localPull" == "1" ]
 then
 	die "Cannot use --only-fetch with --only-build."
 fi
-
-ktPath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 
 if [ "$taxonomyPath" == "" ]
 then
