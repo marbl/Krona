@@ -16,7 +16,9 @@ fi
 # This would not resolve symlink:
 # ktPath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 # Therefore this:
-ktPath=$(dirname $(readlink -f $0))
+# perl function to resolve symlinks that will function on Linux and OSX (since 'readlink -f' is different under OSX)
+readlink_f(){ perl -MCwd -e 'print Cwd::abs_path shift' "$1";}
+ktPath=$(dirname $(readlink_f $0))
 
 makefileAcc2taxid="scripts/accession2taxid.make"
 makefileTaxonomy="scripts/taxonomy.make"
