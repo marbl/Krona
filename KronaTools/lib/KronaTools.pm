@@ -1935,7 +1935,7 @@ sub dataHeader
 		my $enableText = $supp ? " enable=\"$suppDir/$suppEnableFile\"" : '';
 		$header .= indent(4) . "<$memberTag$enableText>members</$memberTag>\n";
 		$assignedText = " ${memberTag}Node=\"members\"";
-		$summaryText = " ${memberTag}\All=\"members\"";
+		$summaryText = " ${memberTag}All=\"members\"";
 		
 		if ( $options{'postUrl'} )
 		{
