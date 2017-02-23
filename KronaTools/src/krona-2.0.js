@@ -74,6 +74,7 @@
 //-----------------------------------------------------------------------------
 }
 
+var arcMax = Math.PI;
 var canvas;
 var context;
 var svg; // for snapshot mode
@@ -165,7 +166,7 @@ var updateViewNeeded = false;
 // Determines the angle that the pie chart starts at.  90 degrees makes the
 // center label consistent with the children.
 //
-var rotationOffset = Math.PI / 2;
+var rotationOffset = Math.PI;
 
 var buffer = 100;
 
@@ -3123,7 +3124,7 @@ function NodeView(treeView, node)
 		}
 		else
 		{
-			this.angleStart.setTarget(Math.PI * 2, init);
+			this.angleStart.setTarget(arcMax, init);
 		}
 		//
 		if
@@ -3133,7 +3134,7 @@ function NodeView(treeView, node)
 			selectedNodeView.baseMagnitude + selectedNodeView.magnitude
 		)
 		{
-			this.angleEnd.setTarget(Math.PI * 2, init);
+			this.angleEnd.setTarget(arcMax, init);
 		}
 		else
 		{
@@ -3353,7 +3354,7 @@ function NodeView(treeView, node)
 			
 			if ( this.canDisplayLabelOther )
 			{
-				this.angleOther = Math.PI * 2 - otherArc / 2;
+				this.angleOther = arcMax - otherArc / 2;
 			}
 			else if ( otherArc > 0.0000000001 )
 			{
@@ -3362,7 +3363,7 @@ function NodeView(treeView, node)
 			}
 			
 			this.angleStart.setTarget(0, init);
-			this.angleEnd.setTarget(Math.PI * 2, init);
+			this.angleEnd.setTarget(arcMax, init);
 			this.radiusInner.setTarget(0, init);
 			this.hidePrev = this.hide;
 			this.hide = false;
@@ -3371,9 +3372,9 @@ function NodeView(treeView, node)
 			this.keyed = false;
 		}
 		
-		if ( hueMax - hueMin > 1 / 12 )
+		if ( hueMax - hueMin > 1 / 6 )
 		{
-			hueMax = hueMin + 1 / 12;
+			hueMax = hueMin + 1 / 6;
 		}
 		
 		// set lightness
@@ -3469,8 +3470,8 @@ function NodeView(treeView, node)
 					
 					if ( nChildren > 6 )
 					{
-						childHueMin = lerp((1 - Math.pow(1 - i / nChildren, 1.4)) * .95, 0, 1, min, max);
-						childHueMax = lerp((1 - Math.pow(1 - (i + .55) / nChildren, 1.4)) * .95, 0, 1, min, max);
+						childHueMin = lerp((1 - Math.pow(1 - i / nChildren, 2.4)) * .90, 0, 1, min, max);
+						childHueMax = lerp((1 - Math.pow(1 - (i + .55) / nChildren, 2.4)) * .90, 0, 1, min, max);
 					}
 					else
 					{
@@ -3480,6 +3481,8 @@ function NodeView(treeView, node)
 				}
 				else
 				{
+					var min = hueMin;
+					var max = hueMax;
 					childHueMin = lerp
 					(
 						child.baseMagnitude,
@@ -3496,6 +3499,16 @@ function NodeView(treeView, node)
 						hueMin,
 						hueMax
 					);
+					if ( nChildren > 6 )
+					{
+						childHueMin = lerp((1 - Math.pow(1 - i / nChildren, 2.4)) * .99, 0, 1, min, max);
+						childHueMax = lerp((1 - Math.pow(1 - (i + .55) / nChildren, 2.4)) * .99, 0, 1, min, max);
+					}
+					else
+					{
+						childHueMin = lerp(i / nChildren, 0, 1, min, max);
+						childHueMax = lerp((i + .55) / nChildren, 0, 1, min, max);
+					}
 				}
 			}
 			else
@@ -4417,7 +4430,7 @@ function checkHighlight()
 	
 	if ( progress == 1 )
 	{
-		for ( var i = 0; i < treeViews.length; i++ )
+		for ( var i = 0; i < 1 /*treeViews.length*/; i++ )
 		{
 			treeViews[i].checkHighlight();
 		}
@@ -4764,14 +4777,73 @@ function draw()
 	
 	focusTreeView.drawMap();
 	
+	var totalPct = 0;
+	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		treeViews[i].draw();
+		totalPct += nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i);
 	}
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
+		if ( i == 1 )
+		{
+			context.save()
+			context.translate(0, imageHeight + 20);
+			context.scale(1, -1);
+		}
+		else if ( i == 2 )
+		{
+			context.save()
+			context.translate(imageWidth + 20, imageHeight + 20);
+			context.scale(-1, -1);
+		}
+		else if ( i == 3 )
+		{
+			context.save()
+			context.translate(imageWidth + 20, 0);
+			context.scale(-1, 1);
+		}
+		
+		var fraction = nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i) / totalPct;
+		//rotationOffset = 3 * Math.PI / 2 - Math.PI * fraction;
+				
+		treeViews[i].draw();
+		if ( i > 0 )
+		{
+			context.restore()
+		}
+	}
+	
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		if ( i == 1 )
+		{
+			context.save()
+			context.translate(0, imageHeight + 20);
+			context.scale(1, -1);
+		}
+		else if ( i == 2 )
+		{
+			context.save()
+			context.translate(imageWidth + 20, imageHeight + 20);
+			context.scale(-1, -1);
+		}
+		else if ( i == 3 )
+		{
+			context.save()
+			context.translate(imageWidth + 20, 0);
+			context.scale(-1, 1);
+		}
+		
+		var fraction = nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i) / totalPct;
+		//rotationOffset = 3 * Math.PI / 2 - Math.PI * fraction;
+				
 		treeViews[i].drawHighlight();
+		if ( i > 0 )
+		{
+			context.restore()
+		}
 	}
 	
 	context.globalAlpha = 1;
@@ -6296,8 +6368,8 @@ function resize()
 	}
 	
 	var minDimension = imageWidth / cols > imageHeight / rows ?
-		imageHeight / rows:
-		imageWidth / cols;
+		imageHeight:// / rows:
+		imageWidth;// / cols;
 	
 	var colsTest = Math.round(imageWidth / Math.sqrt(imageHeight * imageWidth / views));
 	var rowsTest = Math.ceil(treeViews.length / colsTest);
@@ -6351,8 +6423,8 @@ function resize()
 			centerX = imageWidth * (col + .5) / cols;
 		}
 		
-		centerY = imageHeight * (row + .5) / rows;
-		treeViews[i].setTargetCenter(centerX, centerY);
+		centerY = imageHeight /2;//* (row + .5) / rows;
+		treeViews[i].setTargetCenter(imageWidth / 2, imageHeight / 2);
 		treeViews[i].setTargetRadius(minDimension / 2 - buffer);
 		
 		currentView++
@@ -7667,9 +7739,11 @@ function updateView()
 	
 	setHighlightedNode(selectedNode);
 	
+	arcMax = Math.PI * 2 / treeViews.length;
+	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		treeViews[i].angleFactor = 2 * Math.PI / (treeViews[i].nodeViews[selectedNode.id].magnitude);
+		treeViews[i].angleFactor = arcMax / (treeViews[i].nodeViews[selectedNode.id].magnitude);
 	}
 	
 	compressedRadii = computeRadii(selectedNode);
@@ -7724,12 +7798,31 @@ function updateView()
 		}
 	}
 	
+	var totalPct = 0;
+	
+	for ( var i = 0; i < treeViews.length; i++ )
+	{
+		totalPct += nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i);
+	}
+	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
 //		if ( ! treeViews[i].finishing )
-		{
+		//{
+			var fraction = nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i) / totalPct;
+			
+			if ( i == 0 )
+			{
+				//rotationOffset = Math.PI / 2 + Math.PI * fraction;
+			}
+			else
+			{
+				//rotationOffset = 3 * Math.PI / 2 - Math.PI * fraction;
+			}
+			
+			//treeViews[i].angleFactor = Math.PI * 2 / (treeViews[i].nodeViews[selectedNode.id].magnitude) * fraction;
 			treeViews[i].setTargets();
-		}
+		//}
 	}
 	
 	keySize = ((imageHeight - margin * 3) * 1 / 2) / keys * 3 / 4;
