@@ -43,6 +43,7 @@ print "Creating links...\n";
 
 foreach my $script
 (qw(
+	ClassifyHits
 	ClassifyBLAST
 	GetContigMagnitudes
 	GetLCA
@@ -54,6 +55,7 @@ foreach my $script
 	ImportEC
 	ImportFCP
 	ImportGalaxy
+	ImportHits
 	ImportKrona
 	ImportMETAREP-BLAST
 	ImportMETAREP-EC

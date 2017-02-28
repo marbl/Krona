@@ -36,6 +36,7 @@ our @EXPORT = qw
 	addByLineage
 	addByTaxID
 	addXML
+	classify
 	classifyBlast
 	default
 	getAccFromSeqID
@@ -91,7 +92,8 @@ my %options =
 	'standalone' => 1,
 	'taxCol' => 2,
 	'taxonomy' => $taxonomyDir,
-	'threshold' => 3
+	'threshold' => 3,
+	'thresholdGeneric' => 0,
 );
 
 # Option format codes to pass to GetOptions (and to be parsed for display).
@@ -150,6 +152,8 @@ my %optionFormats =
 		't=i',
 	'threshold' =>
 		't=f',
+	'thresholdGeneric' =>
+		't=f',
 	'taxonomy' =>
 		'tax=s',
 	'url' =>
@@ -202,6 +206,7 @@ my %optionDescriptions =
 	'taxCol' => 'Column of input files to use as taxonomy ID.',
 	'taxonomy' => 'Path to directory containing a taxonomy database to use.',
 	'threshold' => 'Threshold for bit score differences when determining "best" hits. Hits with scores that are within this distance of the highest score will be included when computing the lowest common ancestor (or picking randomly if -r is specified).',
+	'thresholdGeneric' => 'Threshold for score differences when determining "best" hits. Hits with scores that are within this distance of the highest score will be included when computing the lowest common ancestor (or picking randomly if -r is specified). If 0, only exact ties for the best hit are used.',
 	'url' => 'URL of Krona resources to use instead of bundling them with the chart (e.g. "http://krona.sourceforge.net"). Reduces size of charts and allows updates, though charts will not work without access to this URL.',
 	'verbose' => 'Verbose.'
 );
@@ -216,6 +221,7 @@ my %optionDescriptions =
 our %argumentNames =
 (
 	'blast' => 'blast_output',
+	'hits' => 'hits',
 	'magnitude' => 'magnitudes',
 	'metarep' => 'metarep_folder',
 	'name' => 'name',
@@ -230,6 +236,12 @@ our %argumentDescriptions =
 downloading from NCBI). If running BLAST locally, subject IDs in the local
 database must contain accession numbers, either bare or in the fourth field of
 the pipe-separated ("gi|12345|xx|ABC123.1|") format.',
+	'hits' =>
+'Tabular file whose fields are [query, subject, score]. Subject must be
+an accession or contain one in the fourth field of pipe notation (e.g.
+"gi|12345|xx|ABC123.1|". The subject and score can be omitted to
+include a query that has no hits, which will be assigned a taxonomy
+ID of -1.',
 	'magnitude' =>
 'Optional file listing query IDs with magnitudes, separated by tabs. This can
 be used to account for read length or contig depth to obtain a more accurate
@@ -763,6 +775,133 @@ sub addXML
 	}
 }
 
+sub classify
+{
+	# taxonomically classifies generic hits based on LCA (or random selection)
+	# of 'best' hits.
+	#
+	# Options used: thresholdGeneric, include, percentIdentity, random, score
+	
+	my # parameters
+	(
+		$fileName, # file with tabular hits (query, subject, score)
+		
+		# hash refs to be populated with results (keyed by query ID)
+		#
+		$taxIDs,
+		$scores
+	) = @_;
+	
+	open HITS, "<$fileName" or ktDie("Could not open $fileName\n");
+	
+	my $lastQueryID;
+	my $topScore;
+	my $ties;
+	my $taxID;
+	my %lcaSet;
+	my $totalScore;
+	
+	while ( 1 )
+	{
+		my $line = <HITS>;
+		
+		chomp $line;
+		
+		my
+		(
+			$queryID,
+			$hitID,
+			$score
+		) = split /\t/, $line;
+		
+		if ( defined $queryID && ! defined $hitID )
+		{
+			$taxIDs->{$queryID} = -1;
+			$scores->{$queryID} = 0;
+			
+			next;
+		}
+		
+		if ( $queryID ne $lastQueryID )
+		{
+			if (  $ties )
+			{
+				# add the chosen hit from the last queryID
+				
+				if ( ! $options{'random'} )
+				{
+					$taxID = taxLowestCommonAncestor(keys %lcaSet)
+				}
+				
+				$taxIDs->{$lastQueryID} = $taxID;
+				$scores->{$lastQueryID} = $totalScore / $ties;
+			}
+			
+			$ties = 0;
+			$totalScore = 0;
+			%lcaSet = ();
+		}
+		
+		if ( ! defined $hitID )
+		{
+			last; # EOF
+		}
+		
+		my $acc = getAccFromSeqID($hitID);
+		
+		if ( ! defined $acc )
+		{
+			$lastQueryID = $queryID;
+			next;
+		}
+		
+		if # this is a 'best' hit if...
+		(
+			$queryID ne $lastQueryID || # new query ID (including null at EOF)
+			$score >= $topScore - $options{'thresholdGeneric'} # within score threshold
+		)
+		{
+			# add score for average
+			#
+			$totalScore += $score;
+			$ties++;
+			
+			if # use this hit if...
+			(
+				! $options{'random'} || # using LCA
+				$queryID ne $lastQueryID || # new query ID
+				int(rand($ties)) == 0 # randomly chosen to replace other hit
+			)
+			{
+				my $newTaxID = getTaxIDFromAcc($acc);
+				
+				if ( ! $newTaxID || ! taxIDExists($newTaxID) )
+				{
+					$newTaxID = 1;
+				}
+				
+				if ( $options{'random'} )
+				{
+					$taxID = $newTaxID;
+				}
+				else
+				{
+					$lcaSet{$newTaxID} = 1;
+				}
+			}
+		}
+		
+		if ( $queryID ne $lastQueryID )
+		{
+			$topScore = $score;
+		}
+		
+		$lastQueryID = $queryID;
+	}
+	
+	close HITS;
+}	
+
 sub classifyBlast
 {
 	# taxonomically classifies BLAST results based on LCA (or random selection)
@@ -934,6 +1073,8 @@ sub classifyBlast
 		
 		$lastQueryID = $queryID;
 	}
+	
+	close BLAST;
 	
 	if ( $zeroEVal )
 	{
