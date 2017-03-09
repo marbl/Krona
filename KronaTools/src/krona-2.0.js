@@ -1279,10 +1279,26 @@ function NodeView(treeView, node)
 			
 			if ( this.hasChildren() )//canDisplayChildren )
 			{
+				var lastChild = this.getLastChild();
+				
 				lastChildAngleEnd =
-					this.getLastChild().angleEnd.current()
+					(this.treeView.angleFactor < 0 ? lastChild.angleStart.current() : lastChild.angleEnd.current())
 					+ rotationOffset;
+				
+				if ( this.treeView.angleFactor < 0 )
+				{
+					otherAngleEnd = lastChildAngleEnd;
+					otherAngleStart = lerp(this.baseMagnitude + this.magnitude, this.baseMagnitude, lastChild.baseMagnitude + lastChild.magnitude, angleEndCurrent, lastChildAngleEnd);
+				}
+				else
+				{
+					otherAngleStart = lastChildAngleEnd;
+					otherAngleEnd = lerp(this.baseMagnitude + this.magnitude, this.baseMagnitude, lastChild.baseMagnitude + lastChild.magnitude, angleStartCurrent, lastChildAngleEnd);
+				}
 			}
+			
+			var otherAngleStart;
+			var otherAngleEnd;
 			
 			if ( labelMode )
 			{
@@ -1409,7 +1425,7 @@ function NodeView(treeView, node)
 				{
 					if
 					(
-						(angleEndCurrent - lastChildAngleEnd) *
+						(otherAngleEnd - otherAngleStart) *
 						(childRadiusInner + this.getTreeRadius()) >=
 						minWidth()
 					)
@@ -1421,7 +1437,7 @@ function NodeView(treeView, node)
 						(
 							this.getUnclassifiedText(),
 							this.getUnclassifiedPercentage(),
-							(lastChildAngleEnd + angleEndCurrent) / 2,
+							(otherAngleStart + otherAngleEnd) / 2,
 							(childRadiusInner + this.getTreeRadius()) / 2,
 							true,
 							false,
@@ -1522,8 +1538,8 @@ function NodeView(treeView, node)
 									context.globalAlpha = this.alphaOther.current();
 									drawWedge
 									(
-										lastChildAngleEnd,
-										angleEndCurrent,
+										otherAngleStart,
+										otherAngleEnd,
 										radiusOuter,
 										this.getTreeRadius(),
 										colorUnclassified,
@@ -1534,8 +1550,8 @@ function NodeView(treeView, node)
 								
 								drawWedge
 								(
-									lastChildAngleEnd,
-									angleEndCurrent,
+									otherAngleStart,
+									otherAngleEnd,
 									radiusOuter,
 									this.getTreeRadius(),//this.radiusOuter.current() * gRadius,
 									//'rgba(200, 0, 0, .1)',
@@ -1617,11 +1633,19 @@ function NodeView(treeView, node)
 		
 		var lastChild = this.getChild(firstChild.hiddenEnd);
 		
-		var start = firstChild.angleStart.current() + rotationOffset;
-		var end = lastChild.angleEnd.current() + rotationOffset;
+		var angleStart;
+		var angleEnd;
 		
-		var angleStart = start < end ? start : end;
-		var angleEnd = start < end ? end : start;
+		if ( this.treeView.angleFactor < 0 )
+		{
+			angleEnd = firstChild.angleEnd.current() + rotationOffset;
+			angleStart = lastChild.angleStart.current() + rotationOffset;
+		}
+		else
+		{
+			angleStart = firstChild.angleStart.current() + rotationOffset;
+			angleEnd = lastChild.angleEnd.current() + rotationOffset;
+		}
 		
 		var radiusInner = this.getTreeRadius() * firstChild.radiusInner.current();
 		var hiddenChildren = firstChild.hiddenEnd - firstHiddenChild + 1;
@@ -1835,7 +1859,7 @@ function NodeView(treeView, node)
 	
 	this.drawHighlightCenter = function()
 	{
-		if ( ! this.canDisplayHistory() )
+		if ( this.treeView.dataset > 0 || ! this.canDisplayHistory() )
 		{
 			return;
 		}
@@ -2606,7 +2630,7 @@ function NodeView(treeView, node)
 	
 	this.getUnclassifiedText = function()
 	{
-		return '[unassigned '+ this.node.name + ']';
+		return '[other '+ this.node.name + ']';
 	}
 	
 	this.getUncollapsed = function()
@@ -3121,12 +3145,13 @@ function NodeView(treeView, node)
 		}
 		
 		var depthRelative = this.node.getDepth() - selectedNode.getDepth();
-		var parentOfSelected = selectedNode.hasParent(this.node) && (this.treeView.dataset == 0);
+		var parentOfSelected = selectedNode.hasParent(this.node);
 		var selectedNodeView = this.treeView.nodeViews[selectedNode.id];
+		var showHistory = parentOfSelected && (this.treeView.dataset == 0);
 		
 		//arcMax = this.treeViews.angleFactor * selectedNodeView.magnitude;
 		
-		if ( parentOfSelected )
+		if ( showHistory )
 		{
 			this.resetLabelWidth();
 		}
@@ -3141,27 +3166,29 @@ function NodeView(treeView, node)
 		
 		// set angles
 		//
-		if ( this.baseMagnitude <= selectedNodeView.baseMagnitude )
+		if ( parentOfSelected || (this.baseMagnitude <= selectedNodeView.baseMagnitude) == (this.treeView.dataset == 0) )
 		{
-			this.angleStart.setTarget(0, init);
+			this.angleStart.setTarget(this.treeView.arcMin, init);
 		}
 		else
 		{
-			this.angleStart.setTarget(arcMax, init);
+			this.angleStart.setTarget(this.treeView.arcMax, init);
 		}
 		//
 		if
 		(
 			parentOfSelected ||
-			this.baseMagnitude + this.magnitude >=
-			selectedNodeView.baseMagnitude + selectedNodeView.magnitude
+			(
+				this.baseMagnitude + this.magnitude >=
+				selectedNodeView.baseMagnitude + selectedNodeView.magnitude
+			) == (this.treeView.dataset == 0 )
 		)
 		{
-			this.angleEnd.setTarget(arcMax, init);
+			this.angleEnd.setTarget(this.treeView.arcMax, init);
 		}
 		else
 		{
-			this.angleEnd.setTarget(0, init);
+			this.angleEnd.setTarget(this.treeView.arcMin, init);
 		}
 		
 		// children
@@ -3177,7 +3204,7 @@ function NodeView(treeView, node)
 			
 			this.radiusInner.setTarget(0, init);
 			
-			if ( parentOfSelected )
+			if ( showHistory )
 			{
 				var historyOffset = (this.treeView.dataset == 0 ? -1 : 1) * 10 / this.getTreeRadiusTarget();
 				
@@ -3231,7 +3258,7 @@ function NodeView(treeView, node)
 		this.alphaPattern.setTarget(0, init);
 		this.alphaOther.setTarget(0, init);
 		
-		if ( parentOfSelected && ! this.node.getCollapse() )
+		if ( showHistory && ! this.node.getCollapse() )
 		{
 			var alpha =
 			(
@@ -3366,7 +3393,7 @@ function NodeView(treeView, node)
 		if ( this.node == selectedNode )
 		{
 			var otherArc = 
-				this.treeView.angleFactor *
+				Math.abs(this.treeView.angleFactor) *
 				(
 					this.baseMagnitude + this.magnitude -
 					lastChild.baseMagnitude - lastChild.magnitude
@@ -3391,8 +3418,20 @@ function NodeView(treeView, node)
 			var start = this.treeView.angleOffset;
 			var end = this.treeView.angleOffset + this.treeView.angleFactor * this.magnitude;
 			
-			this.angleStart.setTarget(start < end ? start : end, init);
-			this.angleEnd.setTarget(start < end ? end : start, init);
+			//this.angleStart.setTarget(start < end ? start : end, init);
+			//this.angleEnd.setTarget(start < end ? end : start, init);
+			
+			if ( this.treeView.dataset == 0 )
+			{
+				this.angleStart.setTarget(this.treeView.angleOffset, init);
+				this.angleEnd.setTarget(this.treeView.angleOffset + Math.PI, init);
+			}
+			else
+			{
+				this.angleStart.setTarget(-Math.PI, init);
+				this.angleEnd.setTarget(0, init);
+			}
+			
 			this.radiusInner.setTarget(0, init);
 			this.hidePrev = this.hide;
 			this.hide = false;
@@ -4463,7 +4502,7 @@ function checkHighlight()
 	
 	if ( progress == 1 )
 	{
-		for ( var i = 0; i < treeViews.length; i++ )
+		for ( var i = treeViews.length - 1; i >= 0; i-- )
 		{
 			treeViews[i].checkHighlight();
 		}
@@ -7723,8 +7762,6 @@ function updateView()
 	
 	setHighlightedNode(selectedNode);
 	
-	arcMax = Math.PI * 2 / treeViews.length;
-	
 	compressedRadii = computeRadii(selectedNode);
 	maxDisplayDepth = compressedRadii.length;//maxDepth;
 	
@@ -7793,6 +7830,9 @@ function updateView()
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
+		treeViews[i].arcMin = -Math.PI * i;
+		treeViews[i].arcMax = Math.PI * 2 / treeViews.length - Math.PI * i;
+		
 		var factor = treeViews[i].nodeViews[selectedNode.id].magnitude / treeViews[maxIndex].nodeViews[selectedNode.id].magnitude
 		treeViews[i].angleOffset = Math.PI * (0 * 1 - factor * 0) / 2 + Math.PI * 2 / treeViews.length * 0;
 		treeViews[i].angleFactor = Math.PI * 2 / (treeViews[i].nodeViews[selectedNode.id].magnitude) * 0.5 * factor * (i == 1 ? -1 : 1);
