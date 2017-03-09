@@ -286,6 +286,19 @@ var image;
 var hiddenPattern;
 var loadingImage;
 
+function backingScale()
+{
+	if ('devicePixelRatio' in window)
+	{
+		if (window.devicePixelRatio > 1)
+		{
+			return window.devicePixelRatio;
+		}
+	}
+	
+	return 1;
+}
+
 function handleResize()
 {
 	updateViewNeeded = true;
@@ -1097,8 +1110,8 @@ function NodeView(treeView, node)
 			
 			checkChildren = context.isPointInPath
 			(
-				mouseX - this.getTreeCenterX(),
-				mouseY - this.getTreeCenterY()
+				(mouseX - this.getTreeCenterX()) * backingScale(),
+				(mouseY - this.getTreeCenterY()) * backingScale()
 			);
 			
 			if ( checkChildren )
@@ -6314,8 +6327,11 @@ function resize()
 	
 	if ( ! snapshotMode )
 	{
-		context.canvas.width = imageWidth;
-		context.canvas.height = imageHeight;
+		context.canvas.width = imageWidth * backingScale();
+		context.canvas.height = imageHeight * backingScale();
+		context.canvas.style.width = imageWidth + "px"
+		context.canvas.style.height = imageHeight + "px"
+		context.scale(backingScale(), backingScale());
 	}
 	
 //	var rows = Math.floor(imageHeight / (imageWidth - mapWidth) * Math.floor(Math.sqrt(treeViews.length)));
