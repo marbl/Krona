@@ -1602,9 +1602,14 @@ function NodeView(treeView, node)
 			}
 		}
 		
-		var angleStart = firstChild.angleStart.current() + rotationOffset;
 		var lastChild = this.getChild(firstChild.hiddenEnd);
-		var angleEnd = lastChild.angleEnd.current() + rotationOffset;
+		
+		var start = firstChild.angleStart.current() + rotationOffset;
+		var end = lastChild.angleEnd.current() + rotationOffset;
+		
+		var angleStart = start < end ? start : end;
+		var angleEnd = start < end ? end : start;
+		
 		var radiusInner = this.getTreeRadius() * firstChild.radiusInner.current();
 		var hiddenChildren = firstChild.hiddenEnd - firstHiddenChild + 1;
 		
@@ -1769,8 +1774,11 @@ function NodeView(treeView, node)
 			{
 				var firstChild = this.getChild(i);
 				var lastChild = this.getChild(firstChild.hiddenEnd);
-				var hiddenAngleStart = firstChild.angleStart.current() + rotationOffset;
-				var hiddenAngleEnd = lastChild.angleEnd.current() + rotationOffset;
+				
+				var start = firstChild.angleStart.current() + rotationOffset;
+				var end = lastChild.angleEnd.current() + rotationOffset;
+				var hiddenAngleStart = start < end ? start : end;
+				var hiddenAngleEnd = start < end ? end : start;
 				var hiddenRadiusInner = this.getTreeRadius() * firstChild.radiusInner.current();
 				
 				drawWedge
@@ -3100,8 +3108,10 @@ function NodeView(treeView, node)
 		}
 		
 		var depthRelative = this.node.getDepth() - selectedNode.getDepth();
-		var parentOfSelected = selectedNode.hasParent(this.node);
+		var parentOfSelected = selectedNode.hasParent(this.node) && (this.treeView.dataset == 0);
 		var selectedNodeView = this.treeView.nodeViews[selectedNode.id];
+		
+		//arcMax = this.treeViews.angleFactor * selectedNodeView.magnitude;
 		
 		if ( parentOfSelected )
 		{
@@ -3156,8 +3166,11 @@ function NodeView(treeView, node)
 			
 			if ( parentOfSelected )
 			{
+				var historyOffset = (this.treeView.dataset == 0 ? -1 : 1) * 10 / this.getTreeRadiusTarget();
+				
 				this.labelRadius.setTarget
 				(
+					historyOffset +
 					(depthRelative) *
 					historySpacingFactor * fontSize / this.getTreeRadiusTarget()
 				);
@@ -3344,7 +3357,7 @@ function NodeView(treeView, node)
 				(
 					this.baseMagnitude + this.magnitude -
 					lastChild.baseMagnitude - lastChild.magnitude
-				);
+				)
 			this.canDisplayLabelOther =
 				otherArc *
 				(this.getChild(0).radiusInner.end + 1) * this.getTreeRadiusTarget() >=
@@ -3354,7 +3367,7 @@ function NodeView(treeView, node)
 			
 			if ( this.canDisplayLabelOther )
 			{
-				this.angleOther = arcMax - otherArc / 2;
+				this.angleOther = this.treeView.angleOffset + this.treeView.angleFactor * this.magnitude - otherArc / 2;
 			}
 			else if ( otherArc > 0.0000000001 )
 			{
@@ -3362,8 +3375,11 @@ function NodeView(treeView, node)
 				//keys++;
 			}
 			
-			this.angleStart.setTarget(0, init);
-			this.angleEnd.setTarget(arcMax, init);
+			var start = this.treeView.angleOffset;
+			var end = this.treeView.angleOffset + this.treeView.angleFactor * this.magnitude;
+			
+			this.angleStart.setTarget(start < end ? start : end, init);
+			this.angleEnd.setTarget(start < end ? end : start, init);
 			this.radiusInner.setTarget(0, init);
 			this.hidePrev = this.hide;
 			this.hide = false;
@@ -3570,7 +3586,7 @@ function NodeView(treeView, node)
 			this.resetLabelWidth();
 			this.restrictLabelWidth(2 * this.getTreeRadiusTarget() * compressedRadii[0], init);
 			this.alphaWedge.setTarget(0, false);
-			this.alphaLabel.setTarget(1, false);
+			this.alphaLabel.setTarget(this.treeView.dataset == 0 ? 1 : 0, false);
 			this.alphaOther.setTarget(1, false);
 			this.alphaArc.setTarget(0, false);
 			this.alphaLine.setTarget(0, false);
@@ -3579,7 +3595,8 @@ function NodeView(treeView, node)
 			this.g.setTarget(255, init);
 			this.b.setTarget(255, init);
 			this.radial = false;
-			this.labelRadius.setTarget(0, init);
+			var historyOffset = (this.treeView.dataset == 0 ? -1 : -1) * 10 / this.getTreeRadiusTarget();
+			this.labelRadius.setTarget(historyOffset, init);
 		}
 		else
 		{
@@ -3743,8 +3760,11 @@ function NodeView(treeView, node)
 		//
 		var baseMagnitudeRelative = this.baseMagnitude - this.treeView.nodeViews[selectedNode.id].baseMagnitude;
 		//
-		this.angleStart.setTarget(baseMagnitudeRelative * this.treeView.angleFactor, init);
-		this.angleEnd.setTarget((baseMagnitudeRelative + this.magnitude) * this.treeView.angleFactor, init);
+		var start = this.treeView.angleOffset + baseMagnitudeRelative * this.treeView.angleFactor, init;
+		var end = this.treeView.angleOffset + (baseMagnitudeRelative + this.magnitude) * this.treeView.angleFactor, init;
+		//
+		this.angleStart.setTarget(start < end ? start : end);
+		this.angleEnd.setTarget(start < end ? end : start);
 		
 		// set radiusInner
 		//
@@ -4430,7 +4450,7 @@ function checkHighlight()
 	
 	if ( progress == 1 )
 	{
-		for ( var i = 0; i < 1 /*treeViews.length*/; i++ )
+		for ( var i = 0; i < treeViews.length; i++ )
 		{
 			treeViews[i].checkHighlight();
 		}
@@ -4786,64 +4806,12 @@ function draw()
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		if ( i == 1 )
-		{
-			context.save()
-			context.translate(0, imageHeight + 20);
-			context.scale(1, -1);
-		}
-		else if ( i == 2 )
-		{
-			context.save()
-			context.translate(imageWidth + 20, imageHeight + 20);
-			context.scale(-1, -1);
-		}
-		else if ( i == 3 )
-		{
-			context.save()
-			context.translate(imageWidth + 20, 0);
-			context.scale(-1, 1);
-		}
-		
-		var fraction = nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i) / totalPct;
-		//rotationOffset = 3 * Math.PI / 2 - Math.PI * fraction;
-				
 		treeViews[i].draw();
-		if ( i > 0 )
-		{
-			context.restore()
-		}
 	}
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		if ( i == 1 )
-		{
-			context.save()
-			context.translate(0, imageHeight + 20);
-			context.scale(1, -1);
-		}
-		else if ( i == 2 )
-		{
-			context.save()
-			context.translate(imageWidth + 20, imageHeight + 20);
-			context.scale(-1, -1);
-		}
-		else if ( i == 3 )
-		{
-			context.save()
-			context.translate(imageWidth + 20, 0);
-			context.scale(-1, 1);
-		}
-		
-		var fraction = nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i) / totalPct;
-		//rotationOffset = 3 * Math.PI / 2 - Math.PI * fraction;
-				
 		treeViews[i].drawHighlight();
-		if ( i > 0 )
-		{
-			context.restore()
-		}
 	}
 	
 	context.globalAlpha = 1;
@@ -6424,7 +6392,7 @@ function resize()
 		}
 		
 		centerY = imageHeight /2;//* (row + .5) / rows;
-		treeViews[i].setTargetCenter(imageWidth / 2, imageHeight / 2);
+		treeViews[i].setTargetCenter(imageWidth / 2, imageHeight / 2 + (i == 0 ? -10 : 10));
 		treeViews[i].setTargetRadius(minDimension / 2 - buffer);
 		
 		currentView++
@@ -7741,11 +7709,6 @@ function updateView()
 	
 	arcMax = Math.PI * 2 / treeViews.length;
 	
-	for ( var i = 0; i < treeViews.length; i++ )
-	{
-		treeViews[i].angleFactor = arcMax / (treeViews[i].nodeViews[selectedNode.id].magnitude);
-	}
-	
 	compressedRadii = computeRadii(selectedNode);
 	maxDisplayDepth = compressedRadii.length;//maxDepth;
 	
@@ -7798,31 +7761,26 @@ function updateView()
 		}
 	}
 	
-	var totalPct = 0;
+	var maxIndex = -1;
+	var max;
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-		totalPct += nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i);
+		var magnitude = nodes[selectedNode.id].getMagnitude(i);
+		
+		if ( i == 0 || magnitude > max )
+		{
+			max = magnitude;
+			maxIndex = i;
+		}
 	}
 	
 	for ( var i = 0; i < treeViews.length; i++ )
 	{
-//		if ( ! treeViews[i].finishing )
-		//{
-			var fraction = nodes[selectedNode.id].getMagnitude(i) / nodes[0].getMagnitude(i) / totalPct;
-			
-			if ( i == 0 )
-			{
-				//rotationOffset = Math.PI / 2 + Math.PI * fraction;
-			}
-			else
-			{
-				//rotationOffset = 3 * Math.PI / 2 - Math.PI * fraction;
-			}
-			
-			//treeViews[i].angleFactor = Math.PI * 2 / (treeViews[i].nodeViews[selectedNode.id].magnitude) * fraction;
-			treeViews[i].setTargets();
-		//}
+		var factor = treeViews[i].nodeViews[selectedNode.id].magnitude / treeViews[maxIndex].nodeViews[selectedNode.id].magnitude
+		treeViews[i].angleOffset = Math.PI * (0 * 1 - factor * 0) / 2 + Math.PI * 2 / treeViews.length * 0;
+		treeViews[i].angleFactor = Math.PI * 2 / (treeViews[i].nodeViews[selectedNode.id].magnitude) * 0.5 * factor * (i == 1 ? -1 : 1);
+		treeViews[i].setTargets();
 	}
 	
 	keySize = ((imageHeight - margin * 3) * 1 / 2) / keys * 3 / 4;
