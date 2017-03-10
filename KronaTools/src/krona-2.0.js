@@ -744,12 +744,12 @@ function TreeView(dataset, treeView)
 			
 			context.globalAlpha = this.alpha.current();
 			
-			if ( ! this.background() )
+			if ( false && ! this.background() )
 			{
 				drawBubble(0, -radius, datasetWidths[this.dataset], false, false, this.background());
 			}
 			
-			drawText(datasetNames[this.dataset], 0, radius, 0, 'center', true, this.background());
+			drawText(datasetNames[this.dataset], 0, this.dataset == 0 ? -radius : radius, 0, 'center', true, this.background());
 		}
 	}
 	
@@ -1662,7 +1662,6 @@ function NodeView(treeView, node)
 			if
 			(
 				selected &&
-				treeViewsActiveCount == 1 &&
 				(angleEnd - angleStart) * 
 				(this.getTreeRadius() * 2) >=
 				minWidth() ||
@@ -1874,7 +1873,7 @@ function NodeView(treeView, node)
 	}
 	
 	this.drawKey = function(angle, highlight, bold)
-	{
+	{return;
 		var offset = keyOffset();
 		var color;
 		var patternAlpha = this.alphaPattern.end;
