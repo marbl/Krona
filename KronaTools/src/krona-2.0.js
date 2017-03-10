@@ -2972,7 +2972,7 @@ function NodeView(treeView, node)
 			
 			if ( Math.abs(Math.tan(angle)) > chartHeight / chartWidth )
 			{
-				this.restrictLabelWidth(chartHeight / (2 * Math.abs(Math.sin(angle))) - this.labelRadius.end * this.getTreeRadiusTarget());
+				this.restrictLabelWidth((chartHeight - 20) / (2 * Math.abs(Math.sin(angle))) - this.labelRadius.end * this.getTreeRadiusTarget());
 			}
 			else
 			{
@@ -6417,8 +6417,8 @@ function resize()
 	//fontSize = bound(fontSize, (imageWidth + imageHeight) / 200, (imageWidth + imageHeight) / 200);
 	//fontSize = Math.floor(bound(fontSize, 6, 12));
 	
-	chartWidth = imageWidth / cols;
-	chartHeight = imageHeight / rows;
+	chartWidth = imageWidth;// / cols;
+	chartHeight = imageHeight;// / rows;
 	maxMapRadius = minDimension * .03;
 	buffer = minDimension * .1;
 	margin = minDimension * .015;
