@@ -5173,7 +5173,7 @@ function drawTextPolar
 	
 	if ( radial )
 	{
-		flip = angle < 3 * Math.PI / 2;
+		flip = angle < 3 * Math.PI / 2 && angle > 1 * Math.PI / 2;
 		
 		if ( flip )
 		{
