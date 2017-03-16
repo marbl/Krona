@@ -180,7 +180,7 @@ fi
 
 if [ "$accessions" == "1" ] && [ ! -d "$taxonomyPath/accession2taxid" ]
 then
-	mkdir "$taxonomyPath/accession2taxid"
+	mkdir -p "$taxonomyPath/accession2taxid"
 
 	if [ "$?" != "0" ]
 	then
