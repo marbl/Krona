@@ -276,7 +276,15 @@ my $fileTaxonomy = 'taxonomy.tab';
 my $fileTaxByAcc = 'all.accession2taxid.sorted';
 my $memberLimitDataset = 10000;
 my $memberLimitTotal = 100000;
-my $columns = `tput cols`;
+my $columns;
+if (defined($ENV{TERM}))
+{
+	$columns = `tput cols`;
+}
+else
+{
+	$columns = 80;
+}
 our $minEVal = -450;
 
 
