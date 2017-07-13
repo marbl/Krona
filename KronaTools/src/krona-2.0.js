@@ -3579,7 +3579,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
 	position = addOptionElement
 	(
 		position,
-'<a style="margin:2px" target="_blank" href="https://github.com/marbl/Krona/wiki"><img style="vertical-align:middle;width:108px;height:30px;" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+'<a style="margin:2px" target="_blank" href="https://github.com/marbl/Krona/wiki"><img style="vertical-align:middle;width:108px;height:30px;" src="' + logoImage + '" alt="Logo of Krona"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
@@ -5845,8 +5845,8 @@ function setFocus(node)
 	}
 	
 	var table = '<table>';
-	
-	table += '<tr><td></td></tr>';
+	//TODO: use CSS margins instead of an additional column
+	table += '<tr><td></td><td></td></tr>';
 	
 	for ( var i = 0; i < node.attributes.length; i++ )
 	{

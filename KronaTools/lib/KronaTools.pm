@@ -268,7 +268,7 @@ my $hiddenImage = 'img/hidden.png';
 my $favicon = 'img/favicon.ico';
 my $loadingImage = 'img/loading.gif';
 my $logo = 'img/logo-med.png';
-my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=info&id=';
+my $taxonomyHrefBase = 'http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=info&amp;id=';
 my $ecHrefBase = 'http://www.chem.qmul.ac.uk/iubmb/enzyme/EC';
 my $suppDirSuffix = '.files';
 my $suppEnableFile = 'enable.js';
@@ -1446,7 +1446,7 @@ sub htmlHeader
 			$notFound = "Could not get resources from \\\"$options{'url'}\\\".";
 		}
 		
-		$script = indent(2) . "<script src=\"$path$javascript\"></script>\n";
+		$script = indent(2) . "<script src=\"$path$javascript\" type=\"text/javascript\"></script>\n";
 	}
 	
 	return
@@ -1456,13 +1456,13 @@ sub htmlHeader
 			indent(2) . "<meta charset=\"utf-8\"/>\n" .
 #			indent(2) . "<base href=\"$path\" target=\"_blank\"/>\n" .
 			indent(2) . "<link rel=\"shortcut icon\" href=\"$path$favicon\"/>\n" .
-			indent(2) . "<script id=\"notfound\">window.onload=function(){document.body.innerHTML=\"$notFound\"}</script>\n" .
+			indent(2) . "<script id=\"notfound\" type=\"text/javascript\">window.onload=function(){document.body.innerHTML=\"$notFound\"}</script>\n" .
 			$script .
 		indent(1) . "</head>\n" .
 		indent(1) . "<body>\n" .
-			indent(2) . "<img id=\"hiddenImage\" src=\"$path$hiddenImage\" style=\"display:none\"/>\n" .
-			indent(2) . "<img id=\"loadingImage\" src=\"$path$loadingImage\" style=\"display:none\"/>\n" .
-			indent(2) . "<img id=\"logo\" src=\"$path$logo\" style=\"display:none\"/>\n" .
+			indent(2) . "<img id=\"hiddenImage\" src=\"$path$hiddenImage\" style=\"display:none\" alt=\"Hidden Image\"/>\n" .
+			indent(2) . "<img id=\"loadingImage\" src=\"$path$loadingImage\" style=\"display:none\" alt=\"Loading Indicator\"/>\n" .
+			indent(2) . "<img id=\"logo\" src=\"$path$logo\" style=\"display:none\" alt=\"Logo of Krona\"/>\n" .
 			indent(2) . "<noscript>Javascript must be enabled to view this page.</noscript>\n" .
 			indent(2) . "<div style=\"display:none\">\n";
 }
