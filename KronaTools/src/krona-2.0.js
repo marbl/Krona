@@ -2689,7 +2689,7 @@ function NodeView(treeView, node)
 				if
 				(//true ||
 					this.getChild(i).magnitude *
-					this.treeView.angleFactor *
+					Math.abs(this.treeView.angleFactor) *
 					(childInnerRadius + 1) *
 					this.getTreeRadiusTarget() >=
 					minWidth()
@@ -4671,7 +4671,13 @@ function computeRadii(node)
 		
 		radii.push(Number(1));
 		
-		newMaxDepth = treeViewsActiveFirst.nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
+		newMaxDepth = treeViews[0].nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
+		newMaxDepth2 = treeViews[1].nodeViews[selectedNode.id].maxVisibleDepth(maxDepth, node, radii);
+		
+		if ( newMaxDepth2 > newMaxDepth )
+		{
+			newMaxDepth = newMaxDepth2;
+		}
 	}
 	while ( newMaxDepth < maxDepth );
 	
