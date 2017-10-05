@@ -65,22 +65,5 @@ of the trademark is subject to the following conditions:
   Department of Homeland Security.
 
 
-PATENTS
 
-The Krona software is not eligible for patent because there have been
-previous and open implementations of this visualization method since
-the year 2000 (e.g. "Focus+context display and navigation techniques
-for enhancing radial, space-filling hierarchy visualizations." Stasko,
-J. and Zhang, E. InfoVis, 2000). Krona represents a reimplementation and
-application of an existing method to the new domain of
-metagenomics. BNBI, as the copyright holders, wish to release Krona
-freely and openly as a service to the bioinformatics community.
-
-
-POINT OF CONTACT
-
-Todd Harrington
-General Counsel
-Battelle National Biodefense Institute
-harringtont@nbacc.net
 
