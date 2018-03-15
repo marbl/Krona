@@ -5760,17 +5760,9 @@ function setCallBacks()
 	}
 	
 	image = document.getElementById('hiddenImage');
-	
-	if ( image.complete )
+	image.onload = function()
 	{
 		hiddenPattern = context.createPattern(image, 'repeat');
-	}
-	else
-	{
-		image.onload = function()
-		{
-			hiddenPattern = context.createPattern(image, 'repeat');
-		}
 	}
 	
 	var loadingImageElement = document.getElementById('loadingImage');
