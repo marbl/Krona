@@ -6070,24 +6070,9 @@ function snapshot()
 	
 	svg += svgFooter();
 	
-	snapshotWindow = window.open
-	(
-		'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
-		'_blank'
-	);
-/*	var data = window.open('data:text/plain;charset=utf-8,hello', '_blank');
-	var data = window.open('', '_blank');
-	data.document.open('text/plain');
-	data.document.write('hello');
-	data.document.close();
-	var button = document.createElement('input');
-	button.type = 'button';
-	button.value = 'save';
-	button.onclick = save;
-	data.document.body.appendChild(button);
-//	snapshotWindow.document.write(svg);
-//	snapshotWindow.document.close();
-*/	
+	var snapshotWindow = window.open('', '_blank', '', 'replace=false');
+	snapshotWindow.document.write('<html><body><a href="data:image/svg+xml,' + encodeURIComponent(svg) + '" download="snapshot.svg">Download Snapshot</a></html></body>');
+	snapshotWindow.document.write(svg);
 }
 
 function save()
