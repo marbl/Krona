@@ -2,9 +2,7 @@ ACC2TAXID=\
 	dead_nucl.accession2taxid \
 	dead_prot.accession2taxid \
 	dead_wgs.accession2taxid \
-	nucl_est.accession2taxid \
 	nucl_gb.accession2taxid \
-	nucl_gss.accession2taxid \
 	nucl_wgs.accession2taxid \
 	prot.accession2taxid
 
