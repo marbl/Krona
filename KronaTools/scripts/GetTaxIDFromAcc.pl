@@ -23,6 +23,7 @@ my $help;
 my $prepend;
 my $append;
 my $tax;
+my $field = 1;
 
 GetOptions
 (
@@ -30,7 +31,8 @@ GetOptions
 	'help' => \$help,
 	'p' => \$prepend,
 	'a' => \$append,
-	'tax=s' => \$tax
+	'tax=s' => \$tax,
+	'f=i' => \$field
 );
 
 if ( defined $tax )
@@ -59,13 +61,17 @@ Usage:
 
    Fasta tag example:
 
-      grep ">" sequence
+      grep ">" sequence | ktGetTaxIDFromAcc > sequence.tax
 
 Options:
 
-   -p  Prepend tax IDs to the original lines (separated by tabs).
+   [-p]            Prepend tax IDs to the original lines (separated by tabs).
   
-   -a  Append tax IDs to the original lines (separated by tabs).
+   [-a]            Append tax IDs to the original lines (separated by tabs).
+   
+   [-f] <integer>  Field of accessions. [Default: \'1\']
+   
+   [-tax <string>  Path to directory containing a taxonomy database to use.
 
 ';
 	exit;
@@ -83,6 +89,11 @@ if ( @ARGV == 0 )
 {
 	$stdin = 1;
 }
+elsif ( $field != 1 )
+{
+	print STDERR "ERROR: -f requires stdin, not command line input.\n";
+	exit 1;
+}
 
 while ( my $in = $stdin ? <STDIN> : shift @ARGV )
 {
@@ -99,7 +110,8 @@ while ( my $in = $stdin ? <STDIN> : shift @ARGV )
 		print "$in\t";
 	}
 	
-	print getTaxIDFromAcc(getAccFromSeqID($in));
+	my $acc = (split /\t/, $in)[$field - 1];
+	print getTaxIDFromAcc(getAccFromSeqID($acc));
 	
 	if ( $prepend )
 	{
