@@ -199,9 +199,7 @@ ACC2TAXID="
 accession2taxid/dead_nucl.accession2taxid
 accession2taxid/dead_prot.accession2taxid
 accession2taxid/dead_wgs.accession2taxid
-accession2taxid/nucl_est.accession2taxid
 accession2taxid/nucl_gb.accession2taxid
-accession2taxid/nucl_gss.accession2taxid
 accession2taxid/nucl_wgs.accession2taxid
 accession2taxid/prot.accession2taxid
 "

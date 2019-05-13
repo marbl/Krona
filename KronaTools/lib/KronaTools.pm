@@ -261,7 +261,7 @@ default, the basename of the file will be used.',
 # Global constants #
 ####################
 
-our $version = '2.7';
+our $version = '2.7.1';
 my $javascriptVersion = '2.0';
 my $javascript = "src/krona-$javascriptVersion.js";
 my $hiddenImage = 'img/hidden.png';
@@ -1122,7 +1122,7 @@ sub getAccFromSeqID
 	if ( $acc !~ /^\d+$/ && $acc !~ /^[A-Z\d]+_?[A-Z\d]+(\.\d+)?$/ )
 	{
 		$invalidAccs{$acc} = 1;
-		return undef;
+		#return undef;
 	}
 	
 	return $acc;
@@ -1667,7 +1667,7 @@ sub printWarnings
 	{
 		ktWarn
 		(
-			"The following accessions were not in a valid format and were ignored:\n" .
+			"The following accessions look strange and may yield erroneous results. Please check if they are acual valid NCBI accessions:\n" .
 			join ' ', (keys %invalidAccs)
 		);
 		
