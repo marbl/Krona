@@ -17,12 +17,16 @@ my $totalMag;
 my $prepend;
 my $append;
 my $tax;
+my $field = 1;
 
 GetOptions
 (
 	'h' => \$help,
 	'help' => \$help,
-	'tax=s' => \$tax
+	'p' => \$prepend,
+	'a' => \$append,
+	'tax=s' => \$tax,
+	'f=i' => \$field
 );
 
 if ( defined $tax )
@@ -43,6 +47,9 @@ Description:
    [>,@]). If taxonomy information was not found for a given input line, the
    output line will be only the taxonomy ID, which will be 0 if it was
    looked up from an accession but not found.
+   
+   Output fields are:
+   taxID  depth  parent  rank  name
 
 Usage:
 
@@ -56,11 +63,24 @@ Usage:
 
       grep ">" sequence.fasta | ktGetTaxInfo
 
+Options:
+
+   [-p]            Prepend tax info to the original lines (separated by tabs).
+  
+   [-a]            Append tax info to the original lines (separated by tabs).
+   
+   [-f] <integer>  Field of accessions. [Default: \'1\']
+
+   [-tax <string>  Path to directory containing a taxonomy database to use.
+
 ';
 	exit;
 }
 
-print "#taxID\tdepth\tparent\trank\tname\n";
+if ( ! $prepend && ! $append )
+{
+	print "#taxID\tdepth\tparent\trank\tname\n";
+}
 
 my $stdin;
 
@@ -79,7 +99,19 @@ while ( my $in = $stdin ? <STDIN> : shift @ARGV )
 		next;
 	}
 	
-	print join "\t", getTaxInfo(getTaxIDFromAcc(getAccFromSeqID($in)));
+	if ( $append )
+	{
+		print "$in\t";
+	}
+	
+	my $acc = (split /\t/, $in)[$field - 1];
+	print join "\t", getTaxInfo(getTaxIDFromAcc(getAccFromSeqID($acc)));
+	
+	if ( $prepend )
+	{
+		print "\t$in";
+	}
+	
 	print "\n";
 }
 

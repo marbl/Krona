@@ -1218,6 +1218,11 @@ sub getTaxInfo
 	
 	$tax = int($tax);
 	
+	if ( $tax == 0 )
+	{
+		return ('', '', '', '', '');
+	}
+	
 	if ( defined $taxInfoByID{$tax} )
 	{
 		return @{$taxInfoByID{$tax}};
