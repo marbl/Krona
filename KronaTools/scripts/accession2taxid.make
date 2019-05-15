@@ -10,10 +10,10 @@ ACC2TAXID_SORTED=$(ACC2TAXID:.accession2taxid=.accession2taxid.sorted)
 
 ../all.accession2taxid.sorted : $(ACC2TAXID_SORTED)
 	@echo "Merging sorted..."
-	@LC_ALL=C sort -m $(ACC2TAXID_SORTED) > $@
+	@LC_ALL=C TMPDIR=. sort -m $(ACC2TAXID_SORTED) > $@
 	@rm $(ACC2TAXID_SORTED)
 
-SORT := grep -v accession | sed 's/\.[[:digit:]]*//' | LC_ALL=C sort
+SORT := grep -v accession | sed 's/\.[[:digit:]]*//' | LC_ALL=C sort -T .
 
 %.accession2taxid.sorted : %.accession2taxid
 	@echo "Sorting $<..."
