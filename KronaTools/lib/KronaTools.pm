@@ -114,6 +114,8 @@ my %optionFormats =
 		'e=i',
 	'factor' =>
 		'e=f',
+	'includeUnk' =>
+		'f',
 	'include' =>
 		'i',
 	'cellular' =>
@@ -189,6 +191,7 @@ my %optionDescriptions =
 	'hueGood' => 'Hue (0-360) for "good" scores.',
 	'percentIdentity' => 'Use percent identity for average scores instead of log[10] e-value.',
 	'include' => 'Include a wedge for queries with no hits.',
+	'includeUnk' => 'If any best hits have unknown accessions, force classification to root instead of ignoring them.',
 	'local' => 'Use resources from the local KronaTools installation instead of bundling them with charts (charts will be smaller but will only work on this computer).',
 	'magCol' => 'Column of input files to use as magnitude. If magnitude files are specified, their magnitudes will override those in this column.',
 	'minConfidence' => 'Minimum confidence. Each query sequence will only be added to taxa that were predicted with a confidence score of at least this value.',
@@ -915,7 +918,7 @@ sub classifyBlast
 	# taxonomically classifies BLAST results based on LCA (or random selection)
 	# of 'best' hits.
 	#
-	# Options used: bitScore, factor, include, percentIdentity, random, score
+	# Options used: bitScore, factor, include, percentIdentity, random, score, includeUnk
 	
 	my # parameters
 	(
@@ -1059,7 +1062,14 @@ sub classifyBlast
 				
 				if ( ! $newTaxID || ! taxIDExists($newTaxID) )
 				{
-					$newTaxID = 1;
+					if ( $options{'includeUnk'} )
+					{
+						$newTaxID = 1;
+					}
+					else
+					{
+						next;
+					}
 				}
 				
 				if ( $options{'random'} )
@@ -1827,6 +1837,11 @@ sub taxLowestCommonAncestor
 	#
 	foreach my $node ( @nodes )
 	{
+		if ( $node == 1)
+		{
+		    return 1; # early out if any nodes are root
+		}
+		
 		while ( getTaxDepth($node) > $minDepth )
 		{
 			$node = getTaxParent($node);

@@ -21,6 +21,7 @@ my @options =
 qw(
 	out
 	threshold
+	includeUnk
 	random
 	percentIdentity
 	bitScore

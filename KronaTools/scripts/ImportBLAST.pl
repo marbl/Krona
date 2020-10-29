@@ -28,6 +28,7 @@ qw(
 	name
 	threshold
 	include
+	includeUnk
 	random
 	percentIdentity
 	bitScore
