@@ -6,25 +6,34 @@ ACC2TAXID=\
 	nucl_wgs.accession2taxid \
 	prot.accession2taxid
 
-ACC2TAXID_SORTED=$(ACC2TAXID:.accession2taxid=.accession2taxid.sorted)
+ACC2TAXID_FMT=$(ACC2TAXID:.accession2taxid=.accession2taxid.fmt)
 
-../all.accession2taxid.sorted : $(ACC2TAXID_SORTED)
-	@echo "Merging sorted..."
-	@LC_ALL=C TMPDIR=. sort -m $(ACC2TAXID_SORTED) > $@
-	@rm $(ACC2TAXID_SORTED)
+../all.accession2taxid.sorted : $(ACC2TAXID_FMT)
+	@echo "Merging..."
+	@LC_ALL=C TMPDIR=. sort -m $(ACC2TAXID_FMT) > $@
+	@rm $(ACC2TAXID_FMT)
 
-SORT := grep -v accession | sed 's/\.[[:digit:]]*//' | LC_ALL=C sort -T .
+FORMAT4 := grep -v accession | cut -f 1,3
+FORMAT2 := grep -v accession | sed 's/\.[[:digit:]]*//;s/ /	/'
 
-%.accession2taxid.sorted : %.accession2taxid
-	@echo "Sorting $<..."
-	@cut -f 2,3 $< | ${SORT} > $@
+%.accession2taxid.fmt : %.accession2taxid
+	@echo "Formatting $<..."
+	@if [ `awk '{print NF; exit}' $<` = "2" ]; then \
+		cat $< | ${FORMAT2} > $@; \
+	else \
+		cat $< | ${FORMAT4} > $@; \
+	fi
 ifneq ("${PRESERVE}", "1")
 	@rm $<
 endif
 
-%.accession2taxid.sorted : %.accession2taxid.gz
-	@echo "Sorting $<..."
-	@gunzip -c $< | cut -f 2,3 | ${SORT} > $@
+%.accession2taxid.fmt : %.accession2taxid.gz
+	@echo "Formatting $<..."
+	@if [ `gunzip -c $< | awk '{print NF; exit}'` = "2" ]; then \
+		gunzip -c $< | ${FORMAT2} > $@; \
+	else \
+		gunzip -c $< | ${FORMAT4} > $@; \
+	fi
 ifneq ("${PRESERVE}", "1")
 	@rm $<
 endif
