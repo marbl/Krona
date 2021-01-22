@@ -1012,8 +1012,13 @@ sub classifyBlast
 		}
 		
 		my $acc = getAccFromSeqID($hitID);
+		my $newTaxID = getTaxIDFromAcc($acc);
 		
-		if ( ! defined $acc )
+		if
+		(
+			! defined $acc ||
+			! $options{'includeUnk'} && (! $newTaxID || ! taxIDExists($newTaxID))
+		)
 		{
 			$lastQueryID = $queryID;
 			next;
@@ -1021,11 +1026,17 @@ sub classifyBlast
 		
 		if # this is a 'best' hit if...
 		(
-			$queryID ne $lastQueryID || # new query ID (including null at EOF)
+			$ties == 0 || # first hit
 			$bitScore >= $topScore - $options{'threshold'} || # within score threshold
 			$options{'factor'} && $eVal <= $options{'factor'} * $topEVal # within e-val factor
 		)
 		{
+			if ( $ties == 0 )
+			{
+				$topScore = $bitScore;
+				$topEVal = $eVal;
+			}
+			
 			# add score for average
 			#
 			if ( $options{'percentIdentity'} )
@@ -1058,18 +1069,9 @@ sub classifyBlast
 				int(rand($ties)) == 0 # randomly chosen to replace other hit
 			)
 			{
-				my $newTaxID = getTaxIDFromAcc($acc);
-				
 				if ( ! $newTaxID || ! taxIDExists($newTaxID) )
 				{
-					if ( $options{'includeUnk'} )
-					{
-						$newTaxID = 1;
-					}
-					else
-					{
-						next;
-					}
+					$newTaxID = 1;
 				}
 				
 				if ( $options{'random'} )
@@ -1081,12 +1083,6 @@ sub classifyBlast
 					$lcaSet{$newTaxID} = 1;
 				}
 			}
-		}
-		
-		if ( $queryID ne $lastQueryID )
-		{
-			$topScore = $bitScore;
-			$topEVal = $eVal;
 		}
 		
 		$lastQueryID = $queryID;
