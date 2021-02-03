@@ -1011,19 +1011,6 @@ sub classifyBlast
 			last; # EOF
 		}
 		
-		my $acc = getAccFromSeqID($hitID);
-		my $newTaxID = getTaxIDFromAcc($acc);
-		
-		if
-		(
-			! defined $acc ||
-			! $options{'includeUnk'} && (! $newTaxID || ! taxIDExists($newTaxID))
-		)
-		{
-			$lastQueryID = $queryID;
-			next;
-		}
-		
 		if # this is a 'best' hit if...
 		(
 			$ties == 0 || # first hit
@@ -1031,6 +1018,19 @@ sub classifyBlast
 			$options{'factor'} && $eVal <= $options{'factor'} * $topEVal # within e-val factor
 		)
 		{
+			my $acc = getAccFromSeqID($hitID);
+			my $newTaxID = getTaxIDFromAcc($acc);
+			
+			if
+			(
+				! defined $acc ||
+				! $options{'includeUnk'} && (! $newTaxID || ! taxIDExists($newTaxID))
+			)
+			{
+				$lastQueryID = $queryID;
+				next;
+			}
+			
 			if ( $ties == 0 )
 			{
 				$topScore = $bitScore;
