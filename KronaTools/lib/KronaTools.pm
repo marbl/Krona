@@ -1240,7 +1240,7 @@ sub getTaxInfo
 	
 	if ( ! open TAX, "<$options{'taxonomy'}/$fileTaxonomy" )
 	{
-		print "ERROR: Taxonomy not found in $options{'taxonomy'}. Was updateTaxonomy.sh run?\n";
+		print "ERROR: Taxonomy not found in $options{'taxonomy'}. Was ktupdateTaxonomy run?\n";
 		exit 1;
 	}
 	
@@ -1359,7 +1359,7 @@ sub getTaxIDFromAcc
 	
 	if ( ! open ACC, "<$options{'taxonomy'}/$fileTaxByAcc" )
 	{
-		print "ERROR: Sorted accession to taxID list not found. Was updateAccessions.sh run?\n";
+		print "ERROR: Sorted accession to taxID list not found. Was ktupdateAccessions run?\n";
 		exit 1;
 	}
 	
@@ -1538,7 +1538,7 @@ sub loadMagnitudes
 sub loadTaxonomy
 {
 	open INFO, "<$options{'taxonomy'}/$fileTaxonomy" or die
-		"Taxonomy not found in $options{'taxonomy'}. Was updateTaxonomy.sh run?";
+		"Taxonomy not found in $options{'taxonomy'}. Was ktupdateTaxonomy run?";
 	
 	while ( my $line = <INFO> )
 	{
@@ -1556,7 +1556,7 @@ sub loadTaxonomy
 		ktDie
 		(
 "Local taxonomy database is out of date and does not support the
--$optionFormats{'noRank'} option. Update using updateTaxonomy.sh."
+-$optionFormats{'noRank'} option. Update using ktupdateTaxonomy."
 		);
 	}
 	close INFO;
@@ -1689,7 +1689,7 @@ sub printWarnings
 	{
 		ktWarn
 		(
-			"The following accessions were not found in the local database (if they were recently added to NCBI, use updateAccessions.sh to update the local database):\n" .
+			"The following accessions were not found in the local database (if they were recently added to NCBI, use ktupdateAccessions to update the local database):\n" .
 			join ' ', (keys %missingAccs)
 		);
 		
@@ -1700,7 +1700,7 @@ sub printWarnings
 	{
 		ktWarn
 		(
-			"The following taxonomy IDs were not found in the local database and were set to root (if they were recently added to NCBI, use updateTaxonomy.sh to update the local database):\n" .
+			"The following taxonomy IDs were not found in the local database and were set to root (if they were recently added to NCBI, use ktupdateTaxonomy to update the local database):\n" .
 			join ' ', (keys %missingTaxIDs)
 		);
 		

@@ -35,6 +35,7 @@ if ( defined $taxonomyDir )
 }
 
 my $scriptPath = abs_path('scripts');
+my $currentPath = abs_path('.');
 
 createDir($path);
 createDir("$path/bin");
@@ -74,11 +75,24 @@ foreach my $script
 	}
 }
 
+foreach my $script
+(qw(
+	updateTaxonomy
+	updateAccessions
+))
+{
+	if ( system('ln', '-sf', "$currentPath/$script.sh", "$path/bin/kt$script") )
+	{
+		linkFail("$path/bin");
+	}
+}
+
 if ( defined $taxonomyDir )
 {
 	if ( ! -e $taxonomyDir )
 	{
-		ktDie("$taxonomyDir does not exist.");
+		print "\n $taxonomyDir does not exist. --> creating it.\n";
+		createDir("$taxonomyDir");
 	}
 	
 	if ( -e 'taxonomy')
@@ -89,11 +103,14 @@ if ( defined $taxonomyDir )
 	print "Linking taxonomy to $taxonomyDir...\n";
 	system('ln -s -f -F ' . $taxonomyDir . ' taxonomy');
 }
-
+else
+{
+	createDir("$currentPath/taxonomy");
+}
 print '
 Installation complete.
 
-Run ./updateTaxonomy.sh to use scripts that rely on NCBI taxonomy:
+Run ktupdateTaxonomy to use scripts that rely on NCBI taxonomy:
    ktClassifyBLAST
    ktGetLCA
    ktGetTaxInfo
@@ -101,7 +118,7 @@ Run ./updateTaxonomy.sh to use scripts that rely on NCBI taxonomy:
    ktImportTaxonomy
    ktImportMETAREP-BLAST
 
-Run ./updateAccessions.sh to use scripts that get taxonomy IDs from accessions:
+Run ktupdateAccessions to use scripts that get taxonomy IDs from accessions:
    ktClassifyBLAST
    ktGetTaxIDFromAcc
    ktImportBLAST
