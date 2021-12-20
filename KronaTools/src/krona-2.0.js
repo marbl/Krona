@@ -6077,10 +6077,10 @@ function snapshot()
 	snapshotMode = false;
 	
 	svg += svgFooter();
-	
-	var snapshotWindow = window.open('', '_blank', '', 'replace=false');
-	snapshotWindow.document.write('<html><body><a href="data:image/svg+xml,' + encodeURIComponent(svg) + '" download="snapshot.svg">Download Snapshot</a></html></body>');
-	snapshotWindow.document.write(svg);
+	var dataUri = 'data:image/svg+xml,' + encodeURIComponent(svg)
+	var string = '<html><body><iframe src="' + dataUri + '" frameborder="0" style="position:absolute; border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe><a style="position:absolute" href="' + dataUri + '" download="snapshot.svg">Download Snapshot</a></html></body>';
+    var win = window.open();
+    win.document.write(string)
 }
 
 function save()
