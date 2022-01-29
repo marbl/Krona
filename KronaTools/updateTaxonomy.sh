@@ -20,6 +20,8 @@ fi
 readlink_f(){ perl -MCwd -e 'print Cwd::abs_path shift' "$1";}
 ktPath=$(dirname $(readlink_f $0))
 
+echo $ktPATH
+
 makefileAcc2taxid="scripts/accession2taxid.make"
 makefileTaxonomy="scripts/taxonomy.make"
 
