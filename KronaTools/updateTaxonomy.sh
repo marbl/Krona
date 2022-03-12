@@ -23,8 +23,12 @@ ktPath=$(dirname $(readlink_f $0))
 makefileAcc2taxid="scripts/accession2taxid.make"
 makefileTaxonomy="scripts/taxonomy.make"
 
-command -v curl >/dev/null 2>&1 || \
-	{ echo >&2 "ERROR: Curl (http://curl.haxx.se) is required."; exit 1; }
+# check if --only-build is set
+# could potentially pick up false positives if other flags are added e.g. --only-build-and-fetch
+if ! [[ $* == *--only-build* ]]; then
+	command -v curl >/dev/null 2>&1 || \
+		{ echo >&2 "ERROR: Curl (http://curl.haxx.se) is required."; exit 1; }
+fi
 
 while [ "$#" -ne 0 ]
 do
